@@ -3,27 +3,39 @@ import { useRoute, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
-  FileDown, CalendarPlus, MapPin, Edit2, Plus, Check, X, Map
+  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 
+/* ─── constants ─────────────────────────────────────────────── */
 const TAG_COLORS: Record<string, string> = {
-  food: "bg-amber-100 text-amber-700 border-amber-200",
-  culture: "bg-violet-100 text-violet-700 border-violet-200",
-  adventure: "bg-green-100 text-green-700 border-green-200",
-  relaxation: "bg-blue-100 text-blue-700 border-blue-200",
-  nightlife: "bg-pink-100 text-pink-700 border-pink-200",
-  shopping: "bg-orange-100 text-orange-700 border-orange-200",
-  travel: "bg-gray-100 text-gray-600 border-gray-200",
+  food:        "bg-amber-100 text-amber-700 border-amber-200",
+  culture:     "bg-violet-100 text-violet-700 border-violet-200",
+  adventure:   "bg-green-100 text-green-700 border-green-200",
+  relaxation:  "bg-blue-100 text-blue-700 border-blue-200",
+  nightlife:   "bg-pink-100 text-pink-700 border-pink-200",
+  shopping:    "bg-orange-100 text-orange-700 border-orange-200",
+  travel:      "bg-gray-100 text-gray-600 border-gray-200",
 };
 
-const TAG_OPTIONS = ["food", "culture", "adventure", "relaxation", "nightlife", "shopping", "travel"];
+const TAG_LEFT_BORDER: Record<string, string> = {
+  food:        "#f59e0b",
+  culture:     "#7c3aed",
+  adventure:   "#16a34a",
+  relaxation:  "#2563eb",
+  nightlife:   "#db2777",
+  shopping:    "#ea580c",
+  travel:      "#9ca3af",
+};
 
-function makeICSDate(baseDate: Date, dayOffset: number, timeStr: string): string {
+const TAG_OPTIONS = ["food","culture","adventure","relaxation","nightlife","shopping","travel"];
+
+/* ─── helpers ────────────────────────────────────────────────── */
+function parseActivityTime(baseDate: Date, dayOffset: number, timeStr: string) {
   const d = new Date(baseDate);
   d.setDate(d.getDate() + dayOffset);
-  const match = timeStr.match(/(\d+):(\d+)\s*(am|pm)?/i);
+  const match = timeStr?.match(/(\d+):(\d+)\s*(am|pm)?/i);
   if (match) {
     let h = parseInt(match[1]);
     const m = parseInt(match[2]);
@@ -34,237 +46,141 @@ function makeICSDate(baseDate: Date, dayOffset: number, timeStr: string): string
   } else {
     d.setHours(9, 0, 0, 0);
   }
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return d;
 }
 
-function generateICS(itinerary: any, trip: any): string {
-  const startDate = trip?.startDate ? new Date(trip.startDate) : new Date();
-  const lines: string[] = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
+function toGCalDate(d: Date) {
+  return d.toISOString().replace(/[-:.]/g, "").slice(0, 15);
+}
+
+function buildActivityCalendarUrl(act: any, day: any, trip: any, dayIndex: number): string {
+  const base = trip?.startDate ? new Date(trip.startDate) : new Date();
+  const start = parseActivityTime(base, dayIndex, act.time || "9:00am");
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const params = new URLSearchParams({
+    action:   "TEMPLATE",
+    text:     act.name || "",
+    details:  act.description || "",
+    location: `${act.name || ""}, ${day.city || trip?.destination || ""}`,
+    dates:    `${toGCalDate(start)}/${toGCalDate(end)}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function buildActivityMapsUrl(act: any, day: any, trip: any): string {
+  const q = `${act.name || ""}, ${day.city || trip?.destination || ""}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+function buildAllMapsUrl(itinerary: any, trip: any): string {
+  const dest = trip?.destination || "";
+  const places: string[] = [];
+  (itinerary.days || []).forEach((day: any) =>
+    (day.activities || []).forEach((act: any) => {
+      if (act.name) places.push(`${act.name}, ${day.city || dest}`);
+    })
+  );
+  if (places.length === 0) return `https://www.google.com/maps/search/${encodeURIComponent(dest)}`;
+  if (places.length === 1) return `https://www.google.com/maps/search/${encodeURIComponent(places[0])}`;
+  const origin = encodeURIComponent(places[0]);
+  const destination = encodeURIComponent(places[places.length - 1]);
+  const waypoints = places.slice(1, -1).map(encodeURIComponent).join("|");
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ""}`;
+}
+
+function buildFullICS(itinerary: any, trip: any): string {
+  const base = trip?.startDate ? new Date(trip.startDate) : new Date();
+  const lines = [
+    "BEGIN:VCALENDAR","VERSION:2.0",
     "PRODID:-//GoPack//AI Travel Planner//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
+    "CALSCALE:GREGORIAN","METHOD:PUBLISH",
     `X-WR-CALNAME:${itinerary.title || trip?.destination || "Trip"}`,
   ];
-
   (itinerary.days || []).forEach((day: any, di: number) => {
     (day.activities || []).forEach((act: any) => {
-      const dtStart = makeICSDate(startDate, di, act.time || "9:00am");
-      const dtEnd = makeICSDate(startDate, di, act.time || "9:00am");
-      const endDate = new Date(dtEnd.slice(0, 8) + "T" + dtEnd.slice(8));
-      endDate.setHours(endDate.getHours() + 1);
-      const dtEndStr = endDate.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-
-      lines.push("BEGIN:VEVENT");
-      lines.push(`DTSTART:${dtStart}`);
-      lines.push(`DTEND:${dtEndStr}`);
-      lines.push(`SUMMARY:${(act.name || "").replace(/,/g, "\\,")}`);
-      lines.push(`DESCRIPTION:${(act.description || "").replace(/,/g, "\\,").replace(/\n/g, "\\n")}`);
-      lines.push(`LOCATION:${day.city || trip?.destination || ""}`);
-      lines.push("END:VEVENT");
+      const start = parseActivityTime(base, di, act.time || "9:00am");
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      const fmt = (d: Date) => d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+      lines.push("BEGIN:VEVENT",
+        `DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,
+        `SUMMARY:${(act.name||"").replace(/,/g,"\\,")}`,
+        `DESCRIPTION:${(act.description||"").replace(/,/g,"\\,").replace(/\n/g,"\\n")}`,
+        `LOCATION:${day.city||trip?.destination||""}`,
+        "END:VEVENT");
     });
   });
-
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
-}
-
-function buildGoogleMapsUrl(itinerary: any, trip: any): string {
-  const destination = trip?.destination || "";
-  const places: string[] = [];
-
-  (itinerary.days || []).forEach((day: any) => {
-    (day.activities || []).forEach((act: any) => {
-      if (act.name) {
-        places.push(`${act.name}, ${day.city || destination}`);
-      }
-    });
-  });
-
-  if (places.length === 0) {
-    return `https://www.google.com/maps/search/${encodeURIComponent(destination)}`;
-  }
-  if (places.length === 1) {
-    return `https://www.google.com/maps/search/${encodeURIComponent(places[0])}`;
-  }
-
-  const origin = encodeURIComponent(places[0]);
-  const dest = encodeURIComponent(places[places.length - 1]);
-  const waypoints = places.slice(1, -1).map(encodeURIComponent).join("|");
-  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ""}`;
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
-interface ActivityEditorProps {
-  activity: any;
-  onSave: (updated: any) => void;
-  onCancel: () => void;
-}
-
-function ActivityEditor({ activity, onSave, onCancel }: ActivityEditorProps) {
+/* ─── ActivityEditor ─────────────────────────────────────────── */
+function ActivityEditor({ activity, onSave, onCancel }: { activity: any; onSave: (u: any) => void; onCancel: () => void }) {
   const [form, setForm] = useState({ ...activity });
+  const set_ = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   return (
     <div className="border-2 border-primary/30 rounded-2xl p-5 bg-primary/5 flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Name</label>
-          <input
-            value={form.name || ""}
-            onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Time</label>
-          <input
-            value={form.time || ""}
-            onChange={e => setForm((f: any) => ({ ...f, time: e.target.value }))}
-            placeholder="e.g. 10:00am"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Name</label>
+          <input value={form.name||""} onChange={e=>set_("name",e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Time</label>
+          <input value={form.time||""} onChange={e=>set_("time",e.target.value)} placeholder="e.g. 10:00am" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
       </div>
-      <div>
-        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Description</label>
-        <textarea
-          value={form.description || ""}
-          onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))}
-          rows={3}
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-        />
-      </div>
+      <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Description</label>
+        <textarea value={form.description||""} onChange={e=>set_("description",e.target.value)} rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"/></div>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. cost ($)</label>
-          <input
-            type="number"
-            value={form.estimatedCost || 0}
-            onChange={e => setForm((f: any) => ({ ...f, estimatedCost: Number(e.target.value) }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Category</label>
-          <select
-            value={form.tag || "travel"}
-            onChange={e => setForm((f: any) => ({ ...f, tag: e.target.value }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            {TAG_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. cost ($)</label>
+          <input type="number" value={form.estimatedCost||0} onChange={e=>set_("estimatedCost",Number(e.target.value))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Category</label>
+          <select value={form.tag||"travel"} onChange={e=>set_("tag",e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            {TAG_OPTIONS.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
-        <button
-          onClick={onCancel}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors"
-        >
-          <X size={14} /> Cancel
-        </button>
-        <button
-          onClick={() => onSave(form)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Check size={14} /> Save
-        </button>
+        <button onClick={onCancel} className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors"><X size={14}/> Cancel</button>
+        <button onClick={()=>onSave(form)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"><Check size={14}/> Save</button>
       </div>
     </div>
   );
 }
 
-interface AddActivityFormProps {
-  dayIndex: number;
-  onAdd: (dayIndex: number, activity: any) => void;
-  onCancel: () => void;
-}
-
-function AddActivityForm({ dayIndex, onAdd, onCancel }: AddActivityFormProps) {
-  const [form, setForm] = useState({
-    name: "", time: "", description: "", estimatedCost: 0, tag: "travel", labels: [], fromWish: false, suggester: "Manual"
-  });
+/* ─── AddActivityForm ────────────────────────────────────────── */
+function AddActivityForm({ dayIndex, onAdd, onCancel }: { dayIndex: number; onAdd: (di: number, a: any) => void; onCancel: () => void }) {
+  const [form, setForm] = useState({ name:"", time:"", description:"", estimatedCost:0, tag:"travel", labels:[], fromWish:false, suggester:"Manual" });
+  const set_ = (k: string, v: any) => setForm(f=>({ ...f, [k]: v }));
   return (
     <div className="border-2 border-dashed border-primary/40 rounded-2xl p-5 bg-primary/5 flex flex-col gap-3">
       <p className="text-sm font-medium text-primary">New activity</p>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Name *</label>
-          <input
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Louvre Museum"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Time</label>
-          <input
-            value={form.time}
-            onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-            placeholder="e.g. 10:00am"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Name *</label>
+          <input value={form.name} onChange={e=>set_("name",e.target.value)} placeholder="e.g. Louvre Museum" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Time</label>
+          <input value={form.time} onChange={e=>set_("time",e.target.value)} placeholder="e.g. 10:00am" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
       </div>
-      <div>
-        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Description</label>
-        <textarea
-          value={form.description}
-          onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-          rows={2}
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-          placeholder="What to expect…"
-        />
-      </div>
+      <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Description</label>
+        <textarea value={form.description} onChange={e=>set_("description",e.target.value)} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="What to expect…"/></div>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. cost ($)</label>
-          <input
-            type="number"
-            value={form.estimatedCost}
-            onChange={e => setForm(f => ({ ...f, estimatedCost: Number(e.target.value) }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Category</label>
-          <select
-            value={form.tag}
-            onChange={e => setForm(f => ({ ...f, tag: e.target.value }))}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            {TAG_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. cost ($)</label>
+          <input type="number" value={form.estimatedCost} onChange={e=>set_("estimatedCost",Number(e.target.value))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"/></div>
+        <div><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Category</label>
+          <select value={form.tag} onChange={e=>set_("tag",e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            {TAG_OPTIONS.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
-        <button
-          onClick={onCancel}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors"
-        >
-          <X size={14} /> Cancel
-        </button>
-        <button
-          onClick={() => { if (form.name.trim()) onAdd(dayIndex, form); }}
-          disabled={!form.name.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40"
-        >
-          <Plus size={14} /> Add activity
-        </button>
+        <button onClick={onCancel} className="flex items-center gap-1.5 px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors"><X size={14}/> Cancel</button>
+        <button onClick={()=>{ if(form.name.trim()) onAdd(dayIndex,form); }} disabled={!form.name.trim()} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40"><Plus size={14}/> Add activity</button>
       </div>
     </div>
   );
 }
 
+/* ─── main page ──────────────────────────────────────────────── */
 export default function Itinerary() {
   const [, params] = useRoute("/trip/:tripId/itinerary");
   const tripId = params?.tripId || "";
@@ -280,8 +196,7 @@ export default function Itinerary() {
 
   useEffect(() => {
     if (!tripId) return;
-    const tripRef = ref(db, `trips/${tripId}`);
-    const unsub = onValue(tripRef, snap => {
+    const unsub = onValue(ref(db, `trips/${tripId}`), snap => {
       const data = snap.val();
       if (data) {
         setTrip(data);
@@ -303,120 +218,197 @@ export default function Itinerary() {
       await set(ref(db, `trips/${tripId}/itinerary`), localItinerary);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  const handleEditSave = (dayIndex: number, actIndex: number, updated: any) => {
+  const handleEditSave = (di: number, ai: number, updated: any) => {
     const next = JSON.parse(JSON.stringify(localItinerary));
-    next.days[dayIndex].activities[actIndex] = updated;
+    next.days[di].activities[ai] = updated;
     setLocalItinerary(next);
     setEditingKey(null);
   };
 
-  const handleAddActivity = (dayIndex: number, activity: any) => {
+  const handleAddActivity = (di: number, activity: any) => {
     const next = JSON.parse(JSON.stringify(localItinerary));
-    next.days[dayIndex].activities.push(activity);
+    next.days[di].activities.push(activity);
     setLocalItinerary(next);
     setAddingToDayIndex(null);
   };
 
-  const handleExportPDF = () => {
-    window.print();
-  };
+  const handleExportPDF = () => window.print();
 
-  const handleExportCalendar = () => {
+  const handleExportAllCalendar = () => {
     if (!localItinerary) return;
-    const ics = generateICS(localItinerary, trip);
-    const name = (trip?.destination || "trip").replace(/\s+/g, "-").toLowerCase();
-    downloadFile(ics, `${name}-itinerary.ics`, "text/calendar;charset=utf-8");
+    downloadFile(buildFullICS(localItinerary, trip), `${(trip?.destination||"trip").replace(/\s+/g,"-").toLowerCase()}-itinerary.ics`, "text/calendar;charset=utf-8");
   };
 
-  const handleOpenMaps = () => {
+  const handleOpenAllMaps = () => {
     if (!localItinerary) return;
-    const url = buildGoogleMapsUrl(localItinerary, trip);
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(buildAllMapsUrl(localItinerary, trip), "_blank", "noopener,noreferrer");
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 size={24} className="animate-spin text-primary"/>
+    </div>
+  );
 
   return (
     <>
+      {/* ── print styles ── */}
       <style>{`
         @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .no-print { display: none !important; }
-          body { background: white !important; }
-          nav { display: none !important; }
-          .print-page { padding: 0 !important; }
+          body { margin: 0; background: #fff !important; font-family: Georgia, serif; }
+
+          /* cover header */
+          .print-header {
+            background: #1a1a1a !important;
+            color: #fff !important;
+            padding: 48px 48px 40px;
+            margin-bottom: 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+          }
+          .print-header-logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; opacity: 0.6; font-family: sans-serif; }
+          .print-header-logo span { color: #E85D3A; }
+          .print-header-title { font-size: 38px; font-weight: 700; line-height: 1.15; margin: 16px 0 8px; }
+          .print-header-sub { font-size: 15px; opacity: 0.6; }
+
+          /* content wrapper */
+          .print-content { padding: 40px 48px; }
+
+          /* day section */
+          .print-day { margin-bottom: 40px; break-inside: avoid-page; }
+          .print-day-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 20px;
+            background: #E85D3A !important;
+            color: #fff !important;
+            border-radius: 12px;
+            margin-bottom: 16px;
+          }
+          .print-day-number {
+            width: 36px; height: 36px;
+            background: rgba(255,255,255,0.2) !important;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700;
+          }
+          .print-day-city { font-size: 20px; font-weight: 700; }
+          .print-day-theme { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+
+          /* activity card */
+          .print-activity {
+            border: 1px solid #e5e7eb !important;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            break-inside: avoid;
+            display: flex;
+            gap: 16px;
+            position: relative;
+            border-left-width: 4px !important;
+          }
+          .print-activity-time { font-size: 12px; color: #6b7280; margin-bottom: 4px; font-family: sans-serif; }
+          .print-activity-name { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+          .print-activity-desc { font-size: 13px; color: #4b5563; line-height: 1.6; }
+          .print-activity-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+          .print-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; font-family: sans-serif; border: 1px solid; }
+          .print-tag-food       { background: #fef3c7 !important; color: #92400e !important; border-color: #fde68a !important; }
+          .print-tag-culture    { background: #ede9fe !important; color: #5b21b6 !important; border-color: #c4b5fd !important; }
+          .print-tag-adventure  { background: #dcfce7 !important; color: #14532d !important; border-color: #86efac !important; }
+          .print-tag-relaxation { background: #dbeafe !important; color: #1e3a8a !important; border-color: #93c5fd !important; }
+          .print-tag-nightlife  { background: #fce7f3 !important; color: #831843 !important; border-color: #f9a8d4 !important; }
+          .print-tag-shopping   { background: #ffedd5 !important; color: #7c2d12 !important; border-color: #fdba74 !important; }
+          .print-tag-travel     { background: #f3f4f6 !important; color: #374151 !important; border-color: #d1d5db !important; }
+          .print-wish-badge     { background: #fef2f2 !important; color: #E85D3A !important; border: 1px solid #fecaca !important; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+          .print-cost { font-size: 14px; color: #374151; font-weight: 600; font-family: sans-serif; white-space: nowrap; }
+
+          .print-activity-right { margin-left: auto; text-align: right; min-width: 72px; }
+
+          /* footer */
+          .print-footer { text-align: center; color: #9ca3af; font-size: 11px; font-family: sans-serif; padding: 24px 0; border-top: 1px solid #f3f4f6; }
+
+          /* hide screen-only elements */
+          nav, .print-screen-only { display: none !important; }
+          .print-page { padding: 0 !important; max-width: 100% !important; }
+        }
+
+        @media screen {
+          .print-header, .print-day-header, .print-activity,
+          .print-day-number, .print-activity-meta, .print-tag,
+          .print-wish-badge, .print-cost, .print-footer,
+          .print-content, .print-day, .print-activity-right,
+          .print-activity-name, .print-activity-desc, .print-activity-time,
+          .print-day-city, .print-day-theme, .print-header-logo,
+          .print-header-title, .print-header-sub { all: unset; display: revert; }
         }
       `}</style>
 
+      {/* ── screen layout ── */}
       <div className="min-h-screen bg-background text-foreground">
+        {/* nav */}
         <nav className="no-print flex items-center justify-between px-8 py-5 border-b border-border sticky top-0 bg-background z-10">
           <div className="flex items-center gap-4">
             <Link href={`/trip/${tripId}`} className="text-muted-foreground hover:text-foreground" data-testid="link-back">
-              <ArrowLeft size={20} />
+              <ArrowLeft size={20}/>
             </Link>
             <Link href="/" className="font-display font-bold text-xl" data-testid="link-logo">
               go<span className="text-primary">pack</span>
             </Link>
           </div>
-
           {localItinerary && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {isDirty && (
-                <button
-                  onClick={saveChanges}
-                  disabled={saving}
+                <button onClick={saveChanges} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  data-testid="button-save-changes"
-                >
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : saveSuccess ? <Check size={14} /> : null}
+                  data-testid="button-save-changes">
+                  {saving ? <Loader2 size={14} className="animate-spin"/> : saveSuccess ? <Check size={14}/> : null}
                   {saving ? "Saving…" : saveSuccess ? "Saved!" : "Save changes"}
                 </button>
               )}
-              <button
-                onClick={handleExportCalendar}
+              <button onClick={handleExportAllCalendar}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="Export to Calendar"
-                data-testid="button-export-calendar"
-              >
-                <CalendarPlus size={15} />
-                <span className="hidden sm:inline">Calendar</span>
+                title="Export all to Calendar" data-testid="button-export-calendar">
+                <CalendarPlus size={15}/><span className="hidden sm:inline">Calendar</span>
               </button>
-              <button
-                onClick={handleOpenMaps}
+              <button onClick={handleOpenAllMaps}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="Open in Google Maps"
-                data-testid="button-open-maps"
-              >
-                <Map size={15} />
-                <span className="hidden sm:inline">Maps</span>
+                title="All stops in Google Maps" data-testid="button-open-maps">
+                <MapPin size={15}/><span className="hidden sm:inline">Maps</span>
               </button>
-              <button
-                onClick={handleExportPDF}
+              <button onClick={handleExportPDF}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="Export as PDF"
-                data-testid="button-export-pdf"
-              >
-                <FileDown size={15} />
-                <span className="hidden sm:inline">PDF</span>
+                title="Export as PDF" data-testid="button-export-pdf">
+                <FileDown size={15}/><span className="hidden sm:inline">PDF</span>
               </button>
             </div>
           )}
         </nav>
 
-        <div className="max-w-3xl mx-auto px-8 py-12 print-page" ref={printRef}>
+        {/* ── print header (hidden on screen via print-only class) ── */}
+        {localItinerary && (
+          <div className="print-header" style={{display:"none"}}>
+            <div>
+              <div className="print-header-logo">go<span>pack</span></div>
+              <div className="print-header-title">{localItinerary.title}</div>
+              <div className="print-header-sub">{localItinerary.days?.length} days · {trip?.destination}</div>
+            </div>
+            <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
+              AI-generated itinerary<br/>gopack.now
+            </div>
+          </div>
+        )}
+
+        <div className="max-w-3xl mx-auto px-8 py-12 print-page print-content" ref={printRef}>
           {!localItinerary ? (
             <div className="text-center py-20 text-muted-foreground">
-              <Sparkles size={32} className="mx-auto mb-4 opacity-30" />
+              <Sparkles size={32} className="mx-auto mb-4 opacity-30"/>
               <p className="font-medium mb-2">No itinerary yet</p>
               <p className="text-sm mb-6">Go back to the trip hub and generate one.</p>
               <Link href={`/trip/${tripId}`} className="bg-primary text-white font-medium px-6 py-3 rounded-full hover:bg-primary/90 transition-colors" data-testid="link-go-back">
@@ -425,43 +417,31 @@ export default function Itinerary() {
             </div>
           ) : (
             <>
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+              {/* screen title row */}
+              <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="print-screen-only no-print">
                 <p className="text-sm text-muted-foreground mb-1">{trip?.destination}</p>
                 <h1 className="font-serif text-5xl font-bold mb-2">{localItinerary.title}</h1>
                 <p className="text-muted-foreground mb-6">{localItinerary.days?.length} days planned by AI from your group&apos;s wishes</p>
-
-                <div className="no-print flex flex-wrap gap-2 mb-10">
-                  <button
-                    onClick={handleExportCalendar}
-                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                  >
-                    <CalendarPlus size={14} /> Add to Calendar
+                <div className="flex flex-wrap gap-2 mb-10">
+                  <button onClick={handleExportAllCalendar} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                    <CalendarPlus size={14}/> Add all to Calendar
                   </button>
-                  <button
-                    onClick={handleOpenMaps}
-                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                  >
-                    <Map size={14} /> Open in Google Maps
+                  <button onClick={handleOpenAllMaps} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                    <MapPin size={14}/> Full route in Maps
                   </button>
-                  <button
-                    onClick={handleExportPDF}
-                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                  >
-                    <FileDown size={14} /> Export PDF
+                  <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                    <FileDown size={14}/> Export PDF
                   </button>
                 </div>
               </motion.div>
 
+              {/* days */}
               <div className="flex flex-col gap-12">
                 {(localItinerary.days || []).map((day: any, di: number) => (
-                  <motion.div
-                    key={di}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: di * 0.07 }}
-                    data-testid={`day-${di + 1}`}
-                  >
-                    <div className="flex items-baseline gap-4 mb-6">
+                  <motion.div key={di} initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:di*0.07}} data-testid={`day-${di+1}`}>
+
+                    {/* ── screen day header ── */}
+                    <div className="no-print flex items-center gap-4 mb-6">
                       <div className="w-12 h-12 rounded-xl bg-foreground text-background flex items-center justify-center font-display font-bold text-xl shrink-0">
                         {day.dayNumber}
                       </div>
@@ -471,91 +451,115 @@ export default function Itinerary() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-4 pl-16">
+                    {/* ── print day header ── */}
+                    <div className="print-day-header" style={{display:"none"}}>
+                      <div className="print-day-number">{day.dayNumber}</div>
+                      <div>
+                        <div className="print-day-city">{day.city}</div>
+                        <div className="print-day-theme">{day.theme}</div>
+                      </div>
+                    </div>
+
+                    {/* activities */}
+                    <div className="flex flex-col gap-4 no-print:pl-16 pl-0 md:pl-16">
                       <AnimatePresence>
-                        {(day.activities || []).map((act: any, ai: number) => {
+                        {(day.activities||[]).map((act: any, ai: number) => {
                           const key = `${di}-${ai}`;
                           const isEditing = editingKey === key;
+                          const borderColor = TAG_LEFT_BORDER[act.tag] || TAG_LEFT_BORDER.travel;
                           return (
-                            <motion.div
-                              key={ai}
-                              layout
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -8 }}
-                              data-testid={`activity-${di + 1}-${ai + 1}`}
-                            >
+                            <motion.div key={ai} layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} data-testid={`activity-${di+1}-${ai+1}`}>
                               {isEditing ? (
-                                <ActivityEditor
-                                  activity={act}
-                                  onSave={(updated) => handleEditSave(di, ai, updated)}
-                                  onCancel={() => setEditingKey(null)}
-                                />
+                                <ActivityEditor activity={act} onSave={u=>handleEditSave(di,ai,u)} onCancel={()=>setEditingKey(null)}/>
                               ) : (
-                                <div className="group border border-border rounded-2xl p-5 bg-background hover:border-border/80 transition-colors relative">
-                                  <button
-                                    onClick={() => { setAddingToDayIndex(null); setEditingKey(key); }}
-                                    className="no-print absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-muted/60 transition-all text-muted-foreground"
-                                    title="Edit activity"
-                                    data-testid={`button-edit-activity-${di + 1}-${ai + 1}`}
-                                  >
-                                    <Edit2 size={14} />
-                                  </button>
+                                <>
+                                  {/* ── screen card ── */}
+                                  <div className="no-print group border border-border rounded-2xl p-5 bg-background hover:border-border/80 transition-colors relative"
+                                    style={{borderLeft:`4px solid ${borderColor}`}}>
+                                    <button
+                                      onClick={()=>{setAddingToDayIndex(null);setEditingKey(key);}}
+                                      className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-muted/60 transition-all text-muted-foreground"
+                                      title="Edit activity" data-testid={`button-edit-activity-${di+1}-${ai+1}`}>
+                                      <Edit2 size={14}/>
+                                    </button>
+                                    <div className="flex items-start justify-between gap-4 mb-3 pr-8">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <Clock size={13} className="text-muted-foreground"/>
+                                          <span className="text-xs text-muted-foreground">{act.time}</span>
+                                          {act.fromWish && (
+                                            <span className="flex items-center gap-1 text-xs text-primary"><Star size={11}/> From a wish</span>
+                                          )}
+                                        </div>
+                                        <h3 className="font-medium text-base">{act.name}</h3>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0 text-sm text-muted-foreground">
+                                        <DollarSign size={13}/><span>~${act.estimatedCost}</span>
+                                      </div>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground leading-relaxed mb-3">{act.description}</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${TAG_COLORS[act.tag]||TAG_COLORS.travel}`}>
+                                        {act.tag}
+                                      </span>
+                                      {(act.labels||[]).map((l: string, li: number) => (
+                                        <span key={li} className="text-xs px-2.5 py-0.5 rounded-full border border-border text-muted-foreground">{l}</span>
+                                      ))}
+                                      {act.suggester && act.suggester !== "AI pick" && (
+                                        <span className="text-xs text-muted-foreground ml-auto">Suggested by {act.suggester}</span>
+                                      )}
+                                      {/* per-activity export buttons */}
+                                      <div className="ml-auto flex items-center gap-1.5">
+                                        <a href={buildActivityCalendarUrl(act, day, trip, di)} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                          title="Add to Google Calendar" data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
+                                          <CalendarPlus size={11}/> Calendar
+                                        </a>
+                                        <a href={buildActivityMapsUrl(act, day, trip)} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                          title="Open in Google Maps" data-testid={`button-act-maps-${di+1}-${ai+1}`}>
+                                          <MapPin size={11}/> Maps
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </div>
 
-                                  <div className="flex items-start justify-between gap-4 mb-3 pr-8">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <Clock size={13} className="text-muted-foreground" />
-                                        <span className="text-xs text-muted-foreground">{act.time}</span>
-                                        {act.fromWish && (
-                                          <span className="flex items-center gap-1 text-xs text-primary">
-                                            <Star size={11} /> From a wish
-                                          </span>
+                                  {/* ── print card ── */}
+                                  <div className="print-activity" style={{display:"none", borderLeftColor:borderColor}}>
+                                    <div style={{flex:1}}>
+                                      <div className="print-activity-time">{act.time}{act.fromWish ? " · ★ From a wish" : ""}</div>
+                                      <div className="print-activity-name">{act.name}</div>
+                                      <div className="print-activity-desc">{act.description}</div>
+                                      <div className="print-activity-meta">
+                                        <span className={`print-tag print-tag-${act.tag||"travel"}`}>{act.tag||"travel"}</span>
+                                        {(act.labels||[]).map((l: string, li: number) => (
+                                          <span key={li} className="print-tag print-tag-travel">{l}</span>
+                                        ))}
+                                        {act.suggester && act.suggester !== "AI pick" && (
+                                          <span style={{fontSize:11,color:"#9ca3af"}}>by {act.suggester}</span>
                                         )}
                                       </div>
-                                      <h3 className="font-medium text-base">{act.name}</h3>
                                     </div>
-                                    <div className="flex items-center gap-1 shrink-0 text-sm text-muted-foreground">
-                                      <DollarSign size={13} />
-                                      <span>~${act.estimatedCost}</span>
+                                    <div className="print-activity-right">
+                                      <div className="print-cost">${act.estimatedCost}</div>
                                     </div>
                                   </div>
-                                  <p className="text-sm text-muted-foreground leading-relaxed mb-3">{act.description}</p>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${TAG_COLORS[act.tag] || TAG_COLORS.travel}`}>
-                                      {act.tag}
-                                    </span>
-                                    {(act.labels || []).map((label: string, li: number) => (
-                                      <span key={li} className="text-xs px-2.5 py-0.5 rounded-full border border-border text-muted-foreground">
-                                        {label}
-                                      </span>
-                                    ))}
-                                    {act.suggester && act.suggester !== "AI pick" && (
-                                      <span className="text-xs text-muted-foreground ml-auto">
-                                        Suggested by {act.suggester}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
+                                </>
                               )}
                             </motion.div>
                           );
                         })}
                       </AnimatePresence>
 
+                      {/* add activity button */}
                       {addingToDayIndex === di ? (
-                        <AddActivityForm
-                          dayIndex={di}
-                          onAdd={handleAddActivity}
-                          onCancel={() => setAddingToDayIndex(null)}
-                        />
+                        <AddActivityForm dayIndex={di} onAdd={handleAddActivity} onCancel={()=>setAddingToDayIndex(null)}/>
                       ) : (
                         <button
-                          onClick={() => { setEditingKey(null); setAddingToDayIndex(di); }}
+                          onClick={()=>{setEditingKey(null);setAddingToDayIndex(di);}}
                           className="no-print flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2 px-4 border border-dashed border-border rounded-xl hover:border-border/80 transition-colors"
-                          data-testid={`button-add-activity-day-${di + 1}`}
-                        >
-                          <Plus size={15} /> Add activity to Day {day.dayNumber}
+                          data-testid={`button-add-activity-day-${di+1}`}>
+                          <Plus size={15}/> Add activity to Day {day.dayNumber}
                         </button>
                       )}
                     </div>
@@ -563,14 +567,17 @@ export default function Itinerary() {
                 ))}
               </div>
 
+              {/* print footer */}
+              <div className="print-footer" style={{display:"none"}}>
+                gopack.now · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+              </div>
+
+              {/* save bar */}
               {isDirty && (
                 <div className="no-print mt-12 pt-6 border-t border-border flex justify-end">
-                  <button
-                    onClick={saveChanges}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : saveSuccess ? <Check size={16} /> : null}
+                  <button onClick={saveChanges} disabled={saving}
+                    className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    {saving ? <Loader2 size={16} className="animate-spin"/> : saveSuccess ? <Check size={16}/> : null}
                     {saving ? "Saving…" : saveSuccess ? "Saved!" : "Save changes"}
                   </button>
                 </div>
