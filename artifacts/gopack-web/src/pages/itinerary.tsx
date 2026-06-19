@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
-  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin
+  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
@@ -462,7 +462,15 @@ export default function Itinerary() {
               <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="print-screen-only no-print mb-10">
                 <p className="text-sm text-muted-foreground font-medium tracking-wide uppercase mb-2">{trip?.destination}</p>
                 <h1 className="font-serif text-4xl sm:text-5xl font-bold mb-3 leading-tight">{localItinerary.title}</h1>
-                <p className="text-muted-foreground mb-6">{localItinerary.days?.length} days planned by AI from your group&apos;s wishes</p>
+                <p className="text-muted-foreground mb-3">{localItinerary.days?.length} days planned by AI from your group&apos;s wishes</p>
+                {trip?.members && Object.keys(trip.members).length > 0 && (
+                  <div className="flex items-center gap-2 mb-6">
+                    <Users size={13} className="text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground">
+                      {(Object.values(trip.members) as any[]).map((m: any) => m.name).filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button onClick={handleExportAllCalendar} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
                     <CalendarPlus size={14}/> Add all to Calendar

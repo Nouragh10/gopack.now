@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
+import Explore from "@/pages/explore";
 import Create from "@/pages/create";
 import JoinTrip from "@/pages/join";
 import TripHub from "@/pages/trip-hub";
@@ -50,6 +51,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={Login} />
+        <Route path="/explore" component={Explore} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/create" component={Create} />
         <Route path="/join/:tripId" component={JoinTrip} />

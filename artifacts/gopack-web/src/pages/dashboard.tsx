@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Plus, MapPin, Users, LogOut, ChevronRight } from "lucide-react";
+import { Plus, MapPin, Users, LogOut, ChevronRight, Compass } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrips } from "@/hooks/useFirebase";
 
@@ -46,6 +46,9 @@ export default function Dashboard() {
           go<span className="text-primary">pack</span>
         </Link>
         <div className="flex items-center gap-4">
+          <Link href="/explore" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-explore">
+            <Compass size={16} /> Explore
+          </Link>
           <Link
             href="/profile"
             className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium hover:opacity-80 transition-opacity"
