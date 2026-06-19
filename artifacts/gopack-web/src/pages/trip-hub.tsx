@@ -145,56 +145,54 @@ export default function TripHub() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
 
       {/* ── Top nav ── */}
-      <nav className="grid grid-cols-3 items-center px-6 py-4 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-20">
-        {/* Left: logo + destination */}
-        <div className="flex items-center gap-3 min-w-0">
+      <nav className="flex items-center px-6 py-3 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-20 gap-4">
+        {/* Left: logo + destination — flex-1 so it shares space equally with right */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Link href="/dashboard" className="text-muted-foreground hover:text-foreground shrink-0" data-testid="link-back">
             <ArrowLeft size={18} />
           </Link>
           <Link href="/" className="font-display font-bold text-lg shrink-0" data-testid="link-logo">
             go<span className="text-primary">pack</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border text-sm">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border text-sm shrink-0">
             <MapPin size={12} className="text-primary shrink-0" />
-            <span className="font-medium truncate max-w-[140px]">{trip.destination}</span>
+            <span className="font-medium truncate max-w-[120px]">{trip.destination}</span>
             <span className="text-muted-foreground">· {trip.days}d</span>
           </div>
         </div>
 
-        {/* Center: tab switcher — always centered regardless of side widths */}
-        <div className="flex justify-center">
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 border border-border">
-            {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab
-                    ? "bg-background text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                data-testid={`tab-${tab}`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                  activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                }`}>{i + 1}</span>
-                <span className="capitalize">{tab}</span>
-              </button>
-            ))}
-          </div>
+        {/* Center: tab switcher — exact center of the nav */}
+        <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 border border-border shrink-0">
+          {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`tab-${tab}`}
+            >
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+              }`}>{i + 1}</span>
+              <span className="capitalize">{tab}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Right: secondary actions — aligned to right edge */}
-        <div className="flex items-center justify-end gap-2">
-          <Link href={`/trip/${tripId}/chat`} className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors" data-testid="link-chat">
+        {/* Right: secondary actions — flex-1 + justify-end mirrors the left */}
+        <div className="flex items-center justify-end gap-2 flex-1">
+          <Link href={`/trip/${tripId}/chat`} className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted/50 transition-colors" data-testid="link-chat">
             <MessageSquare size={15} /> Chat
           </Link>
-          <Link href="/profile" className="text-muted-foreground hover:text-foreground px-2 py-2 rounded-lg hover:bg-muted/50 transition-colors" data-testid="link-profile">
+          <Link href="/profile" className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted/50 transition-colors" data-testid="link-profile">
             <UserCircle size={20} />
           </Link>
           <button
             onClick={copyInviteLink}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors font-medium shrink-0"
             data-testid="button-invite"
           >
             {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
@@ -426,31 +424,31 @@ export default function TripHub() {
             {/* ── TAB 3: GO ── */}
             {activeTab === "go" && (
               <motion.div key="go" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
-                <div className="max-w-xl">
-                  <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
-                  <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>
-                  <p className="text-muted-foreground mb-8">
-                    Claude will turn your top wishes into a perfect day-by-day plan for {trip.destination}.
-                  </p>
+                <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
+                <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>
+                <p className="text-muted-foreground mb-8">
+                  Claude will turn your top wishes into a perfect day-by-day plan for {trip.destination}.
+                </p>
 
+                <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
                   {/* Generate Itinerary */}
-                  <div className="border border-border rounded-2xl p-6 bg-background mb-4">
+                  <div className="border border-border rounded-2xl p-6 bg-background flex flex-col">
                     <div className="flex items-center gap-2 mb-2">
                       <Sparkles size={18} className="text-primary" />
                       <h3 className="font-semibold">AI Itinerary</h3>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-5">
+                    <p className="text-sm text-muted-foreground mb-5 flex-1">
                       Day-by-day plan built from your {wishes.length} wishes, tailored to {trip.destination}.
                     </p>
                     <button
                       onClick={handleGenerateItinerary}
                       disabled={generateItinerary.isPending}
-                      className="w-full bg-primary text-white font-medium py-3.5 rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full bg-primary text-white font-medium py-3 rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                       data-testid="button-generate-itinerary"
                     >
-                      {generateItinerary.isPending && <Loader2 size={15} className="animate-spin" />}
-                      {generateItinerary.isPending ? "Generating… (may take ~30s)" : "Generate itinerary"}
-                      {!generateItinerary.isPending && <ArrowRight size={16} />}
+                      {generateItinerary.isPending && <Loader2 size={14} className="animate-spin" />}
+                      {generateItinerary.isPending ? "Generating…" : "Generate itinerary"}
+                      {!generateItinerary.isPending && <ArrowRight size={14} />}
                     </button>
                     {itineraryError && (
                       <div className="mt-3 flex items-start gap-2 text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
@@ -468,22 +466,23 @@ export default function TripHub() {
                   </div>
 
                   {/* Generate Packing */}
-                  <div className="border border-border rounded-2xl p-6 bg-background">
+                  <div className="border border-border rounded-2xl p-6 bg-background flex flex-col">
                     <div className="flex items-center gap-2 mb-2">
                       <Package size={18} className="text-primary" />
                       <h3 className="font-semibold">Packing List</h3>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-5">
+                    <p className="text-sm text-muted-foreground mb-5 flex-1">
                       Smart packing list based on your destination, vibes, and budget.
                     </p>
                     <button
                       onClick={handleGeneratePacking}
                       disabled={generatePacking.isPending}
-                      className="w-full border border-border font-medium py-3.5 rounded-full hover:bg-muted/50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full bg-primary text-white font-medium py-3 rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                       data-testid="button-generate-packing"
                     >
-                      {generatePacking.isPending && <Loader2 size={15} className="animate-spin" />}
-                      {generatePacking.isPending ? "Generating… (may take ~30s)" : "Generate packing list"}
+                      {generatePacking.isPending && <Loader2 size={14} className="animate-spin" />}
+                      {generatePacking.isPending ? "Generating…" : "Generate packing list"}
+                      {!generatePacking.isPending && <Package size={14} />}
                     </button>
                     {packingError && (
                       <div className="mt-3 flex items-start gap-2 text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
