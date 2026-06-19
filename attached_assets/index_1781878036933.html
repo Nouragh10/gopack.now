@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="google-site-verification" content="1CDAQL_GZsZcK4pufJ1Zy6je5W03Uem_gWjpj2XJZ2Y" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gopack.now | AI Group Travel Planner — Plan Trips With Friends</title>
+  <meta name="description" content="gopack.now turns group trip planning from chaos into a beautiful itinerary. Share a link, everyone adds their wishlist, AI builds the perfect day-by-day plan. Free to explore." />
+
+  <!-- Canonical -->
+  <link rel="canonical" href="https://www.gopack.now" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="gopack.now | Plan group trips with AI" />
+  <meta property="og:description" content="Everyone adds their wishlist. AI builds one perfect itinerary for the whole group — in seconds. The easiest way to plan a trip with friends." />
+  <meta property="og:url" content="https://www.gopack.now" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://www.gopack.now/icons/icon-512.png" />
+  <meta property="og:site_name" content="gopack.now" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="gopack.now | AI Group Travel Planner" />
+  <meta name="twitter:description" content="Everyone adds their wishlist. AI builds one perfect itinerary for the whole group — in seconds." />
+  <meta name="twitter:image" content="https://www.gopack.now/icons/icon-512.png" />
+
+  <!-- SEO -->
+  <meta name="keywords" content="group travel planner, AI itinerary generator, collaborative trip planning, travel with friends, group trip app, AI travel, trip planner" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="gopack.now" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "gopack.now",
+    "url": "https://www.gopack.now",
+    "description": "AI-powered group travel planner. Share a link, collect everyone's wishlist, get a personalized day-by-day itinerary in seconds.",
+    "applicationCategory": "TravelApplication",
+    "operatingSystem": "Web, iOS, Android",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/icons/icon-192.png" type="image/png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#E85D3A" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="gopack" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="src/style.css" />
+
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-RN51YNGHJL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-RN51YNGHJL');
+  </script>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ── Password Modal ── -->
+<div id="pw-modal" class="pw-overlay">
+  <div class="pw-card">
+    <div class="pw-icon" id="pw-icon">🔒</div>
+    <h2 class="pw-title" id="pw-title">Set a trip password</h2>
+    <p class="pw-sub" id="pw-sub">Friends will need this to join your trip</p>
+    <div class="pw-input-wrap" id="pw-input-wrap">
+      <input id="pw-input" class="pw-input" placeholder="Enter password..." autocomplete="off" />
+      <button class="pw-toggle" onclick="togglePwVisibility()">👁</button>
+    </div>
+    <div class="form-error" id="pw-error">Please enter a password.</div>
+    <button class="pw-confirm" id="pw-confirm">Confirm</button>
+    <button class="pw-cancel" id="pw-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ── Help / FAQ Modal ── -->
+<div id="help-modal" class="pw-overlay" onclick="if(event.target===this)closeHelp()">
+  <div class="pw-card help-card">
+    <button class="help-close-btn" onclick="closeHelp()">×</button>
+    <div class="help-header">
+      <div class="help-icon">❓</div>
+      <h2 class="pw-title">How gopack works</h2>
+    </div>
+    <div class="help-sections">
+      <div class="help-section">
+        <div class="help-q">What is gopack.now?</div>
+        <div class="help-a">gopack is an AI-powered group travel planner. One person creates a trip, shares a link, friends add their wishes and vote — then AI builds a day-by-day itinerary that works for everyone.</div>
+      </div>
+      <div class="help-section">
+        <div class="help-q">Who is it for?</div>
+        <div class="help-a">Friend groups, families, couples, and solo travelers looking for a group. Anyone who's tried coordinating a trip over WhatsApp and given up knows exactly why gopack exists.</div>
+      </div>
+      <div class="help-section">
+        <div class="help-q">How does the AI itinerary work?</div>
+        <div class="help-a">After everyone adds their wishlist and votes, hit "Build our trip." Claude (Anthropic's AI) searches the web for currently open places and builds a realistic day-by-day plan that weaves in your top wishes.</div>
+      </div>
+      <div class="help-section">
+        <div class="help-q">Is it free?</div>
+        <div class="help-a">You can explore public trip itineraries for free. Creating or joining trips requires a free account. Premium features like group-finding and ambassador verification are coming soon.</div>
+      </div>
+      <div class="help-section">
+        <div class="help-q">Can I edit the itinerary?</div>
+        <div class="help-a">Yes — every activity has an Edit button. Changes sync in real time to all trip members.</div>
+      </div>
+      <div class="help-section">
+        <div class="help-q">How do I invite friends?</div>
+        <div class="help-a">After creating a trip you get a shareable link. Anyone with the link can join. You can optionally set a password for extra privacy.</div>
+      </div>
+    </div>
+    <a href="https://docs.google.com/forms/d/e/1FAIpQLSf_SURVEY_ID/viewform" target="_blank" class="help-survey-link" id="help-survey-link">📋 Take our 2-min traveler survey →</a>
+  </div>
+</div>
+
+<!-- ── Rating Modal ── -->
+<div id="rating-modal" class="pw-overlay">
+  <div class="pw-card rating-card">
+    <div class="rating-icon">⭐</div>
+    <h2 class="pw-title" id="rating-trip-name">How was your trip?</h2>
+    <p class="pw-sub">Share your experience to help other travelers</p>
+    <div class="rating-stars" id="rating-stars">
+      <button class="star-btn" data-val="1" onclick="setRating(1)">★</button>
+      <button class="star-btn" data-val="2" onclick="setRating(2)">★</button>
+      <button class="star-btn" data-val="3" onclick="setRating(3)">★</button>
+      <button class="star-btn" data-val="4" onclick="setRating(4)">★</button>
+      <button class="star-btn" data-val="5" onclick="setRating(5)">★</button>
+    </div>
+    <textarea id="rating-review" class="rating-textarea" placeholder="Tell other travelers what made this trip special... (optional)" maxlength="500"></textarea>
+    <button class="pw-confirm" id="rating-submit-btn" onclick="submitRating()">Submit review</button>
+    <button class="pw-cancel" onclick="closeRatingModal()">Maybe later</button>
+  </div>
+</div>
+
+<!-- ── Sign-in Screen ── -->
+<div id="screen-auth" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+          <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+          <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+          <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+          <rect x="24" y="58" width="52" height="22" rx="8" fill="#E85D3A"/>
+          <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="70" cy="58" r="4" fill="rgba(255,255,255,0.8)"/>
+        </svg>
+      </div>
+      <div>
+        <div class="auth-logo-name"><span class="auth-go">go</span><em class="auth-pack">pack</em><span class="auth-tld">.now</span></div>
+        <div class="auth-logo-sub">Plan trips together. Share the adventure.</div>
+      </div>
+    </div>
+
+    <div id="auth-sign-in" class="auth-panel">
+      <h2 class="auth-title">Welcome back</h2>
+      <input type="email" id="auth-email" class="auth-input" placeholder="Email address" autocomplete="email" />
+      <input type="password" id="auth-password" class="auth-input" placeholder="Password" autocomplete="current-password" />
+      <div class="form-error" id="auth-error" style="display:none">Incorrect email or password.</div>
+      <button class="auth-btn" id="auth-signin-btn">Sign in</button>
+      <button class="auth-google-btn" id="auth-google-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <div class="auth-switch">No account? <button class="auth-link" id="goto-signup">Create one</button></div>
+    </div>
+
+    <div id="auth-sign-up" class="auth-panel" style="display:none">
+      <h2 class="auth-title">Create account</h2>
+      <input type="text" id="auth-name" class="auth-input" placeholder="Your name" autocomplete="name" />
+      <input type="email" id="auth-email-2" class="auth-input" placeholder="Email address" autocomplete="email" />
+      <input type="password" id="auth-password-2" class="auth-input" placeholder="Password (6+ characters)" autocomplete="new-password" />
+      <div class="form-error" id="auth-error-2" style="display:none">Something went wrong. Try again.</div>
+      <button class="auth-btn" id="auth-signup-btn">Create account</button>
+      <button class="auth-google-btn" id="auth-google-btn-2">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <div class="auth-switch">Already have an account? <button class="auth-link" id="goto-signin">Sign in</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — LANDING (public, no auth needed)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-landing" class="screen">
+    <nav class="nav">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <div class="landing-nav-right">
+        <button class="nav-btn" onclick="showScreen('screen-explore-public')">Explore trips</button>
+        <button class="landing-signin-btn" onclick="gopack.showAuthForAction('signin')">Sign in</button>
+      </div>
+    </nav>
+
+    <section class="landing-hero">
+      <div class="landing-audience-badge">For friend groups, families &amp; travel crews</div>
+      <h1 class="landing-title">
+        Stop planning trips<br>in group chats.<br>
+        <span class="landing-title-accent">Start gopack-ing.</span>
+      </h1>
+      <p class="landing-sub">gopack is the only trip planner built for groups. Everyone adds their wishlist, votes on what they want, and AI builds one beautiful itinerary that works for the whole crew — in seconds.</p>
+
+      <div class="landing-proof">
+        <div class="landing-proof-item">
+          <span class="landing-proof-icon">😩</span>
+          <div>
+            <div class="landing-proof-before">Group chat with 47 unread messages about "where should we go"</div>
+          </div>
+        </div>
+        <div class="landing-proof-arrow">→</div>
+        <div class="landing-proof-item">
+          <span class="landing-proof-icon">✨</span>
+          <div>
+            <div class="landing-proof-after">A day-by-day itinerary every person in your group actually wants</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="landing-ctas">
+        <button class="landing-cta-primary" onclick="gopack.showAuthForAction('create')">
+          Plan a trip free →
+        </button>
+        <button class="landing-cta-secondary" onclick="showScreen('screen-explore-public')">
+          Browse real trips
+        </button>
+      </div>
+
+      <div class="trust-strip">
+        <div class="trust-stat">
+          <span class="trust-num" id="trust-trips">—</span>
+          <span class="trust-label">trips planned</span>
+        </div>
+        <div class="trust-divider"></div>
+        <div class="trust-stat">
+          <span class="trust-num">🌍</span>
+          <span class="trust-label">10+ countries</span>
+        </div>
+        <div class="trust-divider"></div>
+        <div class="trust-stat">
+          <span class="trust-num">✨</span>
+          <span class="trust-label">AI-powered</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-how">
+      <div class="hero-kicker">How it works</div>
+      <h2 class="landing-section-title">From wishlist to itinerary<br>in 3 steps</h2>
+      <div class="landing-steps">
+        <div class="landing-step">
+          <div class="landing-step-num">01</div>
+          <div class="landing-step-title">Create &amp; share</div>
+          <div class="landing-step-body">Pick your destination and dates, then share the trip link with your crew. No app download needed for them.</div>
+        </div>
+        <div class="landing-step-connector">→</div>
+        <div class="landing-step">
+          <div class="landing-step-num">02</div>
+          <div class="landing-step-title">Everyone wishes &amp; votes</div>
+          <div class="landing-step-body">Each person adds what they want to do and votes on others' ideas. Popular wishes rise to the top.</div>
+        </div>
+        <div class="landing-step-connector">→</div>
+        <div class="landing-step">
+          <div class="landing-step-num">03</div>
+          <div class="landing-step-title">AI builds the plan</div>
+          <div class="landing-step-body">Claude searches the web for open places and weaves every wish into a day-by-day itinerary tailored to your group's vibe and budget.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-audience">
+      <div class="hero-kicker">Built for real travelers</div>
+      <h2 class="landing-section-title">Who gopack is for</h2>
+      <div class="landing-audience-grid">
+        <div class="landing-audience-card">
+          <div class="audience-icon">👯</div>
+          <div class="audience-title">Friend groups</div>
+          <div class="audience-body">Finally settle the "where should we go" debate. Everyone's vote counts.</div>
+        </div>
+        <div class="landing-audience-card">
+          <div class="audience-icon">👨‍👩‍👧‍👦</div>
+          <div class="audience-title">Families</div>
+          <div class="audience-body">Balance the kids' theme park wishes with the adults' restaurant wants — automatically.</div>
+        </div>
+        <div class="landing-audience-card">
+          <div class="audience-icon">💼</div>
+          <div class="audience-title">Work trips</div>
+          <div class="audience-body">Plan team offsites and retreats without a single back-and-forth email chain.</div>
+        </div>
+        <div class="landing-audience-card">
+          <div class="audience-icon">🧳</div>
+          <div class="audience-title">Solo explorers</div>
+          <div class="audience-body">Don't have a group? Our group-finder (coming soon) connects you with compatible travelers.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-explore-preview">
+      <div class="hero-kicker">Real trips, real reviews</div>
+      <h2 class="landing-section-title">See where packs have gone</h2>
+      <div id="landing-public-trips" class="landing-public-trips">
+        <div class="dash-empty"><div class="dash-empty-icon">🗺️</div><div class="dash-empty-text">Loading trips...</div></div>
+      </div>
+      <button class="landing-cta-secondary" onclick="showScreen('screen-explore-public')" style="margin-top:1.5rem">See all public trips →</button>
+    </section>
+
+    <section class="landing-footer">
+      <div class="landing-footer-logo">go<em>pack</em>.now</div>
+      <div class="landing-footer-links">
+        <button class="landing-footer-link" onclick="openHelp()">Help &amp; FAQ</button>
+        <span>·</span>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSf_SURVEY_ID/viewform" target="_blank" class="landing-footer-link">Traveler survey</a>
+        <span>·</span>
+        <button class="landing-footer-link" onclick="showScreen('screen-group-finder')">Find a travel group</button>
+        <span>·</span>
+        <button class="landing-footer-link" onclick="showScreen('screen-ambassador')">Become an ambassador</button>
+      </div>
+      <div class="landing-footer-copy">© 2025 gopack.now · Pack your bags. Pack your friends.</div>
+    </section>
+
+    <!-- Floating help button -->
+    <button class="help-fab" onclick="openHelp()" title="Help & FAQ" aria-label="Help">?</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — CREATE TRIP (auth required)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-create" class="screen">
+    <nav class="nav">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="hero-kicker">Group travel, finally easy</div>
+      <h1 class="hero-title">
+        Your group. Your wishes.<br>
+        <span class="hero-title-accent">One perfect trip.</span>
+      </h1>
+      <p class="hero-sub">Everyone adds what they want to do. AI turns it into a day-by-day itinerary that actually works for the whole group — in seconds.</p>
+
+      <div class="create-form">
+        <div class="field-group">
+          <label class="field-label">Destination <span class="field-hint">add one or more cities</span></label>
+          <div class="city-chips-wrap" id="city-chips-wrap">
+            <span class="input-icon">📍</span>
+            <div class="city-chips" id="city-chips"></div>
+            <div class="city-input-wrap">
+              <input type="text" id="city-input" class="field-input" placeholder="Type a city and press Enter..." autocomplete="off" />
+            </div>
+          </div>
+          <div id="city-suggestions" class="city-suggestions"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Vibe <span class="field-hint">select all that apply</span></label>
+          <div class="vibe-grid" id="vibe-select">
+            <button class="vibe-btn selected" data-vibe="culture"><span class="vibe-icon">🏛️</span><span>Culture</span></button>
+            <button class="vibe-btn" data-vibe="food"><span class="vibe-icon">🍜</span><span>Foodie</span></button>
+            <button class="vibe-btn" data-vibe="adventure"><span class="vibe-icon">🧗</span><span>Adventure</span></button>
+            <button class="vibe-btn" data-vibe="relaxation"><span class="vibe-icon">🌿</span><span>Relaxation</span></button>
+            <button class="vibe-btn" data-vibe="nightlife"><span class="vibe-icon">🎵</span><span>Nightlife</span></button>
+            <button class="vibe-btn" data-vibe="shopping"><span class="vibe-icon">🛍️</span><span>Shopping</span></button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Trip dates</label>
+          <div class="date-range-row">
+            <div class="input-wrap" style="flex:1">
+              <span class="input-icon">✈️</span>
+              <input type="date" id="start-date" class="field-input date-input" placeholder="Start" />
+            </div>
+            <span class="date-range-sep">→</span>
+            <div class="input-wrap" style="flex:1">
+              <span class="input-icon">🏠</span>
+              <input type="date" id="end-date" class="field-input date-input" placeholder="End" />
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Budget</label>
+          <div class="pill-row" id="budget-row">
+            <button class="pill" data-budget="budget">🪙 Budget</button>
+            <button class="pill selected" data-budget="midrange">💳 Mid-range</button>
+            <button class="pill" data-budget="luxury">💎 Luxury</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Visibility</label>
+          <div class="pill-row" id="visibility-row">
+            <button class="pill selected" data-visibility="private">🔒 Private</button>
+            <button class="pill" data-visibility="friends">👥 Friends</button>
+            <button class="pill" data-visibility="public">🌍 Public</button>
+          </div>
+        </div>
+
+        <button class="cta-btn" id="create-btn">
+          <span>Create trip &amp; get link</span>
+          <span class="cta-arrow">→</span>
+        </button>
+        <div class="form-error" id="create-error">Please enter a destination first.</div>
+      </div>
+
+      <div class="join-divider"><span>or join a friend's trip</span></div>
+
+      <div class="join-row">
+        <input type="text" id="join-code-input" class="field-input join-code" placeholder="Paste trip link or enter code..." autocomplete="off" />
+        <button class="join-btn" id="join-code-btn">Join →</button>
+      </div>
+      <div class="form-error" id="join-error">Trip not found. Check the code and try again.</div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — PUBLIC EXPLORE (no auth needed)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-explore-public" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer" onclick="gopack.goHome()">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <button class="landing-signin-btn" onclick="gopack.showAuthForAction('create')">Plan a trip →</button>
+    </nav>
+    <div class="explore-layout">
+      <div class="hero-kicker">Explore</div>
+      <h1 class="explore-title">Real trips.<br><span class="hero-title-accent">Real reviews.</span></h1>
+      <p class="explore-sub">Browse itineraries from real travel groups. Get inspired, then plan your own.</p>
+      <div class="explore-search-wrap">
+        <span class="explore-search-icon">🔍</span>
+        <input type="text" id="explore-public-search" class="explore-search-input" placeholder="Search destinations..." autocomplete="off" />
+      </div>
+      <div class="explore-section">
+        <div class="explore-section-label">Reviewed trips</div>
+        <div id="public-trips-list" class="public-trips-list">
+          <div class="dash-empty"><div class="dash-empty-icon">🗺️</div><div class="dash-empty-text">Loading...</div></div>
+        </div>
+      </div>
+      <div class="explore-section" style="margin-top:2rem">
+        <div class="explore-section-label">Trending destinations</div>
+        <div class="explore-trending">
+          <div class="explore-trend-item"><span class="trend-rank">1</span><div class="trend-info"><div class="trend-city">Tokyo</div><div class="trend-meta">Culture · Foodie</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+          <div class="explore-trend-item"><span class="trend-rank">2</span><div class="trend-info"><div class="trend-city">Bali</div><div class="trend-meta">Relaxation · Adventure</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+          <div class="explore-trend-item"><span class="trend-rank">3</span><div class="trend-info"><div class="trend-city">Paris</div><div class="trend-meta">Culture · Foodie</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+          <div class="explore-trend-item"><span class="trend-rank">4</span><div class="trend-info"><div class="trend-city">Kyoto</div><div class="trend-meta">Culture · Relaxation</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+          <div class="explore-trend-item"><span class="trend-rank">5</span><div class="trend-info"><div class="trend-city">Riyadh</div><div class="trend-meta">Culture · Luxury</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+          <div class="explore-trend-item"><span class="trend-rank">6</span><div class="trend-info"><div class="trend-city">Barcelona</div><div class="trend-meta">Foodie · Nightlife</div></div><button class="trend-plan-btn" onclick="gopack.showAuthForAction('create')">Plan →</button></div>
+        </div>
+      </div>
+      <button class="help-fab" onclick="openHelp()" title="Help & FAQ" aria-label="Help">?</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — DASHBOARD (auth required)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-dashboard" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <div class="dash-nav-right">
+        <button class="dash-notif-btn" id="dash-notif-btn" onclick="showScreen('screen-notifications')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="dash-notif-dot" id="dash-notif-dot" style="display:none"></span>
+        </button>
+        <button class="dash-profile-btn" id="dash-profile-btn" onclick="showScreen('screen-profile')"></button>
+      </div>
+    </nav>
+    <div class="dash-layout">
+      <div class="dash-greeting" id="dash-greeting">Good evening</div>
+      <h1 class="dash-title" id="dash-title">Where's the pack<br><span class="dash-title-accent">headed next?</span></h1>
+      <button class="dash-new-trip-btn" id="dash-new-trip-btn">
+        <span class="dash-new-icon">+</span>
+        <div><div class="dash-new-label">New trip</div><div class="dash-new-sub">Pick a destination, invite the pack</div></div>
+        <span class="dash-new-arrow">→</span>
+      </button>
+      <div class="dash-section">
+        <div class="dash-section-header">
+          <span class="dash-section-label">Your trips</span>
+          <span class="dash-trip-count" id="dash-trip-count"></span>
+        </div>
+        <div id="dash-trips-list" class="dash-trips-list">
+          <div class="dash-empty">
+            <div class="dash-empty-icon">🗺️</div>
+            <div class="dash-empty-text">No trips yet</div>
+            <div class="dash-empty-sub">Create your first trip and invite the pack</div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-section" id="dash-joined-section" style="display:none">
+        <div class="dash-section-header">
+          <span class="dash-section-label">Trips you've joined</span>
+        </div>
+        <div id="dash-joined-list" class="dash-trips-list"></div>
+      </div>
+    </div>
+    <button class="help-fab" onclick="openHelp()" title="Help & FAQ" aria-label="Help">?</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — EXPLORE (auth, logged-in version)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-explore" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <button class="nav-btn" onclick="showScreen('screen-dashboard')">← Back</button>
+    </nav>
+    <div class="explore-layout">
+      <div class="hero-kicker">Discover</div>
+      <h1 class="explore-title">Where will the<br><span class="hero-title-accent">pack go?</span></h1>
+      <p class="explore-sub">Browse real trip itineraries and get inspired for your next adventure.</p>
+      <div class="explore-search-wrap">
+        <span class="explore-search-icon">🔍</span>
+        <input type="text" id="explore-search" class="explore-search-input" placeholder="Search destinations, vibes..." autocomplete="off" />
+      </div>
+      <div class="explore-section">
+        <div class="explore-section-label">Reviewed public trips</div>
+        <div id="explore-public-trips" class="public-trips-list">
+          <div class="dash-empty"><div class="dash-empty-icon">🗺️</div><div class="dash-empty-text">Loading...</div></div>
+        </div>
+      </div>
+      <div class="explore-section" style="margin-top:2rem">
+        <div class="explore-section-label">Browse by vibe</div>
+        <div class="explore-vibes-grid">
+          <button class="explore-vibe-tile" onclick="prefillVibe('culture')"><span class="explore-vibe-icon">🏛️</span><span class="explore-vibe-name">Culture</span></button>
+          <button class="explore-vibe-tile" onclick="prefillVibe('food')"><span class="explore-vibe-icon">🍜</span><span class="explore-vibe-name">Foodie</span></button>
+          <button class="explore-vibe-tile" onclick="prefillVibe('adventure')"><span class="explore-vibe-icon">🧗</span><span class="explore-vibe-name">Adventure</span></button>
+          <button class="explore-vibe-tile" onclick="prefillVibe('relaxation')"><span class="explore-vibe-icon">🌿</span><span class="explore-vibe-name">Relaxation</span></button>
+          <button class="explore-vibe-tile" onclick="prefillVibe('nightlife')"><span class="explore-vibe-icon">🎵</span><span class="explore-vibe-name">Nightlife</span></button>
+          <button class="explore-vibe-tile" onclick="prefillVibe('shopping')"><span class="explore-vibe-icon">🛍️</span><span class="explore-vibe-name">Shopping</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — GROUP FINDER (bug 24)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-group-finder" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer" onclick="gopack.goHome()">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <button class="nav-btn" onclick="gopack.goHome()">← Back</button>
+    </nav>
+    <div class="feature-screen-layout">
+      <div class="feature-screen-badge">Coming soon</div>
+      <h1 class="feature-screen-title">Find your<br><span class="hero-title-accent">travel pack</span></h1>
+      <p class="feature-screen-sub">Don't have a group? Connect with verified travelers who share your destination, dates, and vibe. Build your pack, then plan together on gopack.</p>
+
+      <div class="feature-highlights">
+        <div class="feature-highlight">
+          <div class="fh-icon">🎯</div>
+          <div class="fh-text"><strong>Matched by vibe</strong> — we pair you with travelers who share your interests and budget</div>
+        </div>
+        <div class="feature-highlight">
+          <div class="fh-icon">✅</div>
+          <div class="fh-text"><strong>Verified profiles</strong> — every member is identity-verified before they can join the finder</div>
+        </div>
+        <div class="feature-highlight">
+          <div class="fh-icon">🔒</div>
+          <div class="fh-text"><strong>Safe &amp; private</strong> — you approve who joins your trip before any personal details are shared</div>
+        </div>
+      </div>
+
+      <div class="gf-profile-form glass-card">
+        <div class="explore-section-label" style="margin-bottom:1rem">Create your traveler profile</div>
+        <div class="field-group">
+          <label class="field-label">Where do you want to go?</label>
+          <input type="text" class="field-input" id="gf-destination" placeholder="e.g. Japan, Southeast Asia..." />
+        </div>
+        <div class="field-group">
+          <label class="field-label">When?</label>
+          <div class="date-range-row">
+            <input type="date" class="field-input date-input" id="gf-start" style="flex:1" />
+            <span class="date-range-sep">→</span>
+            <input type="date" class="field-input date-input" id="gf-end" style="flex:1" />
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Travel vibe</label>
+          <div class="pill-row">
+            <button class="pill" data-gf-vibe="culture">Culture</button>
+            <button class="pill" data--gf-vibe="food">Foodie</button>
+            <button class="pill" data-gf-vibe="adventure">Adventure</button>
+            <button class="pill" data-gf-vibe="relaxation">Relaxation</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">About you <span class="field-hint">help others get to know you</span></label>
+          <textarea class="field-input" id="gf-bio" rows="3" placeholder="I'm a solo traveler from Riyadh looking for fellow culture lovers..." style="resize:none;padding:0.75rem 1rem;min-height:80px"></textarea>
+        </div>
+        <button class="cta-btn" onclick="gopack.submitGroupFinderProfile()">
+          <span>Join the waitlist →</span>
+        </button>
+        <p class="gf-disclaimer">Group finder is a premium feature. Early signups get 3 months free when it launches.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — AMBASSADOR (bug 26)
+  ═══════════════════════════════════════════ -->
+  <div id="screen-ambassador" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer" onclick="gopack.goHome()">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <button class="nav-btn" onclick="gopack.goHome()">← Back</button>
+    </nav>
+    <div class="feature-screen-layout">
+      <div class="feature-screen-badge">Coming soon</div>
+      <h1 class="feature-screen-title">Become a<br><span class="hero-title-accent">local ambassador</span></h1>
+      <p class="feature-screen-sub">Are you a local in your city? Get verified, help travelers discover the real version of your home, and earn from what you love.</p>
+
+      <div class="feature-highlights">
+        <div class="feature-highlight">
+          <div class="fh-icon">✓</div>
+          <div class="fh-text"><strong>Verified badge</strong> — your profile gets a verified local badge visible to all travelers browsing your city</div>
+        </div>
+        <div class="feature-highlight">
+          <div class="fh-icon">⭐</div>
+          <div class="fh-text"><strong>Rated &amp; reviewed</strong> — travelers rate their experience with you, building your reputation on the platform</div>
+        </div>
+        <div class="feature-highlight">
+          <div class="fh-icon">🤝</div>
+          <div class="fh-text"><strong>Meet &amp; guide</strong> — opt in to meet travelers in person, join their groups, or offer guided experiences</div>
+        </div>
+      </div>
+
+      <div class="amb-profile-form glass-card">
+        <div class="explore-section-label" style="margin-bottom:1rem">Ambassador application</div>
+        <div class="field-group">
+          <label class="field-label">Your city</label>
+          <input type="text" class="field-input" id="amb-city" placeholder="e.g. Riyadh, Tokyo, Barcelona..." />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Your name</label>
+          <input type="text" class="field-input" id="amb-name" placeholder="As it appears on your national ID" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">What makes you a great local guide?</label>
+          <textarea class="field-input" id="amb-bio" rows="3" placeholder="I've lived in Riyadh my whole life and know every hidden gem..." style="resize:none;padding:0.75rem 1rem;min-height:80px"></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">National ID number <span class="field-hint">for verification only, never shown publicly</span></label>
+          <input type="text" class="field-input" id="amb-id" placeholder="National ID..." />
+        </div>
+        <div class="amb-verification-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          ID is used for one-time verification only. It is never stored or shared.
+        </div>
+        <button class="cta-btn" onclick="gopack.submitAmbassadorApplication()">
+          <span>Apply to be an ambassador →</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — PROFILE
+  ═══════════════════════════════════════════ -->
+  <div id="screen-profile" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <button class="nav-btn" onclick="showScreen('screen-dashboard')">← Back</button>
+    </nav>
+    <div class="profile-layout">
+      <div class="profile-hero">
+        <div class="profile-avatar" id="profile-avatar">?</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profile-name">—</div>
+          <div class="profile-email" id="profile-email">—</div>
+          <div class="profile-joined" id="profile-joined"></div>
+        </div>
+      </div>
+      <div class="profile-stats-row">
+        <div class="profile-stat"><div class="profile-stat-num" id="stat-trips">0</div><div class="profile-stat-label">Trips</div></div>
+        <div class="profile-stat-divider"></div>
+        <div class="profile-stat"><div class="profile-stat-num" id="stat-cities">0</div><div class="profile-stat-label">Cities</div></div>
+        <div class="profile-stat-divider"></div>
+        <div class="profile-stat"><div class="profile-stat-num" id="stat-wishes">0</div><div class="profile-stat-label">Wishes</div></div>
+      </div>
+      <div class="profile-section">
+        <div class="explore-section-label">Recent trips</div>
+        <div id="profile-trips-list" class="dash-trips-list">
+          <div class="dash-empty"><div class="dash-empty-icon">✈️</div><div class="dash-empty-text">No trips yet</div></div>
+        </div>
+      </div>
+      <div class="profile-menu">
+        <button class="profile-menu-item" onclick="showScreen('screen-explore')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Explore destinations</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.3"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="profile-menu-item" onclick="showDashboard()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+          <span>All my trips</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.3"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="profile-menu-item" onclick="showScreen('screen-group-finder')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Find a travel group</span>
+          <span class="profile-menu-badge">Soon</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.3"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="profile-menu-item" onclick="showScreen('screen-ambassador')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Become a local ambassador</span>
+          <span class="profile-menu-badge">Soon</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.3"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <button class="profile-signout-btn" id="profile-signout-btn">Sign out</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — TRIP CHAT
+  ═══════════════════════════════════════════ -->
+  <div id="screen-chat" class="screen">
+    <nav class="nav" style="padding:1rem 1.5rem">
+      <button class="nav-btn" onclick="showTripTab('collab')">←</button>
+      <div style="text-align:center">
+        <div class="nav-dest" id="chat-trip-name">Pack chat</div>
+        <div style="font-size:0.72rem;color:var(--muted)" id="chat-members-count"></div>
+      </div>
+      <div class="chat-nav-avatars" id="chat-avatars"></div>
+    </nav>
+    <div class="chat-layout">
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-date-divider">Today</div>
+      </div>
+    </div>
+    <div class="chat-input-bar">
+      <input type="text" id="chat-input" class="chat-input-field" placeholder="Message the pack..." autocomplete="off" maxlength="2000" />
+      <button class="chat-send-btn" id="chat-send-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — NOTIFICATIONS
+  ═══════════════════════════════════════════ -->
+  <div id="screen-notifications" class="screen">
+    <nav class="nav">
+      <button class="nav-btn" onclick="showScreen('screen-dashboard')">← Back</button>
+      <button class="notif-mark-read-btn" id="notif-mark-read">Mark all read</button>
+    </nav>
+    <div class="notif-layout">
+      <h2 class="notif-page-title">Notifications</h2>
+      <div id="notif-new-section">
+        <div class="notif-section-label">New</div>
+        <div id="notif-new-list"></div>
+      </div>
+      <div id="notif-earlier-section" style="display:none">
+        <div class="notif-section-label" style="margin-top:1.5rem">Earlier</div>
+        <div id="notif-earlier-list"></div>
+      </div>
+      <div id="notif-empty" class="dash-empty" style="display:none">
+        <div class="dash-empty-icon">🔔</div>
+        <div class="dash-empty-text">All caught up</div>
+        <div class="dash-empty-sub">No notifications yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — COLLABORATE
+  ═══════════════════════════════════════════ -->
+  <div id="screen-collab" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <div class="nav-trip-info">
+        <span class="nav-dest" id="nav-dest-label">Tokyo</span>
+        <span class="nav-sep">·</span>
+        <span class="nav-days" id="nav-days-label">5 days</span>
+      </div>
+    </nav>
+
+    <div class="collab-layout">
+      <div class="collab-left">
+        <div class="collab-header">
+          <div class="dest-badge" id="collab-dest-chip">📍 Tokyo</div>
+          <h2 class="collab-title">The pack's<br>wishlist</h2>
+          <p class="collab-sub" id="collab-subtitle">5 days · Culture vibes</p>
+        </div>
+
+        <div class="glass-card">
+          <label class="field-label" for="your-name">Your name</label>
+          <div class="name-row">
+            <input type="text" id="your-name" class="field-input" placeholder="Enter your name..." autocomplete="off" maxlength="60" />
+            <div class="name-tag" id="name-preview">🎒 You</div>
+          </div>
+          <div class="wishes-header">
+            <label class="field-label">Your wishes</label>
+            <span class="wish-badge" id="wish-count">0</span>
+          </div>
+          <div class="wish-input-row">
+            <input type="text" id="wish-input" class="field-input" placeholder="Cat cafes, ramen in Shibuya, teamLab Planets..." autocomplete="off" maxlength="280" />
+            <button class="wish-add" id="wish-add-btn" aria-label="Add wish">+</button>
+          </div>
+          <div class="wish-list" id="wish-list" role="list"></div>
+        </div>
+      </div>
+
+      <div class="collab-right">
+        <!-- Bug 8: Eye-catching share card -->
+        <div class="glass-card invite-card invite-card-highlight invite-card-pulse">
+          <div class="invite-header">
+            <div class="invite-icon-wrap">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            </div>
+            <div>
+              <p class="invite-title">Invite the pack</p>
+              <p class="invite-sub">The more wishes, the better the AI itinerary</p>
+            </div>
+          </div>
+          <div class="invite-share-banner">
+            <span class="invite-share-label">Your trip link</span>
+            <div class="link-display link-display-featured">
+              <span class="link-text" id="share-link-text">gopack.now/t/abc123</span>
+              <button class="link-copy link-copy-featured" id="copy-btn">Copy link</button>
+            </div>
+          </div>
+          <div class="password-protect-row" id="password-protect-row">
+            <div class="pp-left">
+              <span class="pp-icon">🔒</span>
+              <div>
+                <div class="pp-title">Password protect</div>
+                <div class="pp-sub" id="pp-status">Not set — anyone with the link can join</div>
+              </div>
+            </div>
+            <button class="pp-btn" id="pp-btn" onclick="togglePasswordProtect()">Set password</button>
+          </div>
+          <div class="pack-label">Who's in</div>
+          <div class="pack-chips" id="friends-strip">
+            <div class="pack-chip host">
+              <div class="chip-avatar" id="host-avatar">Y</div>
+              <span id="host-name-label">You (host)</span>
+            </div>
+            <div class="pack-chip waiting">Waiting for friends...</div>
+          </div>
+        </div>
+
+        <div class="build-card">
+          <p class="build-eyebrow">Ready to plan?</p>
+          <h3 class="build-title">Build the<br>itinerary</h3>
+          <p class="build-sub">AI weaves every wish into a day-by-day adventure</p>
+          <button class="build-btn" id="build-btn">
+            <span>Build our trip</span>
+            <span class="build-arrow">→</span>
+          </button>
+          <div class="form-error dark" id="build-error">Add at least one wish first!</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="itin-chat-fab" id="collab-chat-fab" onclick="gopack.showTripTab('chat')" title="Group chat">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="itin-chat-fab-label">Chat</span>
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — LOADING
+  ═══════════════════════════════════════════ -->
+  <div id="screen-loading" class="screen">
+    <div class="loading-scene">
+      <div class="loading-globe">✈️</div>
+      <h2 class="loading-title">Packing your<br>adventure...</h2>
+      <p class="loading-dest" id="loading-dest-text">Crafting the perfect itinerary</p>
+      <div class="loading-bar-track">
+        <div class="loading-bar-fill" id="progress-fill"></div>
+      </div>
+      <div class="loading-tagline" id="loading-tagline">Weaving in everyone's wishes...</div>
+      <div style="display:none">
+        <div id="step-1"></div><div id="step-2"></div><div id="step-3"></div>
+        <div id="step-4"></div><div id="step-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       SCREEN — ITINERARY
+  ═══════════════════════════════════════════ -->
+  <div id="screen-itinerary" class="screen">
+    <nav class="nav">
+      <div class="logo" style="cursor:pointer">
+        <div class="logo-icon">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 36 32 L 24 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 64 32 L 76 88" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+            <rect x="12" y="22" width="76" height="64" rx="16" fill="white"/>
+            <rect x="38" y="10" width="24" height="16" rx="8" fill="white"/>
+            <rect x="24" y="58" width="52" height="20" rx="8" fill="#E85D3A"/>
+            <path d="M 30 58 Q 50 50 70 58" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="70" cy="58" r="3.5" fill="rgba(255,255,255,0.8)"/>
+          </svg>
+        </div>
+        <span class="logo-word">go<em>pack</em></span>
+        <span class="logo-tld">.now</span>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn" id="edit-wishes-btn">← Edit</button>
+        <button class="nav-btn accent" id="regenerate-btn">↻ Redo</button>
+      </div>
+    </nav>
+
+    <div class="itin-hero">
+      <div class="itin-eyebrow">Your gopack itinerary</div>
+      <div class="itin-dest" id="itin-dest-title">Tokyo</div>
+      <div class="itin-tags" id="itin-meta">
+        <span class="itin-tag">📅 5 days</span>
+        <span class="itin-tag">🎒 3 wishes packed</span>
+      </div>
+      <div class="itin-pack-label">The pack</div>
+      <div class="itin-pack-members" id="itin-pack-members"></div>
+    </div>
+
+    <div class="itin-days" id="itinerary-days"></div>
+    <div id="trip-total-wrap"></div>
+
+    <div class="all-maps-wrap">
+      <button class="all-maps-btn packing-list-btn" id="packing-btn" onclick="generatePackingList()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+        🎒 Packing list
+      </button>
+      <div id="packing-box" class="packing-box" style="display:none"></div>
+      <button class="all-maps-btn share-itin-btn" id="share-itin-btn" onclick="shareItinerary()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share itinerary link
+      </button>
+      <button class="all-maps-btn pdf-btn" onclick="exportToPDF()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Export as PDF
+      </button>
+    </div>
+
+    <button class="itin-chat-fab" id="itin-chat-fab" onclick="gopack.showTripTab('chat')" title="Group chat">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="itin-chat-fab-label">Chat</span>
+      <span class="itin-chat-fab-dot" id="itin-chat-unread" style="display:none"></span>
+    </button>
+  </div>
+
+</div><!-- #app -->
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script>
+window.gopack = window.gopack || {};
+function showScreen(id)             { gopack.showScreen(id); }
+function showDashboard()            { gopack.showDashboard(); }
+function showTripTab(tab)           { gopack.showTripTab(tab); }
+function prefillDestination(city)   { gopack.prefillDestination(city); }
+function prefillVibe(vibe)          { gopack.prefillVibe(vibe); }
+function generatePackingList()      { gopack.generatePackingList(); }
+function shareItinerary()           { gopack.shareItinerary(); }
+function exportToPDF()              { gopack.exportToPDF(); }
+function exportToCalendar()         { gopack.exportToCalendar(); }
+function togglePasswordProtect()    { gopack.togglePasswordProtect(); }
+function togglePwVisibility()       { gopack.togglePwVisibility(); }
+function openDashTrip(id)           { gopack.openDashTrip(id); }
+function markNotifRead(id, t)       { gopack.markNotifRead(id, t); }
+function voteWish(key)              { gopack.voteWish(key); }
+function removeWish(key)            { gopack.removeWish(key); }
+function removeCity(i)              { gopack.removeCity(i); }
+function startEditActivity(id)      { gopack.startEditActivity(id); }
+function saveActivity(id)           { gopack.saveActivity(id); }
+function cancelEdit()               { gopack.cancelEdit(); }
+function deleteActivity(id)         { gopack.deleteActivity(id); }
+function addActivity(di)            { gopack.addActivity(di); }
+function openHelp()                 { document.getElementById('help-modal').classList.add('visible'); }
+function closeHelp()                { document.getElementById('help-modal').classList.remove('visible'); }
+function setRating(val)             { gopack.setRating(val); }
+function submitRating()             { gopack.submitRating(); }
+function closeRatingModal()         { document.getElementById('rating-modal').classList.remove('visible'); }
+</script>
+
+<!-- gopack modules -->
+<script src="src/state.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/notifications.js"></script>
+<script src="src/firebase-listeners.js"></script>
+<script src="src/collab.js"></script>
+<script src="src/packing.js"></script>
+<script src="src/itinerary.js"></script>
+<script src="src/create.js"></script>
+<script src="src/chat.js"></script>
+<script src="src/dashboard.js"></script>
+<script src="src/auth.js"></script>
+
+<script>(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",["places"].join(","));e.set("key","AIzaSyCkKHzbD8Ga9kOp4f08qXShnvi04D_-E5w");e.set("v","weekly");a.src=`https://maps.${c}apis.com/maps/api/js?`+e;a.onerror=()=>n(Error(p+" could not load."));a.onload=()=>{if(typeof google !== "undefined") initPlacesAutocomplete(); f();};m.head.append(a)}));d[l]?console.warn(p+" only loads once."):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})();</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(r => console.log('gopack SW registered'))
+        .catch(e => console.log('SW error', e));
+    });
+  }
+</script>
+<!-- ══ GLOBAL BOTTOM NAV ══ -->
+<nav class="global-bottom-nav" id="global-bottom-nav" style="display:none">
+  <button class="gbn-item" id="gbn-home" onclick="gopack.gbnNav('home')">
+    <svg width="22" height="22" viewBox="0 0 28 28" fill="none"><path d="M4 12L14 4l10 8v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 24V16h8v8" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="gbn-item" id="gbn-explore" onclick="gopack.gbnNav('explore')">
+    <svg width="22" height="22" viewBox="0 0 28 28" fill="none"><rect x="4" y="4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="15" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="15" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+    <span>Explore</span>
+  </button>
+  <button class="gbn-item gbn-new" id="gbn-new" onclick="gopack.gbnNav('new')">
+    <div class="gbn-new-circle">
+      <svg width="24" height="24" viewBox="0 0 28 28" fill="none"><line x1="14" y1="6" x2="14" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="14" x2="22" y2="14" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <span>New trip</span>
+  </button>
+  <button class="gbn-item" id="gbn-alerts" onclick="gopack.gbnNav('alerts')">
+    <div style="position:relative;display:inline-flex">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="gbn-notif-dot" id="gbn-notif-dot" style="display:none"></span>
+    </div>
+    <span>Alerts</span>
+  </button>
+  <button class="gbn-item" id="gbn-profile" onclick="gopack.gbnNav('profile')">
+    <svg width="22" height="22" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="9" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M6 24c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span>Profile</span>
+  </button>
+</nav>
+
+</body>
+</html>

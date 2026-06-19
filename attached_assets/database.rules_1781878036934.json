@@ -1,0 +1,105 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "meta": {
+      "tripCount": {
+        ".read": true,
+        ".write": "auth != null && newData.isNumber()"
+      }
+    },
+
+    "trips": {
+      "$tripId": {
+        ".read": "auth != null || data.child('visibility').val() === 'public'",
+        ".write": "auth != null && (!data.exists() || data.child('hostMemberId').val() === auth.uid || data.child('members').child(auth.uid).exists())",
+
+        "itinerary": {
+          ".read": true
+        },
+
+        "hostMemberId": {
+          ".validate": "newData.val() === auth.uid || data.val() === newData.val()"
+        },
+
+        "wishes": {
+          ".write": "auth != null",
+          "$wishId": {
+            "text": { ".validate": "newData.isString() && newData.val().length <= 280" }
+          }
+        },
+
+        "chat": {
+          ".write": "auth != null",
+          "$msgId": {
+            "text": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+          }
+        },
+
+        "members": {
+          "$memberId": {
+            ".write": "auth != null && ($memberId === auth.uid || data.parent().parent().child('hostMemberId').val() === auth.uid)"
+          }
+        },
+
+        "presence": {
+          "$memberId": {
+            ".write": "auth != null && $memberId === auth.uid"
+          }
+        },
+
+        "ratings": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && $uid === auth.uid"
+          }
+        }
+      }
+    },
+
+    "reviews": {
+      ".read": true,
+      ".indexOn": ["createdAt", "rating"],
+      "$tripId": {
+        ".write": "auth != null"
+      }
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && $uid === auth.uid",
+        ".write": "auth != null && $uid === auth.uid"
+      }
+    },
+
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && $uid === auth.uid",
+        ".write": "auth != null",
+        ".indexOn": ["read", "timestamp", "type", "tripId"]
+      }
+    },
+
+    "groupFinder": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && $uid === auth.uid"
+      }
+    },
+
+    "ambassadorApplications": {
+      ".read": false,
+      "$appId": {
+        ".write": "auth != null"
+      }
+    },
+
+    "surveys": {
+      ".read": false,
+      "$surveyId": {
+        ".write": true
+      }
+    }
+  }
+}
