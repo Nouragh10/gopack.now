@@ -3,7 +3,8 @@ import { useRoute, Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ThumbsUp, Send, Copy, Check, Loader2, MapPin, Calendar,
-  Users, ChevronRight, Sparkles, Package, MessageSquare, ArrowLeft
+  Users, ChevronRight, Sparkles, Package, MessageSquare, ArrowLeft,
+  UserCircle, AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrip } from "@/hooks/useFirebase";
@@ -23,6 +24,9 @@ export default function TripHub() {
   const [, setLocation] = useLocation();
   const [wishText, setWishText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [itineraryError, setItineraryError] = useState("");
+  const [packingError, setPackingError] = useState("");
+  const [votingId, setVotingId] = useState<string | null>(null);
 
   const generateItinerary = useGenerateItinerary();
   const generatePacking = useGeneratePackingList();
@@ -34,21 +38,65 @@ export default function TripHub() {
     setWishText("");
   };
 
-  const handleGenerateItinerary = async () => {
+  const handleGenerateItinerary = () => {
     if (!trip) return;
+    setItineraryError("");
     const wishList = wishes.map(w => ({ text: w.text, author: w.author, votes: w.votes }));
     generateItinerary.mutate(
-      { data: { destination: trip.destination, days: trip.days, vibes: trip.vibes || [], budget: trip.budget || "midrange", startDate: trip.startDate || null, wishes: wishList } },
-      { onSuccess: (result) => { updateItinerary(result); setLocation(`/trip/${tripId}/itinerary`); } }
+      {
+        data: {
+          destination: trip.destination,
+          days: trip.days,
+          vibes: trip.vibes || [],
+          budget: trip.budget || "midrange",
+          startDate: trip.startDate || null,
+          wishes: wishList
+        }
+      },
+      {
+        onSuccess: (result) => {
+          updateItinerary(result);
+          setLocation(`/trip/${tripId}/itinerary`);
+        },
+        onError: (err: any) => {
+          setItineraryError(err?.message || "Generation failed. Please try again.");
+        }
+      }
     );
   };
 
-  const handleGeneratePacking = async () => {
+  const handleGeneratePacking = () => {
     if (!trip) return;
+    setPackingError("");
     generatePacking.mutate(
-      { data: { destination: trip.destination, days: trip.days, vibes: trip.vibes || [], budget: trip.budget || "midrange" } },
-      { onSuccess: (result) => { updatePackingList(result.list); setLocation(`/trip/${tripId}/packing`); } }
+      {
+        data: {
+          destination: trip.destination,
+          days: trip.days,
+          vibes: trip.vibes || [],
+          budget: trip.budget || "midrange"
+        }
+      },
+      {
+        onSuccess: (result) => {
+          updatePackingList(result.list);
+          setLocation(`/trip/${tripId}/packing`);
+        },
+        onError: (err: any) => {
+          setPackingError(err?.message || "Generation failed. Please try again.");
+        }
+      }
     );
+  };
+
+  const handleToggleVote = async (wishId: string) => {
+    if (votingId) return;
+    setVotingId(wishId);
+    try {
+      await toggleVote(wishId);
+    } finally {
+      setVotingId(null);
+    }
   };
 
   const copyInviteLink = () => {
@@ -95,6 +143,13 @@ export default function TripHub() {
             data-testid="link-chat"
           >
             <MessageSquare size={16} /> Chat
+          </Link>
+          <Link
+            href="/profile"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors"
+            data-testid="link-profile"
+          >
+            <UserCircle size={20} />
           </Link>
         </div>
       </nav>
@@ -169,6 +224,7 @@ export default function TripHub() {
               ) : (
                 wishes.map((wish, i) => {
                   const hasVoted = user && wish.votedBy && wish.votedBy[user.uid];
+                  const isVoting = votingId === wish.id;
                   return (
                     <motion.div
                       key={wish.id}
@@ -179,23 +235,29 @@ export default function TripHub() {
                       className="flex items-center gap-4 border border-border rounded-xl p-4 hover:border-border/80 transition-colors bg-background"
                       data-testid={`card-wish-${wish.id}`}
                     >
-                      <div className="flex flex-col items-center">
-                        <button
-                          onClick={() => toggleVote(wish.id)}
-                          className={`p-1.5 rounded-lg transition-all ${hasVoted ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
-                          data-testid={`button-vote-${wish.id}`}
-                        >
-                          <ThumbsUp size={16} />
-                        </button>
-                        <span className={`text-sm font-bold mt-0.5 ${hasVoted ? "text-primary" : "text-muted-foreground"}`}>
-                          {wish.votes}
-                        </span>
-                      </div>
+                      {/* Vote button — large enough to tap */}
+                      <button
+                        onClick={() => handleToggleVote(wish.id)}
+                        disabled={isVoting}
+                        className={`flex flex-col items-center gap-1 min-w-[48px] py-2 px-3 rounded-xl transition-all border ${
+                          hasVoted
+                            ? "text-primary bg-primary/10 border-primary/30"
+                            : "text-muted-foreground hover:text-primary hover:bg-primary/10 border-transparent hover:border-primary/20"
+                        }`}
+                        data-testid={`button-vote-${wish.id}`}
+                      >
+                        {isVoting
+                          ? <Loader2 size={18} className="animate-spin" />
+                          : <ThumbsUp size={18} className={hasVoted ? "fill-primary/20" : ""} />
+                        }
+                        <span className="text-sm font-bold leading-none">{wish.votes || 0}</span>
+                      </button>
+
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{wish.text}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">by {wish.author}</p>
                       </div>
-                      {i === 0 && (
+                      {i === 0 && wishes.length > 1 && (
                         <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 shrink-0">
                           Top pick
                         </span>
@@ -226,8 +288,14 @@ export default function TripHub() {
               data-testid="button-generate-itinerary"
             >
               {generateItinerary.isPending && <Loader2 size={15} className="animate-spin" />}
-              {generateItinerary.isPending ? "Generating..." : "Generate itinerary"}
+              {generateItinerary.isPending ? "Generating… (may take ~30s)" : "Generate itinerary"}
             </button>
+            {itineraryError && (
+              <div className="mt-3 flex items-start gap-2 text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                <span>{itineraryError}</span>
+              </div>
+            )}
             {trip.itinerary && (
               <Link
                 href={`/trip/${tripId}/itinerary`}
@@ -256,8 +324,14 @@ export default function TripHub() {
               data-testid="button-generate-packing"
             >
               {generatePacking.isPending && <Loader2 size={15} className="animate-spin" />}
-              {generatePacking.isPending ? "Generating..." : "Generate packing list"}
+              {generatePacking.isPending ? "Generating… (may take ~30s)" : "Generate packing list"}
             </button>
+            {packingError && (
+              <div className="mt-3 flex items-start gap-2 text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                <span>{packingError}</span>
+              </div>
+            )}
             {trip.packingList && (
               <Link
                 href={`/trip/${tripId}/packing`}
@@ -274,7 +348,7 @@ export default function TripHub() {
           <div className="border border-border rounded-2xl p-6 bg-background">
             <div className="flex items-center gap-2 mb-2">
               <Users size={18} className="text-primary" />
-              <h3 className="font-medium">Invite the crew</h3>
+              <h3 className="font-medium">Invite the pack</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-4">Share this link with your group.</p>
             <button

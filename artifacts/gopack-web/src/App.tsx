@@ -12,6 +12,7 @@ import TripHub from "@/pages/trip-hub";
 import Itinerary from "@/pages/itinerary";
 import Chat from "@/pages/chat";
 import Packing from "@/pages/packing";
+import Profile from "@/pages/profile";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/trip/:tripId/chat" component={Chat} />
       <Route path="/trip/:tripId/packing" component={Packing} />
       <Route path="/trip/:tripId" component={TripHub} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

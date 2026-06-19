@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ref, onValue, push, set, remove, get } from "firebase/database";
+import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
@@ -23,13 +23,14 @@ export function useTrips() {
           id: key,
           ...data[key]
         }));
-        
-        // Filter trips where user is a member
         const myTrips = tripsArray.filter(t => t.members && t.members[user.uid]);
         setTrips(myTrips);
       } else {
         setTrips([]);
       }
+      setLoading(false);
+    }, (err) => {
+      console.error("useTrips read error:", err);
       setLoading(false);
     });
 
@@ -38,11 +39,11 @@ export function useTrips() {
 
   const createTrip = async (tripData: any) => {
     if (!user) return null;
-    
+
     const tripsRef = ref(db, 'trips');
     const newTripRef = push(tripsRef);
-    
     const tripId = newTripRef.key;
+
     const fullTripData = {
       ...tripData,
       hostMemberId: user.uid,
@@ -55,19 +56,22 @@ export function useTrips() {
         }
       }
     };
-    
+
     await set(newTripRef, fullTripData);
     return tripId;
   };
 
   const joinTrip = async (tripId: string, name: string) => {
     if (!user) return false;
-    
-    const memberRef = ref(db, `trips/${tripId}/members/${user.uid}`);
-    await set(memberRef, {
-      name: name || user.displayName || 'Guest',
-      joinedAt: new Date().toISOString(),
-      isHost: false
+
+    // Use update at the members level to avoid overwriting other members
+    const membersRef = ref(db, `trips/${tripId}/members`);
+    await update(membersRef, {
+      [user.uid]: {
+        name: name || user.displayName || 'Guest',
+        joinedAt: new Date().toISOString(),
+        isHost: false
+      }
     });
     return true;
   };
@@ -89,12 +93,12 @@ export function useTrip(tripId: string) {
       const data = snapshot.val();
       if (data) {
         setTrip({ id: tripId, ...data });
-        
+
         if (data.wishes) {
           const wishesArray = Object.keys(data.wishes).map(key => ({
             id: key,
             ...data.wishes[key]
-          })).sort((a, b) => b.votes - a.votes);
+          })).sort((a, b) => (b.votes || 0) - (a.votes || 0));
           setWishes(wishesArray);
         } else {
           setWishes([]);
@@ -103,6 +107,9 @@ export function useTrip(tripId: string) {
         setTrip(null);
       }
       setLoading(false);
+    }, (err) => {
+      console.error("useTrip read error:", err);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -110,10 +117,10 @@ export function useTrip(tripId: string) {
 
   const addWish = async (text: string) => {
     if (!user || !tripId) return;
-    
+
     const wishesRef = ref(db, `trips/${tripId}/wishes`);
     const newWishRef = push(wishesRef);
-    
+
     await set(newWishRef, {
       text,
       author: user.displayName || 'Guest',
@@ -126,43 +133,36 @@ export function useTrip(tripId: string) {
 
   const toggleVote = async (wishId: string) => {
     if (!user || !tripId) return;
-    
+
     const wishRef = ref(db, `trips/${tripId}/wishes/${wishId}`);
     const snapshot = await get(wishRef);
     const wish = snapshot.val();
-    
-    if (wish) {
-      const votedBy = wish.votedBy || {};
-      const hasVoted = !!votedBy[user.uid];
-      
-      if (hasVoted) {
-        delete votedBy[user.uid];
-        await set(wishRef, {
-          ...wish,
-          votes: wish.votes - 1,
-          votedBy
-        });
-      } else {
-        votedBy[user.uid] = true;
-        await set(wishRef, {
-          ...wish,
-          votes: wish.votes + 1,
-          votedBy
-        });
-      }
+
+    if (!wish) return;
+
+    const votedBy = { ...(wish.votedBy || {}) };
+    const hasVoted = !!votedBy[user.uid];
+
+    if (hasVoted) {
+      delete votedBy[user.uid];
+    } else {
+      votedBy[user.uid] = true;
     }
+
+    await update(wishRef, {
+      votes: hasVoted ? (wish.votes || 1) - 1 : (wish.votes || 0) + 1,
+      votedBy
+    });
   };
 
   const updateItinerary = async (itinerary: any) => {
     if (!tripId) return;
-    const itineraryRef = ref(db, `trips/${tripId}/itinerary`);
-    await set(itineraryRef, itinerary);
+    await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
   };
 
   const updatePackingList = async (packingList: any) => {
     if (!tripId) return;
-    const packingRef = ref(db, `trips/${tripId}/packingList`);
-    await set(packingRef, packingList);
+    await set(ref(db, `trips/${tripId}/packingList`), packingList);
   };
 
   return { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList };
