@@ -3,6 +3,38 @@ import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
+/* ─── usePublicReviews ──────────────────────────────────────────
+   Reads /reviews — publicly written by members after their trip ends.
+   Requires Firebase RTDB rules to allow ".read": true at /reviews.
+──────────────────────────────────────────────────────────────── */
+export function usePublicReviews() {
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const reviewsRef = ref(db, "reviews");
+    const unsubscribe = onValue(
+      reviewsRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.val();
+          const arr = Object.entries(data)
+            .map(([id, v]: [string, any]) => ({ id, ...v }))
+            .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
+          setReviews(arr);
+        } else {
+          setReviews([]);
+        }
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  return { reviews, loading };
+}
+
 /* ─── localStorage trip-id index ────────────────────────────────
    Firebase RTDB rules restrict reading /userTrips and root /trips.
    We keep a per-user index in localStorage so the dashboard always
@@ -209,5 +241,26 @@ export function useTrip(tripId: string) {
     await set(ref(db, `trips/${tripId}/packingList`), packingList);
   };
 
-  return { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList };
+  const submitReview = async (reviewData: {
+    rating: number;
+    text: string;
+    vibes: string[];
+    highlight: string;
+  }) => {
+    if (!user || !tripId || !trip) return;
+    const memberEntries = Object.values(trip.members || {}) as any[];
+    const review = {
+      ...reviewData,
+      destination: trip.destination,
+      days: trip.days,
+      memberCount: memberEntries.length,
+      memberNames: memberEntries.map((m: any) => m.name).filter(Boolean),
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: user.uid,
+    };
+    await set(ref(db, `trips/${tripId}/review`), review);
+    await set(ref(db, `reviews/${tripId}`), review);
+  };
+
+  return { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList, submitReview };
 }

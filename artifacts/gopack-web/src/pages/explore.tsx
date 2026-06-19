@@ -1,59 +1,32 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { MapPin, Star, Users, ArrowLeft, Sparkles } from "lucide-react";
-
-const TRIPS = [
-  {
-    dest: "Tokyo, Japan", days: 5, rating: 5,
-    review: "The AI nailed our wishlist — every single activity made it into the plan. Day 3 in Shibuya was peak chaos (in the best way).",
-    by: "Razan's pack", members: 4, vibes: ["Culture", "Foodie", "Nightlife"],
-    highlight: "Tsukiji breakfast → teamLab → karaoke until 3am",
-  },
-  {
-    dest: "Paris, France", days: 4, rating: 5,
-    review: "Planning 8 people used to be a nightmare. GoPack sorted it in 10 minutes. The itinerary was better than anything we'd have made ourselves.",
-    by: "Noura's crew", members: 8, vibes: ["Shopping", "Culture"],
-    highlight: "Versailles day trip, Le Marais brunch, Eiffel sunset picnic",
-  },
-  {
-    dest: "Bali, Indonesia", days: 7, rating: 4,
-    review: "Perfect mix of beach days and temple visits. The packing list was surprisingly accurate — I actually used everything on it.",
-    by: "Sam & friends", members: 5, vibes: ["Relaxation", "Adventure"],
-    highlight: "Sunrise hike on Batur, rice terrace walk, Seminyak beach club",
-  },
-  {
-    dest: "New York City", days: 3, rating: 5,
-    review: "We had wildly different budgets — GoPack found the sweet spot. The voting made sure nobody felt steamrolled.",
-    by: "The Londoners", members: 6, vibes: ["Foodie", "Culture", "Nightlife"],
-    highlight: "Brooklyn food tour, Central Park, rooftop dinner in Manhattan",
-  },
-  {
-    dest: "Lisbon, Portugal", days: 6, rating: 5,
-    review: "Underrated destination, overrated by our group wishlist in the best way. The sunset at Miradouro da Graça made every vote worth it.",
-    by: "Amir's group", members: 3, vibes: ["Culture", "Foodie"],
-    highlight: "Alfama fado night, pastéis de nata tour, Sintra day trip",
-  },
-  {
-    dest: "Barcelona, Spain", days: 5, rating: 4,
-    review: "Mix of beach and architecture wishes balanced perfectly. Gaudí in the morning, beach in the afternoon — AI figured out the flow.",
-    by: "College reunion", members: 9, vibes: ["Adventure", "Foodie", "Nightlife"],
-    highlight: "Sagrada Família, La Boqueria, Barceloneta beach",
-  },
-];
+import { MapPin, Star, Users, ArrowLeft, Sparkles, Loader2, MessageSquare } from "lucide-react";
+import { usePublicReviews } from "@/hooks/useFirebase";
 
 const VIBE_COLORS: Record<string, string> = {
-  Culture: "bg-violet-100 text-violet-700 border-violet-200",
-  Foodie: "bg-amber-100 text-amber-700 border-amber-200",
-  Nightlife: "bg-pink-100 text-pink-700 border-pink-200",
-  Shopping: "bg-orange-100 text-orange-700 border-orange-200",
-  Relaxation: "bg-blue-100 text-blue-700 border-blue-200",
-  Adventure: "bg-green-100 text-green-700 border-green-200",
+  culture:     "bg-violet-100 text-violet-700 border-violet-200",
+  Culture:     "bg-violet-100 text-violet-700 border-violet-200",
+  food:        "bg-amber-100 text-amber-700 border-amber-200",
+  Foodie:      "bg-amber-100 text-amber-700 border-amber-200",
+  nightlife:   "bg-pink-100 text-pink-700 border-pink-200",
+  Nightlife:   "bg-pink-100 text-pink-700 border-pink-200",
+  shopping:    "bg-orange-100 text-orange-700 border-orange-200",
+  Shopping:    "bg-orange-100 text-orange-700 border-orange-200",
+  relaxation:  "bg-blue-100 text-blue-700 border-blue-200",
+  Relaxation:  "bg-blue-100 text-blue-700 border-blue-200",
+  adventure:   "bg-green-100 text-green-700 border-green-200",
+  Adventure:   "bg-green-100 text-green-700 border-green-200",
+};
+
+const VIBE_LABELS: Record<string, string> = {
+  culture: "Culture", food: "Foodie", adventure: "Adventure",
+  relaxation: "Relaxation", nightlife: "Nightlife", shopping: "Shopping",
 };
 
 function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <div className="flex items-center gap-0.5">
-      {[1,2,3,4,5].map(i => (
+      {[1, 2, 3, 4, 5].map(i => (
         <Star key={i} size={size} className={i <= rating ? "fill-amber-400 text-amber-400" : "text-border fill-muted"} />
       ))}
     </div>
@@ -61,6 +34,12 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
 }
 
 export default function Explore() {
+  const { reviews, loading } = usePublicReviews();
+
+  const tripCount = reviews.length;
+  const memberCount = reviews.reduce((sum, r) => sum + (r.memberCount || 0), 0);
+  const destinations = new Set(reviews.map(r => r.destination).filter(Boolean)).size;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -97,88 +76,129 @@ export default function Explore() {
       </div>
 
       {/* Stats bar */}
-      <div className="border-b border-border px-8 py-4 bg-background">
-        <div className="max-w-5xl mx-auto flex items-center gap-8 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Sparkles size={14} className="text-primary" />
-            <span><strong className="text-foreground">2,400+</strong> trips planned</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users size={14} className="text-primary" />
-            <span><strong className="text-foreground">12,000+</strong> travellers</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin size={14} className="text-primary" />
-            <span><strong className="text-foreground">80+</strong> destinations</span>
+      {tripCount > 0 && (
+        <div className="border-b border-border px-8 py-4 bg-background">
+          <div className="max-w-5xl mx-auto flex items-center gap-8 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-primary" />
+              <span><strong className="text-foreground">{tripCount}</strong> trip{tripCount !== 1 ? "s" : ""} reviewed</span>
+            </div>
+            {memberCount > 0 && (
+              <div className="flex items-center gap-2">
+                <Users size={14} className="text-primary" />
+                <span><strong className="text-foreground">{memberCount}</strong> traveller{memberCount !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+            {destinations > 0 && (
+              <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-primary" />
+                <span><strong className="text-foreground">{destinations}</strong> destination{destinations !== 1 ? "s" : ""}</span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Trip grid */}
       <div className="max-w-5xl mx-auto px-8 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {TRIPS.map((trip, i) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 size={24} className="animate-spin text-primary" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-24"
+          >
+            <MessageSquare size={40} className="mx-auto mb-4 text-muted-foreground/30" />
+            <h2 className="font-serif text-2xl font-bold mb-3">No reviews yet</h2>
+            <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+              Reviews appear here after a trip ends and members share how it went. Be the first!
+            </p>
+            <Link href="/login" className="inline-flex items-center gap-2 bg-primary text-white font-medium px-7 py-3 rounded-full hover:bg-primary/90 transition-colors">
+              Plan a trip
+            </Link>
+          </motion.div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {reviews.map((review, i) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="border border-border rounded-2xl p-5 bg-background hover:border-primary/30 hover:shadow-sm transition-all flex flex-col"
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-base leading-tight">{review.destination}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{review.days} day{review.days !== 1 ? "s" : ""}</p>
+                    </div>
+                    {review.memberCount > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                        <Users size={11} />
+                        <span>{review.memberCount}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stars */}
+                  <StarRating rating={review.rating} />
+
+                  {/* Vibes */}
+                  {review.vibes?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {review.vibes.map((v: string) => (
+                        <span key={v} className={`text-xs px-2 py-0.5 rounded-full border font-medium ${VIBE_COLORS[v] || "bg-muted text-muted-foreground border-border"}`}>
+                          {VIBE_LABELS[v] || v}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Highlight */}
+                  {review.highlight && (
+                    <p className="text-xs text-muted-foreground mt-3 pb-3 border-b border-border/60">
+                      {review.highlight}
+                    </p>
+                  )}
+
+                  {/* Review text */}
+                  <p className="text-sm text-muted-foreground mt-3 leading-relaxed flex-1">
+                    &ldquo;{review.text}&rdquo;
+                  </p>
+
+                  {/* Byline */}
+                  {review.memberNames?.length > 0 && (
+                    <p className="text-xs text-muted-foreground/60 mt-3">
+                      — {review.memberNames.slice(0, 2).join(" & ")}{review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
+                    </p>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            {/* CTA */}
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
-              className="border border-border rounded-2xl p-5 bg-background hover:border-primary/30 hover:shadow-sm transition-all flex flex-col"
+              transition={{ delay: 0.4 }}
+              className="mt-16 border-2 border-dashed border-primary/40 rounded-2xl p-10 text-center bg-primary/3"
             >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-base leading-tight">{trip.dest}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{trip.days} days</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users size={11} />
-                  <span>{trip.members}</span>
-                </div>
-              </div>
-
-              {/* Stars */}
-              <StarRating rating={trip.rating} />
-
-              {/* Vibes */}
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {trip.vibes.map(v => (
-                  <span key={v} className={`text-xs px-2 py-0.5 rounded-full border font-medium ${VIBE_COLORS[v] || "bg-muted text-muted-foreground border-border"}`}>
-                    {v}
-                  </span>
-                ))}
-              </div>
-
-              {/* Highlight */}
-              <p className="text-xs text-muted-foreground mt-3 pb-3 border-b border-border/60">
-                {trip.highlight}
+              <Sparkles size={28} className="text-primary mx-auto mb-4" />
+              <h2 className="font-serif text-3xl font-bold mb-3">Ready to write your own?</h2>
+              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                Start a trip, invite your crew, and let the wishlist decide where you go.
               </p>
-
-              {/* Review */}
-              <p className="text-sm text-muted-foreground mt-3 leading-relaxed flex-1">
-                "{trip.review}"
-              </p>
-              <p className="text-xs text-muted-foreground/60 mt-3">— {trip.by}</p>
+              <Link href="/login" className="inline-flex items-center gap-2 bg-primary text-white font-medium px-8 py-3.5 rounded-full hover:bg-primary/90 transition-colors">
+                Plan your trip <MapPin size={15} />
+              </Link>
             </motion.div>
-          ))}
-        </div>
-
-        {/* CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-16 border-2 border-dashed border-primary/40 rounded-2xl p-10 text-center bg-primary/3"
-        >
-          <Sparkles size={28} className="text-primary mx-auto mb-4" />
-          <h2 className="font-serif text-3xl font-bold mb-3">Ready to write your own?</h2>
-          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-            Start a trip, invite your crew, and let the wishlist decide where you go.
-          </p>
-          <Link href="/login" className="inline-flex items-center gap-2 bg-primary text-white font-medium px-8 py-3.5 rounded-full hover:bg-primary/90 transition-colors">
-            Plan your trip <MapPin size={15} />
-          </Link>
-        </motion.div>
+          </>
+        )}
       </div>
 
       {/* Footer */}
