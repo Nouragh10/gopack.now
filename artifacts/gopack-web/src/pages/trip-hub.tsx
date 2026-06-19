@@ -145,7 +145,7 @@ export default function TripHub() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
 
       {/* ── Top nav ── */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-20">
+      <nav className="grid grid-cols-3 items-center px-6 py-4 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-20">
         {/* Left: logo + destination */}
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/dashboard" className="text-muted-foreground hover:text-foreground shrink-0" data-testid="link-back">
@@ -161,29 +161,31 @@ export default function TripHub() {
           </div>
         </div>
 
-        {/* Center: tab switcher */}
-        <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 border border-border">
-          {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`tab-${tab}`}
-            >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-              }`}>{i + 1}</span>
-              <span className="capitalize">{tab}</span>
-            </button>
-          ))}
+        {/* Center: tab switcher — always centered regardless of side widths */}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 border border-border">
+            {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={`tab-${tab}`}
+              >
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                  activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                }`}>{i + 1}</span>
+                <span className="capitalize">{tab}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Right: secondary actions */}
-        <div className="flex items-center gap-2">
+        {/* Right: secondary actions — aligned to right edge */}
+        <div className="flex items-center justify-end gap-2">
           <Link href={`/trip/${tripId}/chat`} className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors" data-testid="link-chat">
             <MessageSquare size={15} /> Chat
           </Link>
