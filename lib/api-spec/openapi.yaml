@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GoPack AI Group Travel Planner API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: ai
+    description: AI generation endpoints
 paths:
   /healthz:
     get:
@@ -24,6 +26,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /itinerary:
+    post:
+      operationId: generateItinerary
+      tags: [ai]
+      summary: Generate AI trip itinerary
+      description: Uses Claude to generate a day-by-day itinerary based on trip details and wishes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItineraryInput"
+      responses:
+        "200":
+          description: Generated itinerary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItineraryResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /packing:
+    post:
+      operationId: generatePackingList
+      tags: [ai]
+      summary: Generate AI packing list
+      description: Uses Claude to generate a categorized packing list for a trip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PackingInput"
+      responses:
+        "200":
+          description: Generated packing list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackingResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +101,186 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Wish:
+      type: object
+      properties:
+        text:
+          type: string
+        author:
+          type: string
+        votes:
+          type: integer
+      required:
+        - text
+        - author
+        - votes
+
+    ItineraryInput:
+      type: object
+      properties:
+        destination:
+          type: string
+          description: Trip destination(s)
+        days:
+          type: integer
+          description: Number of trip days
+        vibes:
+          type: array
+          items:
+            type: string
+          description: Trip vibes (culture, food, adventure, etc.)
+        budget:
+          type: string
+          description: Budget level (budget, midrange, luxury)
+        startDate:
+          type: ["string", "null"]
+          description: Trip start date (YYYY-MM-DD)
+        wishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Wish"
+          description: Group wishes sorted by votes
+      required:
+        - destination
+        - days
+        - vibes
+        - budget
+        - wishes
+
+    Activity:
+      type: object
+      properties:
+        time:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        tag:
+          type: string
+        fromWish:
+          type: boolean
+        suggester:
+          type: string
+        estimatedCost:
+          type: number
+        labels:
+          type: array
+          items:
+            type: string
+        nearPrevious:
+          type: boolean
+        actId:
+          type: ["string", "null"]
+      required:
+        - time
+        - name
+        - description
+        - tag
+        - fromWish
+        - suggester
+        - estimatedCost
+        - labels
+        - nearPrevious
+
+    ItineraryDay:
+      type: object
+      properties:
+        dayNumber:
+          type: integer
+        city:
+          type: string
+        theme:
+          type: string
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+      required:
+        - dayNumber
+        - city
+        - theme
+        - activities
+
+    ItineraryResult:
+      type: object
+      properties:
+        title:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItineraryDay"
+      required:
+        - title
+        - days
+
+    PackingInput:
+      type: object
+      properties:
+        destination:
+          type: string
+        days:
+          type: integer
+        vibes:
+          type: array
+          items:
+            type: string
+        budget:
+          type: string
+      required:
+        - destination
+        - days
+        - vibes
+        - budget
+
+    PackingList:
+      type: object
+      properties:
+        essentials:
+          type: array
+          items:
+            type: string
+        clothing:
+          type: array
+          items:
+            type: string
+        toiletries:
+          type: array
+          items:
+            type: string
+        tech:
+          type: array
+          items:
+            type: string
+        activities:
+          type: array
+          items:
+            type: string
+        tips:
+          type: array
+          items:
+            type: string
+      required:
+        - essentials
+        - clothing
+        - toiletries
+        - tech
+        - activities
+        - tips
+
+    PackingResult:
+      type: object
+      properties:
+        list:
+          $ref: "#/components/schemas/PackingList"
+      required:
+        - list

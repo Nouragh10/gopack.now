@@ -1,0 +1,3 @@
+- [Firebase RTDB vs Firestore](firebase-rtdb-note.md) — gopack uses Realtime Database (not Firestore); databaseURL must be set in config
+- [onAuthStateChanged typo](auth-hook-fix.md) — Firebase exports `onAuthStateChanged`, not `onAuthStateStateChanged`; double-check when writing auth hooks
+- [OpenAPI body naming](openapi-body-naming.md) — body schemas must be entity-shaped (ItineraryInput not GenerateItineraryBody) or TS2308 collision breaks typecheck

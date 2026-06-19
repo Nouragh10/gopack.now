@@ -1,0 +1,126 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/useAuth";
+import { SiGoogle } from "react-icons/si";
+import { Loader2 } from "lucide-react";
+
+export default function Login() {
+  const { signInWithGoogle, signInGuest } = useAuth();
+  const [, setLocation] = useLocation();
+  const [loading, setLoading] = useState<"google" | "guest" | null>(null);
+  const [error, setError] = useState("");
+
+  const handleGoogle = async () => {
+    setLoading("google");
+    setError("");
+    try {
+      await signInWithGoogle();
+      setLocation("/dashboard");
+    } catch {
+      setError("Google sign-in failed. Please try again.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleGuest = async () => {
+    setLoading("guest");
+    setError("");
+    try {
+      await signInGuest();
+      setLocation("/dashboard");
+    } catch {
+      setError("Could not sign in as guest. Please try again.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Left panel */}
+      <div className="hidden md:flex flex-col justify-between w-1/2 bg-foreground text-background p-12">
+        <div className="font-display font-bold text-2xl">
+          go<span className="text-primary">pack</span>
+        </div>
+        <div>
+          <p className="text-5xl font-serif font-bold leading-tight mb-6">
+            Your next adventure<br />
+            <span className="text-primary">starts here.</span>
+          </p>
+          <p className="text-background/60 text-lg leading-relaxed">
+            Join your crew, drop your wishes, vote on what matters,
+            and let AI plan the perfect trip.
+          </p>
+          <div className="mt-10 text-2xl font-display font-bold text-background/40 tracking-widest">
+            WISH &middot; VOTE &middot; GO
+          </div>
+        </div>
+        <div className="text-background/40 text-sm">gopack &copy; 2026</div>
+      </div>
+
+      {/* Right panel */}
+      <div className="flex-1 flex items-center justify-center px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-sm"
+        >
+          <div className="mb-8 md:hidden">
+            <div className="font-display font-bold text-2xl mb-2">
+              go<span className="text-primary">pack</span>
+            </div>
+          </div>
+
+          <h1 className="font-serif text-4xl font-bold mb-2">Welcome back</h1>
+          <p className="text-muted-foreground mb-10">Sign in to continue planning</p>
+
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg px-4 py-3 mb-6">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleGoogle}
+              disabled={!!loading}
+              className="flex items-center justify-center gap-3 w-full border border-border rounded-full py-3.5 font-medium hover:bg-muted/50 transition-colors disabled:opacity-50"
+              data-testid="button-signin-google"
+            >
+              {loading === "google" ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <SiGoogle size={18} />
+              )}
+              Continue with Google
+            </button>
+
+            <div className="flex items-center gap-3 my-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            <button
+              onClick={handleGuest}
+              disabled={!!loading}
+              className="flex items-center justify-center gap-3 w-full bg-muted/50 rounded-full py-3.5 font-medium hover:bg-muted transition-colors disabled:opacity-50 text-muted-foreground"
+              data-testid="button-signin-guest"
+            >
+              {loading === "guest" ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : null}
+              Continue as guest
+            </button>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-8 text-center">
+            By continuing you agree to gopack&apos;s terms of service.
+          </p>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
