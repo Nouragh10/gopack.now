@@ -52,16 +52,16 @@ function ItineraryPreview({ days, tripDays }: { days: any[]; tripDays: number })
       </div>
       {/* Days */}
       <div className="divide-y divide-border/40 bg-background max-h-40 overflow-y-auto">
-        {days.map((d: any) => (
-          <div key={d.day} className="px-3 py-2">
+        {days.map((d: any, di: number) => (
+          <div key={d.day ?? di} className="px-3 py-2">
             <div className="font-semibold text-foreground mb-1">
-              Day {d.day}{d.theme ? `: ${d.theme}` : ""}
+              Day {d.day ?? di + 1}{d.theme ? `: ${d.theme}` : ""}
             </div>
             {d.activities?.length > 0 && (
               <div className="flex flex-col gap-0.5">
                 {d.activities.map((a: any, ai: number) => (
                   <div
-                    key={ai}
+                    key={`${di}-${ai}`}
                     className={`pl-2 border-l-2 ${CATEGORY_BORDER[a.category] || "border-l-border"} text-muted-foreground leading-tight`}
                   >
                     {a.time && <span className="text-foreground/50 mr-1">{a.time}</span>}

@@ -38,6 +38,62 @@ export function useGlobalStats() {
   return { stats, loading };
 }
 
+/* Normalizes both old and new review schemas into a consistent shape.
+   Old schema: { review, vibeLabel, authorName, itinerary, createdAt, authorUid, tripId }
+   New schema: { text, vibes[], memberNames[], itineraryDays[], reviewedAt, reviewedBy } */
+function normalizeReview(id: string, v: any) {
+  // Text: new schema → "text", old schema → "review"
+  const text = v.text?.trim() || v.review?.trim() || "";
+
+  // Vibes: new schema → string[], old schema → "Culture & Foodie & ..." string
+  const vibes: string[] = Array.isArray(v.vibes)
+    ? v.vibes
+    : v.vibeLabel
+    ? v.vibeLabel.split(/\s*&\s*/).map((s: string) => s.trim()).filter(Boolean)
+    : [];
+
+  // Member names: new schema → string[], old schema → authorName string
+  const memberNames: string[] = Array.isArray(v.memberNames)
+    ? v.memberNames
+    : v.authorName
+    ? [v.authorName]
+    : [];
+
+  // Reviewed at: new schema → ISO string, old schema → unix ms timestamp
+  const reviewedAt = v.reviewedAt
+    || (v.createdAt ? new Date(Number(v.createdAt)).toISOString() : null);
+
+  // Itinerary days: new schema → itineraryDays[], old schema → itinerary.days[]
+  const itineraryDays: any[] | null =
+    Array.isArray(v.itineraryDays) && v.itineraryDays.length > 0
+      ? v.itineraryDays
+      : Array.isArray(v.itinerary?.days) && v.itinerary.days.length > 0
+      ? v.itinerary.days.map((d: any, di: number) => ({
+          day: d.day ?? di + 1,
+          theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+          activities: (d.activities || []).slice(0, 4).map((a: any) => ({
+            time: a.time || "",
+            name: a.name || "",
+            category: a.category || "",
+          })),
+        }))
+      : null;
+
+  return {
+    id,
+    text,
+    vibes,
+    memberNames,
+    reviewedAt,
+    itineraryDays,
+    destination: v.destination || "",
+    days: v.days || 0,
+    rating: v.rating || 0,
+    highlight: v.highlight?.trim() || "",
+    memberCount: v.memberCount || memberNames.length,
+  };
+}
+
 export function usePublicReviews() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +106,8 @@ export function usePublicReviews() {
         if (snap.exists()) {
           const data = snap.val();
           const arr = Object.entries(data)
-            .map(([id, v]: [string, any]) => ({ id, ...v }))
+            .map(([id, v]: [string, any]) => normalizeReview(id, v))
+            .filter((r) => r.destination)
             .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
           setReviews(arr);
         } else {
