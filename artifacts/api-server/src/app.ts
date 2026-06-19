@@ -29,35 +29,44 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Firebase auth proxy ────────────────────────────────────────
-// Serves Firebase's auth handler from the same origin as the app.
-// This keeps window.opener alive through COOP (which only nullifies
-// it for cross-origin popups) so signInWithPopup works correctly.
-const FIREBASE_AUTH_HOST = "gopacknow-83d54.firebaseapp.com";
-app.use("/__/auth", async (req: Request, res: Response) => {
-  const targetUrl = `https://${FIREBASE_AUTH_HOST}/__/auth${req.url}`;
+// ── Firebase hosting proxy ─────────────────────────────────────
+// Proxies all /__/ paths (auth handler + firebase init config) from
+// the same origin as the app so signInWithPopup works under COOP.
+// The auth handler page loads /__/firebase/init.json as a relative
+// URL, so both /__/auth/* and /__/firebase/* must be proxied here.
+const FIREBASE_HOST = "gopacknow-83d54.firebaseapp.com";
+
+async function firebaseProxy(req: Request, res: Response): Promise<void> {
+  // req.originalUrl preserves the full path including the mount prefix
+  const targetUrl = `https://${FIREBASE_HOST}${req.originalUrl}`;
   try {
     const upstream = await fetch(targetUrl, {
       method: req.method,
+      // Omit accept-encoding so we always get plain (non-compressed) bytes
       headers: {
         "user-agent": (req.headers["user-agent"] as string) ?? "",
         accept: (req.headers["accept"] as string) ?? "*/*",
         "accept-language": (req.headers["accept-language"] as string) ?? "",
-        host: FIREBASE_AUTH_HOST,
+        host: FIREBASE_HOST,
       },
       redirect: "manual",
     });
 
-    // Copy status
     res.status(upstream.status);
 
-    // Forward safe headers
-    const SKIP = new Set(["content-encoding", "transfer-encoding", "connection", "keep-alive"]);
+    // undici (Node.js fetch) auto-decompresses gzip/br responses but keeps
+    // the original compressed content-length in the headers. Forwarding the
+    // stale content-length truncates the body in the browser. Strip both
+    // content-encoding (already decoded) and content-length (will be reset
+    // by Express from the actual buffer size), plus hop-by-hop headers.
+    const SKIP = new Set([
+      "content-encoding", "content-length",
+      "transfer-encoding", "connection", "keep-alive", "te", "trailer", "upgrade",
+    ]);
     upstream.headers.forEach((value, key) => {
       if (!SKIP.has(key.toLowerCase())) res.setHeader(key, value);
     });
 
-    // Handle redirects from upstream
     if (upstream.status >= 300 && upstream.status < 400) {
       const loc = upstream.headers.get("location");
       if (loc) { res.redirect(upstream.status, loc); return; }
@@ -66,10 +75,13 @@ app.use("/__/auth", async (req: Request, res: Response) => {
     const body = await upstream.arrayBuffer();
     res.end(Buffer.from(body));
   } catch (err) {
-    logger.error({ err }, "Firebase auth proxy error");
-    res.status(502).send("Firebase auth proxy error");
+    logger.error({ err }, "Firebase hosting proxy error");
+    res.status(502).send("Firebase proxy error");
   }
-});
+}
+
+app.use("/__/auth", firebaseProxy);
+app.use("/__/firebase", firebaseProxy);
 // ──────────────────────────────────────────────────────────────
 
 app.use("/api", router);
