@@ -188,6 +188,7 @@ export default function Itinerary() {
   const [localItinerary, setLocalItinerary] = useState<any>(null);
   const [trip, setTrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -196,16 +197,24 @@ export default function Itinerary() {
 
   useEffect(() => {
     if (!tripId) return;
-    const unsub = onValue(ref(db, `trips/${tripId}`), snap => {
-      const data = snap.val();
-      if (data) {
-        setTrip(data);
-        const itin = data.itinerary || null;
-        setItinerary(itin);
-        setLocalItinerary(itin ? JSON.parse(JSON.stringify(itin)) : null);
+    const unsub = onValue(
+      ref(db, `trips/${tripId}`),
+      snap => {
+        const data = snap.val();
+        if (data) {
+          setTrip(data);
+          const itin = data.itinerary || null;
+          setItinerary(itin);
+          setLocalItinerary(itin ? JSON.parse(JSON.stringify(itin)) : null);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("itinerary read error:", err);
+        setPermissionError(true);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
     return () => unsub();
   }, [tripId]);
 
@@ -250,6 +259,45 @@ export default function Itinerary() {
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 size={24} className="animate-spin text-primary"/>
+    </div>
+  );
+
+  if (permissionError) return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-6">
+      <div className="max-w-lg w-full">
+        <Link href={`/trip/${tripId}`} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 text-sm">
+          <ArrowLeft size={16}/> Back to trip
+        </Link>
+        <div className="bg-destructive/5 border border-destructive/20 rounded-2xl p-8">
+          <h2 className="font-serif text-2xl font-bold mb-2">Firebase rules need updating</h2>
+          <p className="text-muted-foreground text-sm mb-6">
+            Your Firebase Realtime Database rules are blocking reads. Paste the rules below into your{" "}
+            <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              Firebase Console
+            </a>
+            {" "}→ Realtime Database → Rules tab, then publish.
+          </p>
+          <pre className="bg-muted/60 rounded-xl p-4 text-xs overflow-x-auto leading-relaxed select-all">{`{
+  "rules": {
+    "trips": {
+      "$tripId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "userTrips": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}`}</pre>
+          <p className="text-xs text-muted-foreground mt-4">
+            Also go to Firebase Console → Authentication → Settings → Authorized domains and add your deployment domain.
+          </p>
+        </div>
+      </div>
     </div>
   );
 

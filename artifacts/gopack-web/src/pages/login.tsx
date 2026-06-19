@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import { handleGoogleRedirectResult, signInWithGoogle, signInGuest } from "@/lib/firebase";
+import { signInWithGoogle, signInGuest } from "@/lib/firebase";
 import { SiGoogle } from "react-icons/si";
 import { Loader2 } from "lucide-react";
 
@@ -16,25 +16,7 @@ export default function Login() {
   const params = new URLSearchParams(search);
   const redirectTo = params.get("from") || "/dashboard";
 
-  // Handle Google redirect result after signInWithRedirect returns
-  useEffect(() => {
-    handleGoogleRedirectResult()
-      .then((result) => {
-        if (result?.user) {
-          const saved = sessionStorage.getItem("gopack_auth_redirect") || "/dashboard";
-          sessionStorage.removeItem("gopack_auth_redirect");
-          setLocation(saved);
-        }
-      })
-      .catch((err) => {
-        // auth/no-auth-event is expected when there's no pending redirect
-        if (err?.code !== "auth/no-auth-event") {
-          setError("Google sign-in failed. Please try again.");
-        }
-      });
-  }, []);
-
-  // If already logged in (e.g. via guest), go straight to destination
+  // If already signed in, go straight to destination
   useEffect(() => {
     if (user) setLocation(redirectTo);
   }, [user]);
@@ -42,8 +24,10 @@ export default function Login() {
   const handleGoogle = () => {
     setLoading("google");
     setError("");
+    // Saves destination before the redirect — GoogleAuthHandler in App.tsx
+    // picks it up when Google redirects back to any page of the app.
     signInWithGoogle(redirectTo);
-    // Page navigates away — no need to handle resolution here
+    // Page navigates away; no need to await or handle resolution here.
   };
 
   const handleGuest = async () => {
@@ -97,7 +81,9 @@ export default function Login() {
 
           <h1 className="font-serif text-4xl font-bold mb-2">Welcome back</h1>
           <p className="text-muted-foreground mb-10">
-            {redirectTo.startsWith("/join/") ? "Sign in to join the trip" : "Sign in to continue planning"}
+            {redirectTo.startsWith("/join/")
+              ? "Sign in to join the trip"
+              : "Sign in to continue planning"}
           </p>
 
           {error && (
