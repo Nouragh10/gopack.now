@@ -304,6 +304,20 @@ export function useTrip(tripId: string) {
   }) => {
     if (!user || !tripId || !trip) return;
     const memberEntries = Object.values(trip.members || {}) as any[];
+
+    // Snapshot compact itinerary for public display on explore page
+    const itineraryDays = trip.itinerary?.days
+      ? (trip.itinerary.days as any[]).map((d: any) => ({
+          day: d.day,
+          theme: d.theme || d.title || `Day ${d.day}`,
+          activities: (d.activities || []).slice(0, 4).map((a: any) => ({
+            time: a.time || "",
+            name: a.name || "",
+            category: a.category || "",
+          })),
+        }))
+      : null;
+
     const review = {
       ...reviewData,
       destination: trip.destination,
@@ -312,6 +326,7 @@ export function useTrip(tripId: string) {
       memberNames: memberEntries.map((m: any) => m.name).filter(Boolean),
       reviewedAt: new Date().toISOString(),
       reviewedBy: user.uid,
+      ...(itineraryDays ? { itineraryDays } : {}),
     };
     await set(ref(db, `trips/${tripId}/review`), review);
     await set(ref(db, `reviews/${tripId}`), review);

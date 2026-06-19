@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { MapPin, Star, Users, ArrowLeft, Sparkles, Loader2, MessageSquare } from "lucide-react";
+import { MapPin, Star, Users, ArrowLeft, Sparkles, Loader2, MessageSquare, CalendarDays } from "lucide-react";
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const VIBE_COLORS: Record<string, string> = {
@@ -23,12 +23,56 @@ const VIBE_LABELS: Record<string, string> = {
   relaxation: "Relaxation", nightlife: "Nightlife", shopping: "Shopping",
 };
 
+const CATEGORY_BORDER: Record<string, string> = {
+  culture: "border-l-violet-400", Culture: "border-l-violet-400",
+  food: "border-l-amber-400", Foodie: "border-l-amber-400",
+  nightlife: "border-l-pink-400", Nightlife: "border-l-pink-400",
+  adventure: "border-l-green-400", Adventure: "border-l-green-400",
+  relaxation: "border-l-blue-400", Relaxation: "border-l-blue-400",
+  shopping: "border-l-orange-400", Shopping: "border-l-orange-400",
+};
+
 function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(i => (
         <Star key={i} size={size} className={i <= rating ? "fill-amber-400 text-amber-400" : "text-border fill-muted"} />
       ))}
+    </div>
+  );
+}
+
+function ItineraryPreview({ days, tripDays }: { days: any[]; tripDays: number }) {
+  return (
+    <div className="mt-4 rounded-xl overflow-hidden border border-border/70 text-[11px]">
+      {/* Doc header */}
+      <div className="bg-foreground text-background px-3 py-2 flex items-center gap-1.5 font-semibold">
+        <CalendarDays size={11} />
+        <span>{tripDays}-day itinerary</span>
+      </div>
+      {/* Days */}
+      <div className="divide-y divide-border/40 bg-background max-h-40 overflow-y-auto">
+        {days.map((d: any) => (
+          <div key={d.day} className="px-3 py-2">
+            <div className="font-semibold text-foreground mb-1">
+              Day {d.day}{d.theme ? `: ${d.theme}` : ""}
+            </div>
+            {d.activities?.length > 0 && (
+              <div className="flex flex-col gap-0.5">
+                {d.activities.map((a: any, ai: number) => (
+                  <div
+                    key={ai}
+                    className={`pl-2 border-l-2 ${CATEGORY_BORDER[a.category] || "border-l-border"} text-muted-foreground leading-tight`}
+                  >
+                    {a.time && <span className="text-foreground/50 mr-1">{a.time}</span>}
+                    {a.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -160,24 +204,36 @@ export default function Explore() {
                     </div>
                   )}
 
+                  {/* Review quote — shown prominently if non-empty */}
+                  {review.text?.trim() && (
+                    <blockquote className="mt-4 pl-3 border-l-2 border-primary/40">
+                      <p className="text-sm text-foreground leading-relaxed italic">
+                        &ldquo;{review.text}&rdquo;
+                      </p>
+                      {review.memberNames?.length > 0 && (
+                        <cite className="not-italic text-xs text-muted-foreground/60 mt-1 block">
+                          — {review.memberNames.slice(0, 2).join(" & ")}{review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
+                        </cite>
+                      )}
+                    </blockquote>
+                  )}
+
                   {/* Highlight */}
                   {review.highlight?.trim() && (
-                    <p className="text-xs text-muted-foreground mt-3 pb-3 border-b border-border/60">
-                      {review.highlight}
+                    <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 mt-3">
+                      ✨ {review.highlight}
                     </p>
                   )}
 
-                  {/* Review text — only shown if non-empty */}
-                  {review.text?.trim() ? (
-                    <p className="text-sm text-muted-foreground mt-3 leading-relaxed flex-1 italic">
-                      &ldquo;{review.text}&rdquo;
-                    </p>
-                  ) : (
-                    <div className="flex-1" />
+                  {/* Mini itinerary preview — shown if itinerary was snapshotted at review time */}
+                  {review.itineraryDays?.length > 0 && (
+                    <ItineraryPreview days={review.itineraryDays} tripDays={review.days} />
                   )}
 
-                  {/* Byline */}
-                  {review.memberNames?.length > 0 && (
+                  <div className="flex-1" />
+
+                  {/* Byline fallback (when no quote) */}
+                  {!review.text?.trim() && review.memberNames?.length > 0 && (
                     <p className="text-xs text-muted-foreground/60 mt-3">
                       — {review.memberNames.slice(0, 2).join(" & ")}{review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
                     </p>
