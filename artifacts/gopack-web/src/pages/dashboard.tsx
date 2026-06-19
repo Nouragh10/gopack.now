@@ -46,9 +46,14 @@ export default function Dashboard() {
           go<span className="text-primary">pack</span>
         </Link>
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium">
+          <Link
+            href="/profile"
+            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium hover:opacity-80 transition-opacity"
+            title="Edit profile"
+            data-testid="link-profile"
+          >
             {firstName[0].toUpperCase()}
-          </div>
+          </Link>
           <button
             onClick={() => { signOut(); setLocation("/"); }}
             className="text-muted-foreground hover:text-foreground transition-colors"

@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, LogOut, User, Mail, Edit2, Check, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { ref, update } from "firebase/database";
+import { auth, db } from "@/lib/firebase";
 
 const AVATAR_COLORS = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517", "#C4448A"];
 
@@ -32,7 +33,23 @@ export default function Profile() {
     setSaving(true);
     setSaveError("");
     try {
-      await updateProfile(user, { displayName: nameInput.trim() });
+      const newName = nameInput.trim();
+      await updateProfile(user, { displayName: newName });
+
+      // Sync name to all trip member records in RTDB
+      try {
+        const storageKey = `gopack_trips_${user.uid}`;
+        const raw = localStorage.getItem(storageKey);
+        const tripIds: string[] = raw ? JSON.parse(raw) : [];
+        await Promise.all(
+          tripIds.map(tripId =>
+            update(ref(db, `trips/${tripId}/members/${user.uid}`), { name: newName })
+          )
+        );
+      } catch {
+        // Non-critical — member name sync failed silently
+      }
+
       setEditingName(false);
     } catch {
       setSaveError("Could not update name. Try again.");

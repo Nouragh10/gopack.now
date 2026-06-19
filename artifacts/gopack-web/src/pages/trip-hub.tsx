@@ -255,7 +255,7 @@ export default function TripHub() {
 
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{wish.text}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">by {wish.author}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">by {(wish.memberId && trip?.members?.[wish.memberId]?.name) || wish.author}</p>
                       </div>
                       {i === 0 && wishes.length > 1 && (
                         <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 shrink-0">

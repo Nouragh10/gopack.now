@@ -29,6 +29,16 @@ const TAG_LEFT_BORDER: Record<string, string> = {
   travel:      "#9ca3af",
 };
 
+const TAG_BG: Record<string, string> = {
+  food:        "#fef3c7",
+  culture:     "#ede9fe",
+  adventure:   "#dcfce7",
+  relaxation:  "#dbeafe",
+  nightlife:   "#fce7f3",
+  shopping:    "#ffedd5",
+  travel:      "#f3f4f6",
+};
+
 const TAG_OPTIONS = ["food","culture","adventure","relaxation","nightlife","shopping","travel"];
 
 /* ─── helpers ────────────────────────────────────────────────── */
@@ -293,9 +303,6 @@ export default function Itinerary() {
     }
   }
 }`}</pre>
-          <p className="text-xs text-muted-foreground mt-4">
-            Also go to Firebase Console → Authentication → Settings → Authorized domains and add your deployment domain.
-          </p>
         </div>
       </div>
     </div>
@@ -303,20 +310,24 @@ export default function Itinerary() {
 
   return (
     <>
-      {/* ── print styles ── */}
+      {/* ── print + screen styles ── */}
       <style>{`
+        @media screen {
+          .print-only { display: none !important; }
+        }
+
         @media print {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .no-print { display: none !important; }
+          .print-only { display: block !important; }
+
           body { margin: 0; background: #fff !important; font-family: Georgia, serif; }
 
-          /* cover header */
           .print-header {
             background: #1a1a1a !important;
             color: #fff !important;
             padding: 48px 48px 40px;
-            margin-bottom: 0;
-            display: flex;
+            display: flex !important;
             align-items: flex-end;
             justify-content: space-between;
           }
@@ -325,13 +336,11 @@ export default function Itinerary() {
           .print-header-title { font-size: 38px; font-weight: 700; line-height: 1.15; margin: 16px 0 8px; }
           .print-header-sub { font-size: 15px; opacity: 0.6; }
 
-          /* content wrapper */
           .print-content { padding: 40px 48px; }
 
-          /* day section */
           .print-day { margin-bottom: 40px; break-inside: avoid-page; }
           .print-day-header {
-            display: flex;
+            display: flex !important;
             align-items: center;
             gap: 16px;
             padding: 14px 20px;
@@ -350,14 +359,13 @@ export default function Itinerary() {
           .print-day-city { font-size: 20px; font-weight: 700; }
           .print-day-theme { font-size: 13px; opacity: 0.8; margin-top: 2px; }
 
-          /* activity card */
           .print-activity {
             border: 1px solid #e5e7eb !important;
             border-radius: 12px;
             padding: 16px 20px;
             margin-bottom: 12px;
             break-inside: avoid;
-            display: flex;
+            display: flex !important;
             gap: 16px;
             position: relative;
             border-left-width: 4px !important;
@@ -376,32 +384,17 @@ export default function Itinerary() {
           .print-tag-travel     { background: #f3f4f6 !important; color: #374151 !important; border-color: #d1d5db !important; }
           .print-wish-badge     { background: #fef2f2 !important; color: #E85D3A !important; border: 1px solid #fecaca !important; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
           .print-cost { font-size: 14px; color: #374151; font-weight: 600; font-family: sans-serif; white-space: nowrap; }
-
           .print-activity-right { margin-left: auto; text-align: right; min-width: 72px; }
-
-          /* footer */
           .print-footer { text-align: center; color: #9ca3af; font-size: 11px; font-family: sans-serif; padding: 24px 0; border-top: 1px solid #f3f4f6; }
 
-          /* hide screen-only elements */
           nav, .print-screen-only { display: none !important; }
           .print-page { padding: 0 !important; max-width: 100% !important; }
         }
-
-        @media screen {
-          .print-header, .print-day-header, .print-activity,
-          .print-day-number, .print-activity-meta, .print-tag,
-          .print-wish-badge, .print-cost, .print-footer,
-          .print-content, .print-day, .print-activity-right,
-          .print-activity-name, .print-activity-desc, .print-activity-time,
-          .print-day-city, .print-day-theme, .print-header-logo,
-          .print-header-title, .print-header-sub { all: unset; display: revert; }
-        }
       `}</style>
 
-      {/* ── screen layout ── */}
       <div className="min-h-screen bg-background text-foreground">
         {/* nav */}
-        <nav className="no-print flex items-center justify-between px-8 py-5 border-b border-border sticky top-0 bg-background z-10">
+        <nav className="no-print flex items-center justify-between px-8 py-5 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
           <div className="flex items-center gap-4">
             <Link href={`/trip/${tripId}`} className="text-muted-foreground hover:text-foreground" data-testid="link-back">
               <ArrowLeft size={20}/>
@@ -439,9 +432,9 @@ export default function Itinerary() {
           )}
         </nav>
 
-        {/* ── print header (hidden on screen via print-only class) ── */}
+        {/* print header */}
         {localItinerary && (
-          <div className="print-header" style={{display:"none"}}>
+          <div className="print-only print-header">
             <div>
               <div className="print-header-logo">go<span>pack</span></div>
               <div className="print-header-title">{localItinerary.title}</div>
@@ -453,7 +446,7 @@ export default function Itinerary() {
           </div>
         )}
 
-        <div className="max-w-3xl mx-auto px-8 py-12 print-page print-content" ref={printRef}>
+        <div className="max-w-3xl mx-auto px-6 py-12 print-page print-content" ref={printRef}>
           {!localItinerary ? (
             <div className="text-center py-20 text-muted-foreground">
               <Sparkles size={32} className="mx-auto mb-4 opacity-30"/>
@@ -465,12 +458,12 @@ export default function Itinerary() {
             </div>
           ) : (
             <>
-              {/* screen title row */}
-              <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="print-screen-only no-print">
-                <p className="text-sm text-muted-foreground mb-1">{trip?.destination}</p>
-                <h1 className="font-serif text-5xl font-bold mb-2">{localItinerary.title}</h1>
+              {/* screen title */}
+              <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} className="print-screen-only no-print mb-10">
+                <p className="text-sm text-muted-foreground font-medium tracking-wide uppercase mb-2">{trip?.destination}</p>
+                <h1 className="font-serif text-4xl sm:text-5xl font-bold mb-3 leading-tight">{localItinerary.title}</h1>
                 <p className="text-muted-foreground mb-6">{localItinerary.days?.length} days planned by AI from your group&apos;s wishes</p>
-                <div className="flex flex-wrap gap-2 mb-10">
+                <div className="flex flex-wrap gap-2">
                   <button onClick={handleExportAllCalendar} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
                     <CalendarPlus size={14}/> Add all to Calendar
                   </button>
@@ -484,23 +477,29 @@ export default function Itinerary() {
               </motion.div>
 
               {/* days */}
-              <div className="flex flex-col gap-12">
+              <div className="flex flex-col gap-10">
                 {(localItinerary.days || []).map((day: any, di: number) => (
                   <motion.div key={di} initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:di*0.07}} data-testid={`day-${di+1}`}>
 
-                    {/* ── screen day header ── */}
-                    <div className="no-print flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 rounded-xl bg-foreground text-background flex items-center justify-center font-display font-bold text-xl shrink-0">
-                        {day.dayNumber}
-                      </div>
-                      <div>
-                        <h2 className="font-serif text-2xl font-bold">{day.city}</h2>
-                        <p className="text-muted-foreground text-sm">{day.theme}</p>
+                    {/* screen day header */}
+                    <div className="no-print flex items-center gap-0 mb-6">
+                      <div
+                        className="flex items-center gap-4 flex-1 px-5 py-4 rounded-2xl"
+                        style={{ background: `linear-gradient(135deg, rgba(232,93,58,0.12) 0%, rgba(232,93,58,0.04) 100%)`, borderLeft: "4px solid #E85D3A" }}
+                      >
+                        <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-primary text-white font-display font-bold shrink-0">
+                          <span className="text-[10px] font-medium opacity-70 leading-none uppercase tracking-wider">Day</span>
+                          <span className="text-xl leading-none font-bold">{day.dayNumber}</span>
+                        </div>
+                        <div>
+                          <h2 className="font-serif text-xl font-bold text-foreground">{day.city}</h2>
+                          <p className="text-sm text-muted-foreground mt-0.5">{day.theme}</p>
+                        </div>
                       </div>
                     </div>
 
-                    {/* ── print day header ── */}
-                    <div className="print-day-header" style={{display:"none"}}>
+                    {/* print day header */}
+                    <div className="print-only print-day-header">
                       <div className="print-day-number">{day.dayNumber}</div>
                       <div>
                         <div className="print-day-city">{day.city}</div>
@@ -509,71 +508,85 @@ export default function Itinerary() {
                     </div>
 
                     {/* activities */}
-                    <div className="flex flex-col gap-4 no-print:pl-16 pl-0 md:pl-16">
+                    <div className="flex flex-col gap-3 pl-0 sm:pl-4">
                       <AnimatePresence>
                         {(day.activities||[]).map((act: any, ai: number) => {
                           const key = `${di}-${ai}`;
                           const isEditing = editingKey === key;
                           const borderColor = TAG_LEFT_BORDER[act.tag] || TAG_LEFT_BORDER.travel;
+                          const tagBg = TAG_BG[act.tag] || TAG_BG.travel;
                           return (
                             <motion.div key={ai} layout initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} data-testid={`activity-${di+1}-${ai+1}`}>
                               {isEditing ? (
                                 <ActivityEditor activity={act} onSave={u=>handleEditSave(di,ai,u)} onCancel={()=>setEditingKey(null)}/>
                               ) : (
                                 <>
-                                  {/* ── screen card ── */}
-                                  <div className="no-print group border border-border rounded-2xl p-5 bg-background hover:border-border/80 transition-colors relative"
+                                  {/* screen card */}
+                                  <div className="no-print group relative bg-background border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200"
                                     style={{borderLeft:`4px solid ${borderColor}`}}>
+
+                                    {/* edit button */}
                                     <button
                                       onClick={()=>{setAddingToDayIndex(null);setEditingKey(key);}}
-                                      className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-muted/60 transition-all text-muted-foreground"
+                                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-muted/60 transition-all text-muted-foreground z-10"
                                       title="Edit activity" data-testid={`button-edit-activity-${di+1}-${ai+1}`}>
                                       <Edit2 size={14}/>
                                     </button>
-                                    <div className="flex items-start justify-between gap-4 mb-3 pr-8">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Clock size={13} className="text-muted-foreground"/>
-                                          <span className="text-xs text-muted-foreground">{act.time}</span>
-                                          {act.fromWish && (
-                                            <span className="flex items-center gap-1 text-xs text-primary"><Star size={11}/> From a wish</span>
-                                          )}
+
+                                    <div className="p-5">
+                                      {/* time row */}
+                                      <div className="flex items-center gap-3 mb-3">
+                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                                          style={{ background: tagBg, color: borderColor }}>
+                                          <Clock size={11}/>
+                                          <span>{act.time}</span>
                                         </div>
-                                        <h3 className="font-medium text-base">{act.name}</h3>
+                                        {act.fromWish && (
+                                          <span className="flex items-center gap-1 text-xs text-primary font-medium">
+                                            <Star size={11} className="fill-primary/30"/> From a wish
+                                          </span>
+                                        )}
+                                        <div className="ml-auto flex items-center gap-1 text-sm font-semibold text-foreground/70">
+                                          <DollarSign size={13}/>
+                                          <span>~${act.estimatedCost}</span>
+                                        </div>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0 text-sm text-muted-foreground">
-                                        <DollarSign size={13}/><span>~${act.estimatedCost}</span>
-                                      </div>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground leading-relaxed mb-3">{act.description}</p>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${TAG_COLORS[act.tag]||TAG_COLORS.travel}`}>
-                                        {act.tag}
-                                      </span>
-                                      {(act.labels||[]).map((l: string, li: number) => (
-                                        <span key={li} className="text-xs px-2.5 py-0.5 rounded-full border border-border text-muted-foreground">{l}</span>
-                                      ))}
-                                      {act.suggester && act.suggester !== "AI pick" && (
-                                        <span className="text-xs text-muted-foreground ml-auto">Suggested by {act.suggester}</span>
-                                      )}
-                                      {/* per-activity export buttons */}
-                                      <div className="ml-auto flex items-center gap-1.5">
-                                        <a href={buildActivityCalendarUrl(act, day, trip, di)} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                                          title="Add to Google Calendar" data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
-                                          <CalendarPlus size={11}/> Calendar
-                                        </a>
-                                        <a href={buildActivityMapsUrl(act, day, trip)} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                                          title="Open in Google Maps" data-testid={`button-act-maps-${di+1}-${ai+1}`}>
-                                          <MapPin size={11}/> Maps
-                                        </a>
+
+                                      {/* title */}
+                                      <h3 className="font-semibold text-base mb-2 pr-6">{act.name}</h3>
+
+                                      {/* description */}
+                                      <p className="text-sm text-muted-foreground leading-relaxed mb-4">{act.description}</p>
+
+                                      {/* footer row */}
+                                      <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border/60">
+                                        <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium capitalize ${TAG_COLORS[act.tag]||TAG_COLORS.travel}`}>
+                                          {act.tag}
+                                        </span>
+                                        {(act.labels||[]).map((l: string, li: number) => (
+                                          <span key={li} className="text-xs px-2.5 py-0.5 rounded-full border border-border text-muted-foreground">{l}</span>
+                                        ))}
+                                        {act.suggester && act.suggester !== "AI pick" && (
+                                          <span className="text-xs text-muted-foreground/70 italic ml-1">by {act.suggester}</span>
+                                        )}
+                                        <div className="ml-auto flex items-center gap-1.5">
+                                          <a href={buildActivityCalendarUrl(act, day, trip, di)} target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                            title="Add to Google Calendar" data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
+                                            <CalendarPlus size={11}/> Calendar
+                                          </a>
+                                          <a href={buildActivityMapsUrl(act, day, trip)} target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                            title="Open in Google Maps" data-testid={`button-act-maps-${di+1}-${ai+1}`}>
+                                            <MapPin size={11}/> Maps
+                                          </a>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
 
-                                  {/* ── print card ── */}
-                                  <div className="print-activity" style={{display:"none", borderLeftColor:borderColor}}>
+                                  {/* print card */}
+                                  <div className="print-only print-activity" style={{borderLeftColor:borderColor}}>
                                     <div style={{flex:1}}>
                                       <div className="print-activity-time">{act.time}{act.fromWish ? " · ★ From a wish" : ""}</div>
                                       <div className="print-activity-name">{act.name}</div>
@@ -599,13 +612,13 @@ export default function Itinerary() {
                         })}
                       </AnimatePresence>
 
-                      {/* add activity button */}
+                      {/* add activity */}
                       {addingToDayIndex === di ? (
                         <AddActivityForm dayIndex={di} onAdd={handleAddActivity} onCancel={()=>setAddingToDayIndex(null)}/>
                       ) : (
                         <button
                           onClick={()=>{setEditingKey(null);setAddingToDayIndex(di);}}
-                          className="no-print flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2 px-4 border border-dashed border-border rounded-xl hover:border-border/80 transition-colors"
+                          className="no-print flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2.5 px-4 border border-dashed border-border rounded-xl hover:border-primary/40 hover:text-primary transition-colors"
                           data-testid={`button-add-activity-day-${di+1}`}>
                           <Plus size={15}/> Add activity to Day {day.dayNumber}
                         </button>
@@ -616,7 +629,7 @@ export default function Itinerary() {
               </div>
 
               {/* print footer */}
-              <div className="print-footer" style={{display:"none"}}>
+              <div className="print-only print-footer">
                 gopack.now · AI-powered group travel planning · Itinerary generated for {trip?.destination}
               </div>
 
