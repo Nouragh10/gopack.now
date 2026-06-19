@@ -21,7 +21,7 @@ const BUDGETS = [
 ];
 
 export default function Create() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { createTrip } = useTrips();
   const [, setLocation] = useLocation();
 
@@ -33,6 +33,7 @@ export default function Create() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  if (authLoading) return null;
   if (!user) {
     setLocation("/login");
     return null;

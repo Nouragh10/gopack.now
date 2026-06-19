@@ -1,6 +1,8 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, MapPin, Users, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const steps = [
   {
@@ -23,6 +25,15 @@ const steps = [
 const avatarColors = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517"];
 
 export default function Landing() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && user) setLocation("/dashboard");
+  }, [user, loading, setLocation]);
+
+  const dest = user ? "/dashboard" : "/login";
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -32,14 +43,14 @@ export default function Landing() {
         </div>
         <div className="flex items-center gap-4">
           <Link
-            href="/login"
+            href={dest}
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             data-testid="link-nav-login"
           >
-            Sign in
+            {user ? "Dashboard" : "Sign in"}
           </Link>
           <Link
-            href="/login"
+            href={dest}
             className="bg-foreground text-background text-sm font-medium px-5 py-2.5 rounded-full hover:bg-foreground/90 transition-colors"
             data-testid="link-nav-start"
           >
@@ -69,7 +80,7 @@ export default function Landing() {
 
           <div className="flex items-center gap-4 flex-wrap">
             <Link
-              href="/login"
+              href={dest}
               className="inline-flex items-center gap-2 bg-primary text-white font-medium px-8 py-4 rounded-full hover:bg-primary/90 transition-colors"
               data-testid="link-hero-start"
             >
@@ -77,7 +88,7 @@ export default function Landing() {
               <ArrowRight size={16} />
             </Link>
             <Link
-              href="/login"
+              href={dest}
               className="inline-flex items-center gap-2 border border-border font-medium px-8 py-4 rounded-full hover:bg-muted/50 transition-colors"
               data-testid="link-hero-join"
             >
