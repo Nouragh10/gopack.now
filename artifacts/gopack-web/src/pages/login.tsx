@@ -16,18 +16,28 @@ export default function Login() {
   const params = new URLSearchParams(search);
   const redirectTo = params.get("from") || "/dashboard";
 
-  // If already signed in, go straight to destination
+  // Already signed in — go straight to destination
   useEffect(() => {
     if (user) setLocation(redirectTo);
   }, [user]);
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
     setLoading("google");
     setError("");
-    // Saves destination before the redirect — GoogleAuthHandler in App.tsx
-    // picks it up when Google redirects back to any page of the app.
-    signInWithGoogle(redirectTo);
-    // Page navigates away; no need to await or handle resolution here.
+    try {
+      await signInWithGoogle();
+      setLocation(redirectTo);
+    } catch (err: any) {
+      if (err?.code === "auth/popup-blocked") {
+        setError("Popup was blocked. Please allow popups for gopack.now and try again.");
+      } else if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
+        setError("Sign-in was cancelled.");
+      } else {
+        setError("Google sign-in failed. Please try again.");
+      }
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleGuest = async () => {
