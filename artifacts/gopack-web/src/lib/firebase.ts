@@ -1,5 +1,12 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut as firebaseSignOut } from "firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+  signInAnonymously,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
@@ -16,6 +23,14 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-export const signInWithGoogle = () => signInWithPopup(auth, new GoogleAuthProvider());
+const googleProvider = new GoogleAuthProvider();
+
+export const signInWithGoogle = (savePath?: string) => {
+  if (savePath) sessionStorage.setItem("gopack_auth_redirect", savePath);
+  return signInWithRedirect(auth, googleProvider);
+};
+
+export const handleGoogleRedirectResult = () => getRedirectResult(auth);
+
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);

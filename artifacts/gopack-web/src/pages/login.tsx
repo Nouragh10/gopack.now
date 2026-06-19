@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { handleGoogleRedirectResult, signInWithGoogle, signInGuest } from "@/lib/firebase";
 import { SiGoogle } from "react-icons/si";
 import { Loader2 } from "lucide-react";
 
 export default function Login() {
-  const { signInWithGoogle, signInGuest } = useAuth();
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const [loading, setLoading] = useState<"google" | "guest" | null>(null);
@@ -15,17 +16,34 @@ export default function Login() {
   const params = new URLSearchParams(search);
   const redirectTo = params.get("from") || "/dashboard";
 
-  const handleGoogle = async () => {
+  // Handle Google redirect result after signInWithRedirect returns
+  useEffect(() => {
+    handleGoogleRedirectResult()
+      .then((result) => {
+        if (result?.user) {
+          const saved = sessionStorage.getItem("gopack_auth_redirect") || "/dashboard";
+          sessionStorage.removeItem("gopack_auth_redirect");
+          setLocation(saved);
+        }
+      })
+      .catch((err) => {
+        // auth/no-auth-event is expected when there's no pending redirect
+        if (err?.code !== "auth/no-auth-event") {
+          setError("Google sign-in failed. Please try again.");
+        }
+      });
+  }, []);
+
+  // If already logged in (e.g. via guest), go straight to destination
+  useEffect(() => {
+    if (user) setLocation(redirectTo);
+  }, [user]);
+
+  const handleGoogle = () => {
     setLoading("google");
     setError("");
-    try {
-      await signInWithGoogle();
-      setLocation(redirectTo);
-    } catch {
-      setError("Google sign-in failed. Please try again.");
-    } finally {
-      setLoading(null);
-    }
+    signInWithGoogle(redirectTo);
+    // Page navigates away — no need to handle resolution here
   };
 
   const handleGuest = async () => {
@@ -115,9 +133,7 @@ export default function Login() {
               className="flex items-center justify-center gap-3 w-full bg-muted/50 rounded-full py-3.5 font-medium hover:bg-muted transition-colors disabled:opacity-50 text-muted-foreground"
               data-testid="button-signin-guest"
             >
-              {loading === "guest" ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : null}
+              {loading === "guest" ? <Loader2 size={18} className="animate-spin" /> : null}
               Continue as guest
             </button>
           </div>

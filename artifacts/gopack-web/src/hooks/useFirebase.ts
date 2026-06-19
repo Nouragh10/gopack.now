@@ -3,6 +3,9 @@ import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
+// useTrips reads the user's personal trip index (userTrips/${uid})
+// and then fetches each trip individually — avoids reading the root /trips
+// node which Firebase rules typically lock down.
 export function useTrips() {
   const { user } = useAuth();
   const [trips, setTrips] = useState<any[]>([]);
@@ -15,24 +18,36 @@ export function useTrips() {
       return;
     }
 
-    const tripsRef = ref(db, 'trips');
-    const unsubscribe = onValue(tripsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const tripsArray = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-        const myTrips = tripsArray.filter(t => t.members && t.members[user.uid]);
-        setTrips(myTrips);
-      } else {
-        setTrips([]);
+    const userTripsRef = ref(db, `userTrips/${user.uid}`);
+    const unsubscribe = onValue(
+      userTripsRef,
+      async (snapshot) => {
+        const index = snapshot.val();
+        const tripIds = index ? Object.keys(index) : [];
+
+        if (tripIds.length === 0) {
+          setTrips([]);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const snaps = await Promise.all(tripIds.map(id => get(ref(db, `trips/${id}`))));
+          const loaded = snaps
+            .filter(s => s.exists())
+            .map(s => ({ id: s.key, ...s.val() }));
+          setTrips(loaded);
+        } catch (err) {
+          console.error("useTrips fetch error:", err);
+        } finally {
+          setLoading(false);
+        }
+      },
+      (err) => {
+        console.error("useTrips index error:", err);
+        setLoading(false);
       }
-      setLoading(false);
-    }, (err) => {
-      console.error("useTrips read error:", err);
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -40,9 +55,9 @@ export function useTrips() {
   const createTrip = async (tripData: any) => {
     if (!user) return null;
 
-    const tripsRef = ref(db, 'trips');
+    const tripsRef = ref(db, "trips");
     const newTripRef = push(tripsRef);
-    const tripId = newTripRef.key;
+    const tripId = newTripRef.key!;
 
     const fullTripData = {
       ...tripData,
@@ -50,29 +65,33 @@ export function useTrips() {
       createdAt: new Date().toISOString(),
       members: {
         [user.uid]: {
-          name: user.displayName || 'Guest',
+          name: user.displayName || "Guest",
           joinedAt: new Date().toISOString(),
-          isHost: true
-        }
-      }
+          isHost: true,
+        },
+      },
     };
 
     await set(newTripRef, fullTripData);
+    // Index this trip under the user so useTrips can find it
+    await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
     return tripId;
   };
 
   const joinTrip = async (tripId: string, name: string) => {
     if (!user) return false;
 
-    // Use update at the members level to avoid overwriting other members
-    const membersRef = ref(db, `trips/${tripId}/members`);
-    await update(membersRef, {
+    // Add member entry using update so other members are not overwritten
+    await update(ref(db, `trips/${tripId}/members`), {
       [user.uid]: {
-        name: name || user.displayName || 'Guest',
+        name: name || user.displayName || "Guest",
         joinedAt: new Date().toISOString(),
-        isHost: false
-      }
+        isHost: false,
+      },
     });
+
+    // Index this trip under the user
+    await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
     return true;
   };
 
@@ -89,28 +108,31 @@ export function useTrip(tripId: string) {
     if (!tripId) return;
 
     const tripRef = ref(db, `trips/${tripId}`);
-    const unsubscribe = onValue(tripRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setTrip({ id: tripId, ...data });
+    const unsubscribe = onValue(
+      tripRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          setTrip({ id: tripId, ...data });
 
-        if (data.wishes) {
-          const wishesArray = Object.keys(data.wishes).map(key => ({
-            id: key,
-            ...data.wishes[key]
-          })).sort((a, b) => (b.votes || 0) - (a.votes || 0));
-          setWishes(wishesArray);
+          if (data.wishes) {
+            const wishesArray = Object.keys(data.wishes)
+              .map(key => ({ id: key, ...data.wishes[key] }))
+              .sort((a, b) => (b.votes || 0) - (a.votes || 0));
+            setWishes(wishesArray);
+          } else {
+            setWishes([]);
+          }
         } else {
-          setWishes([]);
+          setTrip(null);
         }
-      } else {
-        setTrip(null);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("useTrip read error:", err);
+        setLoading(false);
       }
-      setLoading(false);
-    }, (err) => {
-      console.error("useTrip read error:", err);
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, [tripId]);
@@ -118,16 +140,14 @@ export function useTrip(tripId: string) {
   const addWish = async (text: string) => {
     if (!user || !tripId) return;
 
-    const wishesRef = ref(db, `trips/${tripId}/wishes`);
-    const newWishRef = push(wishesRef);
-
+    const newWishRef = push(ref(db, `trips/${tripId}/wishes`));
     await set(newWishRef, {
       text,
-      author: user.displayName || 'Guest',
+      author: user.displayName || "Guest",
       memberId: user.uid,
       votes: 1,
       timestamp: new Date().toISOString(),
-      votedBy: { [user.uid]: true }
+      votedBy: { [user.uid]: true },
     });
   };
 
@@ -137,7 +157,6 @@ export function useTrip(tripId: string) {
     const wishRef = ref(db, `trips/${tripId}/wishes/${wishId}`);
     const snapshot = await get(wishRef);
     const wish = snapshot.val();
-
     if (!wish) return;
 
     const votedBy = { ...(wish.votedBy || {}) };
@@ -150,8 +169,8 @@ export function useTrip(tripId: string) {
     }
 
     await update(wishRef, {
-      votes: hasVoted ? (wish.votes || 1) - 1 : (wish.votes || 0) + 1,
-      votedBy
+      votes: hasVoted ? Math.max((wish.votes || 1) - 1, 0) : (wish.votes || 0) + 1,
+      votedBy,
     });
   };
 
