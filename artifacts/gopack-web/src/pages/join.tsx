@@ -85,7 +85,7 @@ export default function JoinTrip() {
                 <div className="text-center">
                   <p className="text-muted-foreground mb-6">Sign in to join this trip.</p>
                   <button
-                    onClick={() => setLocation("/login")}
+                    onClick={() => setLocation(`/login?from=${encodeURIComponent(`/join/${tripId}`)}`)}
                     className="w-full bg-primary text-white font-medium py-4 rounded-full hover:bg-primary/90 transition-colors"
                     data-testid="button-go-login"
                   >

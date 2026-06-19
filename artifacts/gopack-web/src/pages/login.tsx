@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { SiGoogle } from "react-icons/si";
@@ -8,15 +8,19 @@ import { Loader2 } from "lucide-react";
 export default function Login() {
   const { signInWithGoogle, signInGuest } = useAuth();
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const [loading, setLoading] = useState<"google" | "guest" | null>(null);
   const [error, setError] = useState("");
+
+  const params = new URLSearchParams(search);
+  const redirectTo = params.get("from") || "/dashboard";
 
   const handleGoogle = async () => {
     setLoading("google");
     setError("");
     try {
       await signInWithGoogle();
-      setLocation("/dashboard");
+      setLocation(redirectTo);
     } catch {
       setError("Google sign-in failed. Please try again.");
     } finally {
@@ -29,7 +33,7 @@ export default function Login() {
     setError("");
     try {
       await signInGuest();
-      setLocation("/dashboard");
+      setLocation(redirectTo);
     } catch {
       setError("Could not sign in as guest. Please try again.");
     } finally {
@@ -74,7 +78,9 @@ export default function Login() {
           </div>
 
           <h1 className="font-serif text-4xl font-bold mb-2">Welcome back</h1>
-          <p className="text-muted-foreground mb-10">Sign in to continue planning</p>
+          <p className="text-muted-foreground mb-10">
+            {redirectTo.startsWith("/join/") ? "Sign in to join the trip" : "Sign in to continue planning"}
+          </p>
 
           {error && (
             <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-lg px-4 py-3 mb-6">
