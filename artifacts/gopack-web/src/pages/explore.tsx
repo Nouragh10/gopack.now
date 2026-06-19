@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { MapPin, Star, Users, ArrowLeft, Sparkles, Loader2, MessageSquare } from "lucide-react";
-import { usePublicReviews } from "@/hooks/useFirebase";
+import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const VIBE_COLORS: Record<string, string> = {
   culture:     "bg-violet-100 text-violet-700 border-violet-200",
@@ -34,11 +34,14 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
 }
 
 export default function Explore() {
-  const { reviews, loading } = usePublicReviews();
+  const { reviews, loading: reviewsLoading } = usePublicReviews();
+  const { stats, loading: statsLoading } = useGlobalStats();
 
-  const tripCount = reviews.length;
-  const memberCount = reviews.reduce((sum, r) => sum + (r.memberCount || 0), 0);
-  const destinations = new Set(reviews.map(r => r.destination).filter(Boolean)).size;
+  const loading = reviewsLoading || statsLoading;
+
+  const tripCount = stats.tripCount || reviews.length;
+  const memberCount = stats.memberCount;
+  const destinationCount = stats.destinationCount;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -75,42 +78,40 @@ export default function Explore() {
         </div>
       </div>
 
-      {/* Stats bar */}
-      {tripCount > 0 && (
+      {/* Stats bar — real numbers from Firebase */}
+      {(tripCount > 0 || memberCount > 0 || destinationCount > 0) && (
         <div className="border-b border-border px-8 py-4 bg-background">
           <div className="max-w-5xl mx-auto flex items-center gap-8 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-primary" />
-              <span><strong className="text-foreground">{tripCount}</strong> trip{tripCount !== 1 ? "s" : ""} reviewed</span>
-            </div>
+            {tripCount > 0 && (
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-primary" />
+                <span><strong className="text-foreground">{tripCount}</strong> trip{tripCount !== 1 ? "s" : ""} planned</span>
+              </div>
+            )}
             {memberCount > 0 && (
               <div className="flex items-center gap-2">
                 <Users size={14} className="text-primary" />
                 <span><strong className="text-foreground">{memberCount}</strong> traveller{memberCount !== 1 ? "s" : ""}</span>
               </div>
             )}
-            {destinations > 0 && (
+            {destinationCount > 0 && (
               <div className="flex items-center gap-2">
                 <MapPin size={14} className="text-primary" />
-                <span><strong className="text-foreground">{destinations}</strong> destination{destinations !== 1 ? "s" : ""}</span>
+                <span><strong className="text-foreground">{destinationCount}</strong> destination{destinationCount !== 1 ? "s" : ""}</span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Trip grid */}
+      {/* Reviews grid */}
       <div className="max-w-5xl mx-auto px-8 py-12">
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 size={24} className="animate-spin text-primary" />
           </div>
         ) : reviews.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-24"
-          >
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-24">
             <MessageSquare size={40} className="mx-auto mb-4 text-muted-foreground/30" />
             <h2 className="font-serif text-2xl font-bold mb-3">No reviews yet</h2>
             <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
@@ -146,7 +147,7 @@ export default function Explore() {
                   </div>
 
                   {/* Stars */}
-                  <StarRating rating={review.rating} />
+                  {review.rating > 0 && <StarRating rating={review.rating} />}
 
                   {/* Vibes */}
                   {review.vibes?.length > 0 && (
@@ -160,16 +161,20 @@ export default function Explore() {
                   )}
 
                   {/* Highlight */}
-                  {review.highlight && (
+                  {review.highlight?.trim() && (
                     <p className="text-xs text-muted-foreground mt-3 pb-3 border-b border-border/60">
                       {review.highlight}
                     </p>
                   )}
 
-                  {/* Review text */}
-                  <p className="text-sm text-muted-foreground mt-3 leading-relaxed flex-1">
-                    &ldquo;{review.text}&rdquo;
-                  </p>
+                  {/* Review text — only shown if non-empty */}
+                  {review.text?.trim() ? (
+                    <p className="text-sm text-muted-foreground mt-3 leading-relaxed flex-1 italic">
+                      &ldquo;{review.text}&rdquo;
+                    </p>
+                  ) : (
+                    <div className="flex-1" />
+                  )}
 
                   {/* Byline */}
                   {review.memberNames?.length > 0 && (

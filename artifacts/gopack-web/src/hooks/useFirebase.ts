@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { ref, onValue, push, set, update, get } from "firebase/database";
+import { ref, onValue, push, set, update, get, runTransaction } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
@@ -7,6 +7,37 @@ import { useAuth } from "./useAuth";
    Reads /reviews — publicly written by members after their trip ends.
    Requires Firebase RTDB rules to allow ".read": true at /reviews.
 ──────────────────────────────────────────────────────────────── */
+/* ─── useGlobalStats ────────────────────────────────────────────
+   Reads /trips to compute real aggregate stats (all trips ever).
+   Falls back silently if Firebase rules deny access.
+──────────────────────────────────────────────────────────────── */
+export function useGlobalStats() {
+  const [stats, setStats] = useState({ tripCount: 0, memberCount: 0, destinationCount: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const statsRef = ref(db, "stats");
+    const unsubscribe = onValue(
+      statsRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.val();
+          setStats({
+            tripCount: data.tripCount || 0,
+            memberCount: data.memberCount || 0,
+            destinationCount: data.destinationCount || 0,
+          });
+        }
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  return { stats, loading };
+}
+
 export function usePublicReviews() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +150,23 @@ export function useTrips() {
     // Store trip ID locally so dashboard can list it
     addLocalTripId(user.uid, tripId);
 
+    // Increment global stats (publicly readable /stats node)
+    try {
+      await runTransaction(ref(db, "stats/tripCount"), (cur) => (cur || 0) + 1);
+      await runTransaction(ref(db, "stats/memberCount"), (cur) => (cur || 0) + 1);
+      // Track unique destinations via a flat map
+      const destKey = (tripData.destination || "").trim().replace(/[.#$[\]]/g, "_").toLowerCase();
+      if (destKey) {
+        await set(ref(db, `stats/destinations/${destKey}`), true);
+        const destSnap = await get(ref(db, "stats/destinations"));
+        if (destSnap.exists()) {
+          await set(ref(db, "stats/destinationCount"), Object.keys(destSnap.val()).length);
+        }
+      }
+    } catch {
+      // Silently ignored — stats are best-effort
+    }
+
     // Also attempt to write to Firebase index (works if rules allow)
     try {
       await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
@@ -141,6 +189,13 @@ export function useTrips() {
         isHost: false,
       },
     });
+
+    // Increment member count in global stats
+    try {
+      await runTransaction(ref(db, "stats/memberCount"), (cur) => (cur || 0) + 1);
+    } catch {
+      // Silently ignored
+    }
 
     // Store trip ID locally
     addLocalTripId(user.uid, tripId);

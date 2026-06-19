@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
-  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users
+  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye, EyeOff
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
@@ -203,6 +203,7 @@ export default function Itinerary() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [addingToDayIndex, setAddingToDayIndex] = useState<number | null>(null);
+  const [printPreview, setPrintPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -254,7 +255,11 @@ export default function Itinerary() {
     setAddingToDayIndex(null);
   };
 
-  const handleExportPDF = () => window.print();
+  const handleExportPDF = () => {
+    setPrintPreview(false);
+    setTimeout(() => window.print(), 50);
+  };
+  const togglePrintPreview = () => setPrintPreview(p => !p);
 
   const handleExportAllCalendar = () => {
     if (!localItinerary) return;
@@ -422,6 +427,12 @@ export default function Itinerary() {
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
                 title="All stops in Google Maps" data-testid="button-open-maps">
                 <MapPin size={15}/><span className="hidden sm:inline">Maps</span>
+              </button>
+              <button onClick={togglePrintPreview}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-full transition-colors ${printPreview ? "bg-primary text-white border-primary" : "border-border hover:bg-muted/50"}`}
+                title="Preview PDF layout" data-testid="button-preview-pdf">
+                {printPreview ? <EyeOff size={15}/> : <Eye size={15}/>}
+                <span className="hidden sm:inline">{printPreview ? "Close preview" : "Preview PDF"}</span>
               </button>
               <button onClick={handleExportPDF}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
@@ -655,6 +666,101 @@ export default function Itinerary() {
           )}
         </div>
       </div>
+
+      {/* ── Print preview overlay ── */}
+      <AnimatePresence>
+        {printPreview && localItinerary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-gray-200 overflow-y-auto"
+          >
+            {/* Preview toolbar */}
+            <div className="sticky top-0 z-10 bg-gray-800 text-white flex items-center justify-between px-6 py-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <Eye size={16} className="text-gray-400" />
+                <span className="text-sm font-medium">PDF Preview</span>
+                <span className="text-xs text-gray-400">This is exactly what your PDF will look like</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-1.5 bg-primary text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-primary/90 transition-colors"
+                >
+                  <FileDown size={14} /> Print / Save PDF
+                </button>
+                <button
+                  onClick={() => setPrintPreview(false)}
+                  className="flex items-center gap-1.5 text-gray-300 hover:text-white text-sm px-3 py-2 rounded-full hover:bg-gray-700 transition-colors"
+                >
+                  <X size={14} /> Close preview
+                </button>
+              </div>
+            </div>
+
+            {/* Simulated PDF page */}
+            <div className="py-8 flex justify-center">
+              <div className="w-[850px] max-w-full bg-white shadow-2xl" style={{fontFamily:"Georgia, serif"}}>
+
+                {/* PDF Header (dark) */}
+                <div style={{background:"#1a1a1a",color:"#fff",padding:"48px 48px 40px",display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
+                  <div>
+                    <div style={{fontSize:22,fontWeight:700,letterSpacing:-0.5,opacity:0.6,fontFamily:"sans-serif"}}>
+                      go<span style={{color:"#E85D3A"}}>pack</span>
+                    </div>
+                    <div style={{fontSize:38,fontWeight:700,lineHeight:1.15,margin:"16px 0 8px"}}>{localItinerary.title}</div>
+                    <div style={{fontSize:15,opacity:0.6}}>{localItinerary.days?.length} days · {trip?.destination}</div>
+                  </div>
+                  <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
+                    AI-generated itinerary<br/>gopack.now
+                  </div>
+                </div>
+
+                {/* PDF Content */}
+                <div style={{padding:"40px 48px"}}>
+                  {(localItinerary.days || []).map((day: any, di: number) => (
+                    <div key={di} style={{marginBottom:40}}>
+                      {/* Day header */}
+                      <div style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px",background:"#E85D3A",color:"#fff",borderRadius:12,marginBottom:16}}>
+                        <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:18,flexShrink:0}}>
+                          {di+1}
+                        </div>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:18}}>{day.city || trip?.destination}</div>
+                          {day.theme && <div style={{fontSize:13,opacity:0.85,marginTop:2}}>{day.theme}</div>}
+                        </div>
+                      </div>
+
+                      {/* Activities */}
+                      {(day.activities || []).map((act: any, ai: number) => {
+                        const borderColor = TAG_LEFT_BORDER[act.tag || "travel"] || "#9ca3af";
+                        return (
+                          <div key={ai} style={{display:"flex",alignItems:"flex-start",gap:16,padding:"14px 16px",borderLeft:`4px solid ${borderColor}`,marginBottom:10,background:"#fafafa",borderRadius:"0 8px 8px 0"}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:12,color:"#9ca3af",marginBottom:4,fontFamily:"sans-serif"}}>{act.time}{act.fromWish ? " · ★ From a wish" : ""}</div>
+                              <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>{act.name}</div>
+                              <div style={{fontSize:13,color:"#6b7280",lineHeight:1.5,fontFamily:"sans-serif"}}>{act.description}</div>
+                            </div>
+                            <div style={{minWidth:72,textAlign:"right",fontWeight:600,fontSize:14,fontFamily:"sans-serif",color:"#374151"}}>
+                              ${act.estimatedCost}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {/* Footer */}
+                  <div style={{textAlign:"center",color:"#9ca3af",fontSize:11,fontFamily:"sans-serif",paddingTop:24,borderTop:"1px solid #f3f4f6"}}>
+                    gopack.now · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
