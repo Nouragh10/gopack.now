@@ -1,15 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ref, onValue, push, set, update, get } from "firebase/database";
 import { db } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
-// useTrips reads the user's personal trip index (userTrips/${uid})
-// and then fetches each trip individually — avoids reading the root /trips
-// node which Firebase rules typically lock down.
+/* ─── localStorage trip-id index ────────────────────────────────
+   Firebase RTDB rules restrict reading /userTrips and root /trips.
+   We keep a per-user index in localStorage so the dashboard always
+   knows which trips the user has created or joined.
+   Limitation: index is local to this browser only.
+──────────────────────────────────────────────────────────────── */
+const storageKey = (uid: string) => `gopack_trips_${uid}`;
+
+function getLocalTripIds(uid: string): string[] {
+  try {
+    const raw = localStorage.getItem(storageKey(uid));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addLocalTripId(uid: string, tripId: string) {
+  const ids = getLocalTripIds(uid);
+  if (!ids.includes(tripId)) {
+    localStorage.setItem(storageKey(uid), JSON.stringify([...ids, tripId]));
+  }
+}
+
+/* ─── useTrips ──────────────────────────────────────────────── */
 export function useTrips() {
   const { user } = useAuth();
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchTrips = useCallback(async (uid: string) => {
+    const ids = getLocalTripIds(uid);
+    if (ids.length === 0) {
+      setTrips([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const snaps = await Promise.all(ids.map(id => get(ref(db, `trips/${id}`))));
+      const loaded = snaps
+        .filter(s => s.exists())
+        .map(s => ({ id: s.key, ...s.val() }));
+      setTrips(loaded);
+    } catch (err) {
+      console.error("useTrips fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -17,40 +59,8 @@ export function useTrips() {
       setLoading(false);
       return;
     }
-
-    const userTripsRef = ref(db, `userTrips/${user.uid}`);
-    const unsubscribe = onValue(
-      userTripsRef,
-      async (snapshot) => {
-        const index = snapshot.val();
-        const tripIds = index ? Object.keys(index) : [];
-
-        if (tripIds.length === 0) {
-          setTrips([]);
-          setLoading(false);
-          return;
-        }
-
-        try {
-          const snaps = await Promise.all(tripIds.map(id => get(ref(db, `trips/${id}`))));
-          const loaded = snaps
-            .filter(s => s.exists())
-            .map(s => ({ id: s.key, ...s.val() }));
-          setTrips(loaded);
-        } catch (err) {
-          console.error("useTrips fetch error:", err);
-        } finally {
-          setLoading(false);
-        }
-      },
-      (err) => {
-        console.error("useTrips index error:", err);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user]);
+    fetchTrips(user.uid);
+  }, [user, fetchTrips]);
 
   const createTrip = async (tripData: any) => {
     if (!user) return null;
@@ -73,15 +83,25 @@ export function useTrips() {
     };
 
     await set(newTripRef, fullTripData);
-    // Index this trip under the user so useTrips can find it
-    await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
+
+    // Store trip ID locally so dashboard can list it
+    addLocalTripId(user.uid, tripId);
+
+    // Also attempt to write to Firebase index (works if rules allow)
+    try {
+      await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
+    } catch {
+      // Silently ignored — localStorage index is the fallback
+    }
+
+    // Refresh the trip list
+    await fetchTrips(user.uid);
     return tripId;
   };
 
   const joinTrip = async (tripId: string, name: string) => {
     if (!user) return false;
 
-    // Add member entry using update so other members are not overwritten
     await update(ref(db, `trips/${tripId}/members`), {
       [user.uid]: {
         name: name || user.displayName || "Guest",
@@ -90,14 +110,23 @@ export function useTrips() {
       },
     });
 
-    // Index this trip under the user
-    await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
+    // Store trip ID locally
+    addLocalTripId(user.uid, tripId);
+
+    try {
+      await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
+    } catch {
+      // Silently ignored
+    }
+
+    await fetchTrips(user.uid);
     return true;
   };
 
   return { trips, loading, createTrip, joinTrip };
 }
 
+/* ─── useTrip ───────────────────────────────────────────────── */
 export function useTrip(tripId: string) {
   const { user } = useAuth();
   const [trip, setTrip] = useState<any>(null);
@@ -114,7 +143,6 @@ export function useTrip(tripId: string) {
         const data = snapshot.val();
         if (data) {
           setTrip({ id: tripId, ...data });
-
           if (data.wishes) {
             const wishesArray = Object.keys(data.wishes)
               .map(key => ({ id: key, ...data.wishes[key] }))
@@ -139,7 +167,6 @@ export function useTrip(tripId: string) {
 
   const addWish = async (text: string) => {
     if (!user || !tripId) return;
-
     const newWishRef = push(ref(db, `trips/${tripId}/wishes`));
     await set(newWishRef, {
       text,
@@ -153,7 +180,6 @@ export function useTrip(tripId: string) {
 
   const toggleVote = async (wishId: string) => {
     if (!user || !tripId) return;
-
     const wishRef = ref(db, `trips/${tripId}/wishes/${wishId}`);
     const snapshot = await get(wishRef);
     const wish = snapshot.val();
@@ -161,7 +187,6 @@ export function useTrip(tripId: string) {
 
     const votedBy = { ...(wish.votedBy || {}) };
     const hasVoted = !!votedBy[user.uid];
-
     if (hasVoted) {
       delete votedBy[user.uid];
     } else {
