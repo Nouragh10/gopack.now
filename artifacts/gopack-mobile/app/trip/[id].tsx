@@ -96,8 +96,8 @@ export default function TripHubScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 12;
 
-  const memberNames = Object.values(trip?.memberNames ?? {});
-  const memberCount = Object.keys(trip?.memberIds ?? {}).length;
+  const memberNames = Object.values(trip?.members ?? {}).map((m) => m.name);
+  const memberCount = Object.keys(trip?.members ?? {}).length;
 
   const handleAddWish = async () => {
     if (!wishInput.trim() || !user || !id) return;

@@ -20,18 +20,18 @@ import { ChatMessage, sendMessage, useChat, useTrip } from "@/hooks/useFirebase"
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
-function colorForUid(uid: string, memberIds: Record<string, boolean>) {
-  const idx = Object.keys(memberIds ?? {}).indexOf(uid);
+function colorForUid(uid: string, members: Record<string, { name: string; joinedAt: string; isHost: boolean }>) {
+  const idx = Object.keys(members ?? {}).indexOf(uid);
   return MEMBER_COLORS[Math.max(0, idx) % MEMBER_COLORS.length];
 }
 
-function MessageBubble({ msg, isMe, memberIds, colors }: {
+function MessageBubble({ msg, isMe, members, colors }: {
   msg: ChatMessage;
   isMe: boolean;
-  memberIds: Record<string, boolean>;
+  members: Record<string, { name: string; joinedAt: string; isHost: boolean }>;
   colors: any;
 }) {
-  const color = colorForUid(msg.authorId, memberIds);
+  const color = colorForUid(msg.authorId, members);
   const initial = (msg.authorName ?? "?")[0].toUpperCase();
 
   return (
@@ -105,7 +105,7 @@ export default function ChatScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Pack chat</Text>
         <View style={[styles.headerBadge, { backgroundColor: colors.muted }]}>
           <Text style={[styles.headerBadgeText, { color: colors.mutedForeground }]}>
-            {Object.keys(trip?.memberIds ?? {}).length}
+            {Object.keys(trip?.members ?? {}).length}
           </Text>
         </View>
       </View>
@@ -123,7 +123,7 @@ export default function ChatScreen() {
             <MessageBubble
               msg={item}
               isMe={item.authorId === user?.uid}
-              memberIds={trip?.memberIds ?? {}}
+              members={trip?.members ?? {}}
               colors={colors}
             />
           )}

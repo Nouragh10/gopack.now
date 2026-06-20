@@ -39,8 +39,8 @@ function Avatar({ name, index, size = 28 }: { name: string; index: number; size?
 
 function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
   const colors = useColors();
-  const memberNames = Object.values(trip.memberNames ?? {});
-  const memberCount = Object.keys(trip.memberIds ?? {}).length;
+  const memberNames = Object.values(trip.members ?? {}).map((m) => m.name);
+  const memberCount = Object.keys(trip.members ?? {}).length;
 
   return (
     <Pressable
