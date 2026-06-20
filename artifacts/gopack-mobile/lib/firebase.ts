@@ -13,10 +13,13 @@ import {
   User,
 } from "firebase/auth";
 import {
+  equalTo,
   get,
   getDatabase,
   onValue,
+  orderByChild,
   push,
+  query,
   ref,
   set,
   update,
@@ -67,4 +70,4 @@ export const signUpWithEmail = async (
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);
 
-export { get, onValue, push, ref, set, update };
+export { equalTo, get, onValue, orderByChild, push, query, ref, set, update };

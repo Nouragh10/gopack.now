@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
-import { db, get, onValue, push, ref, set, update } from "@/lib/firebase";
+import { db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
 
 /* ── Interfaces ───────────────────────────────────────────────────── */
 
@@ -305,15 +305,20 @@ export async function createTrip(data: {
 /* ── joinTrip ─────────────────────────────────────────────────────── */
 
 export async function joinTrip(code: string, uid: string, displayName: string) {
-  let tripId: string;
+  const normalised = code.trim().toUpperCase();
 
-  try {
-    const snap = await get(ref(db, `inviteCodes/${code.toUpperCase()}`));
-    if (!snap.exists()) throw new Error("Invalid invite code");
-    tripId = snap.val() as string;
-  } catch {
-    throw new Error("Invalid invite code");
-  }
+  // Query trips directly by the inviteCode field — reliable because the code
+  // is stored inside the trip record itself, not a separate index that may be
+  // blocked by security rules.
+  const tripsQuery = query(
+    ref(db, "trips"),
+    orderByChild("inviteCode"),
+    equalTo(normalised),
+  );
+  const snap = await get(tripsQuery);
+  if (!snap.exists()) throw new Error("No trip found for that code. Double-check and try again.");
+
+  const tripId = Object.keys(snap.val())[0];
 
   await update(ref(db, `trips/${tripId}/members`), {
     [uid]: {
