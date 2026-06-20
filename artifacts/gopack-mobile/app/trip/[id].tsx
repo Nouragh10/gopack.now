@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import {
   addWish,
   lockVotes,
+  setAccommodationStatus,
   unlockVotes,
   useTrip,
   useWishes,
@@ -203,6 +204,7 @@ export default function TripHubScreen() {
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [lockingVotes, setLockingVotes] = useState(false);
+  const [showAccomModal, setShowAccomModal] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 12;
@@ -286,9 +288,29 @@ export default function TripHubScreen() {
   const pendingDestination = !trip.destination && !!trip.destinationSuggestions?.length;
   const collectingPreferences = !!trip.collectingPreferences && !trip.destinationSuggestions?.length;
 
+  const accomStatus = trip.accommodationStatus;
+  const destConfirmed = !!trip.destination;
+  const showAccomBanner = destConfirmed && !accomStatus;
+  const accomCollecting = accomStatus === "collecting_prefs";
+  const accomVoting = accomStatus === "voting";
+  const accomConfirmed = accomStatus === "confirmed";
+
   const waitingMembers = members
     .filter(([uid]) => !lockedBy[uid])
     .map(([, m]) => m.name);
+
+  const handleAccomChoice = async (choice: "help" | "booked" | "later") => {
+    setShowAccomModal(false);
+    if (!id) return;
+    if (choice === "help") {
+      await setAccommodationStatus(id, "collecting_prefs");
+      router.push(`/accommodation-preferences/${id}`);
+    } else if (choice === "booked") {
+      await setAccommodationStatus(id, "booked");
+    } else {
+      await setAccommodationStatus(id, "skipped");
+    }
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -328,6 +350,42 @@ export default function TripHubScreen() {
         >
           <Feather name="zap" size={15} color="#fff" />
           <Text style={styles.destBannerText}>Your pack is voting on the destination — join the vote</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* Accommodation: prompt to choose */}
+      {showAccomBanner && (
+        <Pressable
+          onPress={() => setShowAccomModal(true)}
+          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+        >
+          <Feather name="home" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Choose accommodation for the trip</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* Accommodation: collecting preferences */}
+      {accomCollecting && (
+        <Pressable
+          onPress={() => router.push(`/accommodation-preferences/${id}`)}
+          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+        >
+          <Feather name="sliders" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Share your accommodation preferences</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* Accommodation: voting in progress */}
+      {accomVoting && (
+        <Pressable
+          onPress={() => router.push(`/accommodation-vote/${id}`)}
+          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+        >
+          <Feather name="home" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Your pack is voting on accommodation — join the vote</Text>
           <Feather name="arrow-right" size={15} color="#fff" />
         </Pressable>
       )}
@@ -511,6 +569,22 @@ export default function TripHubScreen() {
             })}
           </View>
 
+          {/* Confirmed accommodation card */}
+          {accomConfirmed && trip.confirmedAccommodation && (
+            <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <Feather name="home" size={13} color="#26A69A" />
+                <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION CONFIRMED</Text>
+              </View>
+              <Text style={[styles.accomCardName, { color: colors.foreground }]}>
+                {trip.confirmedAccommodation.name}
+              </Text>
+              <Text style={[styles.accomCardSub, { color: colors.mutedForeground }]}>
+                {trip.confirmedAccommodation.location} · ${trip.confirmedAccommodation.costPerPerson}/person
+              </Text>
+            </View>
+          )}
+
           {/* Generate itinerary card */}
           <Pressable
             onPress={() => {
@@ -558,6 +632,62 @@ export default function TripHubScreen() {
           </Pressable>
         </ScrollView>
       )}
+
+      {/* Accommodation choice modal */}
+      <Modal visible={showAccomModal} transparent animationType="slide" onRequestClose={() => setShowAccomModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAccomModal(false)}>
+          <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <Feather name="home" size={20} color="#26A69A" />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Accommodation</Text>
+            </View>
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground, textTransform: "none", letterSpacing: 0, fontSize: 13, marginBottom: 8 }]}>
+              How do you want to handle where the group stays?
+            </Text>
+
+            <Pressable
+              onPress={() => handleAccomChoice("help")}
+              style={[styles.accomOption, { backgroundColor: "#26A69A10", borderColor: "#26A69A" }]}
+            >
+              <View style={[styles.accomOptionIcon, { backgroundColor: "#26A69A" }]}>
+                <Feather name="zap" size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Help us choose</Text>
+                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Everyone shares preferences, AI suggests 3 options, the pack votes</Text>
+              </View>
+              <Feather name="arrow-right" size={18} color="#26A69A" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleAccomChoice("booked")}
+              style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            >
+              <View style={[styles.accomOptionIcon, { backgroundColor: colors.primary }]}>
+                <Feather name="check-circle" size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>We already booked</Text>
+                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Skip this — accommodation is sorted</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleAccomChoice("later")}
+              style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            >
+              <View style={[styles.accomOptionIcon, { backgroundColor: colors.muted }]}>
+                <Feather name="clock" size={18} color={colors.mutedForeground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Decide later</Text>
+                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Come back to this when ready</Text>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Invite modal */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
@@ -719,6 +849,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 11,
   },
   destBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
+
+  accomCard: {
+    width: "100%", borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 2,
+  },
+  accomCardLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 1.5 },
+  accomCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 },
+  accomCardSub: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+
+  accomOption: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 14, borderWidth: 1, padding: 14,
+  },
+  accomOptionIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
+  },
+  accomOptionTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
+  accomOptionSub: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17 },
 
   /* Modals */
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

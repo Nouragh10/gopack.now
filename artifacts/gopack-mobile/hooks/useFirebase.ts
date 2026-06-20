@@ -27,6 +27,37 @@ export interface MemberPreference {
   submittedAt: string;
 }
 
+export interface AccommodationPreference {
+  maxCostPerPerson: number;
+  type: "hotel" | "airbnb" | "hostel" | "no_preference";
+  rooms: number;
+  location: string;
+  amenities: string[];
+  priority: "luxury" | "balanced" | "affordability";
+  cancellation: "flexible" | "any";
+  submittedAt: string;
+}
+
+export interface AccommodationSuggestion {
+  id: string;
+  name: string;
+  type: "hotel" | "airbnb" | "hostel" | "other";
+  location: string;
+  totalCost: number;
+  costPerPerson: number;
+  nights: number;
+  rating: number;
+  amenities: string[];
+  rooms: number;
+  beds: number;
+  cancellation: string;
+  whyItFits: string;
+  tags: string[];
+  distanceNote: string;
+  link?: string;
+  submittedBy: string;
+}
+
 export interface Trip {
   id: string;
   destination: string;
@@ -45,6 +76,12 @@ export interface Trip {
   destinationSuggestions?: DestinationSuggestion[];
   destinationVotes?: Record<string, Record<string, "up" | "down">>;
   destinationLockedBy?: Record<string, boolean>;
+  accommodationStatus?: "collecting_prefs" | "voting" | "confirmed" | "booked" | "skipped";
+  accommodationPreferences?: Record<string, AccommodationPreference>;
+  accommodationSuggestions?: AccommodationSuggestion[];
+  accommodationVotes?: Record<string, Record<string, "up" | "down">>;
+  accommodationLockedBy?: Record<string, boolean>;
+  confirmedAccommodation?: AccommodationSuggestion;
 }
 
 export interface Wish {
@@ -522,6 +559,79 @@ export async function togglePackItem(
     ref(db, `trips/${tripId}/packingItems/${category}/${index}/checked`),
     checked,
   );
+}
+
+/* ── Accommodation flow ───────────────────────────────────────────── */
+
+export async function setAccommodationStatus(
+  tripId: string,
+  status: Trip["accommodationStatus"],
+) {
+  await set(ref(db, `trips/${tripId}/accommodationStatus`), status ?? null);
+}
+
+export async function submitAccommodationPreference(
+  tripId: string,
+  uid: string,
+  pref: Omit<AccommodationPreference, "submittedAt">,
+) {
+  await set(ref(db, `trips/${tripId}/accommodationPreferences/${uid}`), {
+    ...pref,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
+export async function storeAccommodationSuggestions(
+  tripId: string,
+  suggestions: AccommodationSuggestion[],
+) {
+  await update(ref(db, `trips/${tripId}`), {
+    accommodationSuggestions: suggestions,
+    accommodationStatus: "voting",
+    accommodationPreferences: null,
+  });
+}
+
+export async function addMemberAccommodationLink(
+  tripId: string,
+  suggestion: AccommodationSuggestion,
+) {
+  const existing = await get(ref(db, `trips/${tripId}/accommodationSuggestions`));
+  const current: AccommodationSuggestion[] = existing.val() ?? [];
+  await set(ref(db, `trips/${tripId}/accommodationSuggestions`), [...current, suggestion]);
+}
+
+export async function voteAccommodation(
+  tripId: string,
+  idx: number,
+  uid: string,
+  dir: "up" | "down",
+) {
+  const voteRef = ref(db, `trips/${tripId}/accommodationVotes/${idx}/${uid}`);
+  const snap = await get(voteRef);
+  const current = snap.val() as string | null;
+  await set(voteRef, current === dir ? null : dir);
+}
+
+export async function lockAccommodationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/accommodationLockedBy/${uid}`), true);
+}
+
+export async function unlockAccommodationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/accommodationLockedBy/${uid}`), null);
+}
+
+export async function confirmAccommodation(
+  tripId: string,
+  suggestion: AccommodationSuggestion,
+) {
+  await update(ref(db, `trips/${tripId}`), {
+    confirmedAccommodation: suggestion,
+    accommodationStatus: "confirmed",
+    accommodationSuggestions: null,
+    accommodationVotes: null,
+    accommodationLockedBy: null,
+  });
 }
 
 /* ── Activity CRUD ────────────────────────────────────────────────── */

@@ -341,4 +341,111 @@ Respond with ONLY valid JSON, no markdown:
   }
 });
 
+router.post("/suggest-accommodations", async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as {
+    destination: string;
+    days: number;
+    memberCount: number;
+    memberPreferences: Array<{
+      name: string;
+      maxCostPerPerson: number;
+      type: string;
+      rooms: number;
+      location: string;
+      amenities: string[];
+      priority: string;
+      cancellation: string;
+    }>;
+  };
+
+  if (!body.destination || !body.days || !Array.isArray(body.memberPreferences) || body.memberPreferences.length === 0) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const { destination, days, memberCount, memberPreferences } = body;
+
+  const memberLines = memberPreferences.map((p) =>
+    `- ${p.name}: max $${p.maxCostPerPerson}/person, prefers ${p.type}, ${p.rooms} room(s), wants to be near "${p.location || "city center"}", amenities [${p.amenities.join(", ") || "none specified"}], priority: ${p.priority}, cancellation: ${p.cancellation}`
+  ).join("\n");
+
+  const totalNights = days;
+  const avgMaxBudget = Math.round(memberPreferences.reduce((s, p) => s + p.maxCostPerPerson, 0) / memberPreferences.length);
+
+  const prompt = `You are a group travel accommodation expert. A group of ${memberCount} traveler(s) needs accommodation in ${destination} for ${totalNights} night(s).
+
+Individual member preferences:
+${memberLines}
+
+Group summary:
+- Average max budget per person: $${avgMaxBudget} total for the trip
+- Group size: ${memberCount} people
+
+Suggest exactly 3 distinct, realistic accommodation options for ${destination} that best balance the group's needs. Make them genuinely different types or price points.
+
+For each suggestion:
+1. Use a realistic property name that could exist in ${destination}
+2. Calculate totalCost = cost for ALL ${memberCount} people for ALL ${totalNights} nights
+3. Calculate costPerPerson = totalCost / ${memberCount}
+4. Keep costPerPerson close to avgMaxBudget but show range across the 3 options
+5. distanceNote should reference how far it is from the city center or main attractions in ${destination}
+6. whyItFits must explain in 1 punchy sentence why it works for THIS specific group
+
+Respond with ONLY valid JSON, no markdown:
+{
+  "suggestions": [
+    {
+      "id": "opt-1",
+      "name": "Hotel Palacio Central",
+      "type": "hotel",
+      "location": "Barrio Gótico, Barcelona",
+      "totalCost": 1800,
+      "costPerPerson": 450,
+      "nights": ${totalNights},
+      "rating": 4.3,
+      "amenities": ["WiFi", "Breakfast included", "AC", "Rooftop terrace"],
+      "rooms": 2,
+      "beds": 4,
+      "cancellation": "Free cancellation until 48h before check-in",
+      "whyItFits": "Central location puts you 5 min from most of your wishlist spots.",
+      "tags": ["Best location", "Breakfast included", "Great value"],
+      "distanceNote": "5 min walk to La Rambla, 10 min to Gothic Quarter",
+      "submittedBy": "AI"
+    }
+  ]
+}`;
+
+  try {
+    const requestBody = {
+      model: "claude-haiku-4-5",
+      max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }],
+    };
+
+    const response = await callAnthropic(requestBody);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+    };
+
+    if (!(response as unknown as globalThis.Response).ok) {
+      req.log.error({ data }, "Anthropic API error (suggest-accommodations)");
+      res.status((response as unknown as globalThis.Response).status).json(data);
+      return;
+    }
+
+    const allText = (data.content ?? [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("");
+
+    const cleanJson = extractJson(allText);
+    const result = JSON.parse(cleanJson);
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to suggest accommodations");
+    res.status(500).json({ error: (err as Error).message || "Failed to suggest accommodations" });
+  }
+});
+
 export default router;
