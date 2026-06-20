@@ -284,6 +284,7 @@ export default function TripHubScreen() {
   }
 
   const pendingDestination = !trip.destination && !!trip.destinationSuggestions?.length;
+  const collectingPreferences = !!trip.collectingPreferences && !trip.destinationSuggestions?.length;
 
   const waitingMembers = members
     .filter(([uid]) => !lockedBy[uid])
@@ -306,6 +307,18 @@ export default function TripHubScreen() {
           <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
         </Pressable>
       </View>
+
+      {/* Collecting preferences banner */}
+      {collectingPreferences && (
+        <Pressable
+          onPress={() => router.push(`/destination-preferences/${id}`)}
+          style={[styles.destBanner, { backgroundColor: "#7E57C2" }]}
+        >
+          <Feather name="sliders" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Share your travel preferences so AI can suggest destinations</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
 
       {/* Pending destination banner */}
       {pendingDestination && (

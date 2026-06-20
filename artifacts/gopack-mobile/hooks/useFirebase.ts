@@ -18,6 +18,15 @@ export interface DestinationSuggestion {
   bestTime: string;
 }
 
+export interface MemberPreference {
+  vibes: string[];
+  distance: string;
+  budget: string;
+  days: number;
+  startDate: string | null;
+  submittedAt: string;
+}
+
 export interface Trip {
   id: string;
   destination: string;
@@ -31,6 +40,8 @@ export interface Trip {
   inviteCode?: string;
   itinerary?: { title: string; days: ItineraryDay[] };
   votesLockedBy?: Record<string, boolean>;
+  collectingPreferences?: boolean;
+  memberPreferences?: Record<string, MemberPreference>;
   destinationSuggestions?: DestinationSuggestion[];
   destinationVotes?: Record<string, Record<string, "up" | "down">>;
   destinationLockedBy?: Record<string, boolean>;
@@ -408,11 +419,30 @@ export async function unlockVotes(tripId: string, uid: string) {
 
 /* ── Destination suggester ────────────────────────────────────────── */
 
+export async function setCollectingPreferences(tripId: string, collecting: boolean) {
+  await set(ref(db, `trips/${tripId}/collectingPreferences`), collecting || null);
+}
+
+export async function submitMemberPreference(
+  tripId: string,
+  uid: string,
+  pref: Omit<MemberPreference, "submittedAt">,
+) {
+  await set(ref(db, `trips/${tripId}/memberPreferences/${uid}`), {
+    ...pref,
+    submittedAt: new Date().toISOString(),
+  });
+}
+
 export async function storeDestinationSuggestions(
   tripId: string,
   suggestions: DestinationSuggestion[],
 ) {
-  await set(ref(db, `trips/${tripId}/destinationSuggestions`), suggestions);
+  await update(ref(db, `trips/${tripId}`), {
+    destinationSuggestions: suggestions,
+    collectingPreferences: null,
+    memberPreferences: null,
+  });
 }
 
 export async function voteDestination(

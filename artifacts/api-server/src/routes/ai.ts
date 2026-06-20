@@ -195,26 +195,83 @@ Respond with ONLY valid JSON (no markdown):
 });
 
 router.post("/suggest-destinations", async (req: Request, res: Response): Promise<void> => {
-  const { tripType, distance, budget, days, mustHaves } = req.body as {
-    tripType: string[];
-    distance: string;
-    budget: string;
-    days: number;
+  // Support both single-preference (legacy) and multi-member preferences
+  const body = req.body as {
+    // Legacy single-preference fields
+    tripType?: string[];
+    distance?: string;
+    budget?: string;
+    days?: number;
     mustHaves?: string;
+    // New: array of per-member preferences
+    memberPreferences?: Array<{
+      name: string;
+      vibes: string[];
+      distance: string;
+      budget: string;
+      days: number;
+      startDate?: string | null;
+    }>;
   };
 
-  if (!tripType?.length || !distance || !budget || !days) {
+  const isGroupMode = Array.isArray(body.memberPreferences) && body.memberPreferences.length > 0;
+
+  if (!isGroupMode && (!body.tripType?.length || !body.distance || !body.budget || !body.days)) {
     res.status(400).json({ error: "Missing required fields." });
     return;
   }
 
-  const prompt = `You are a world-class travel expert. Suggest exactly 3 distinct destination options for a group trip.
+  let prompt: string;
+
+  if (isGroupMode) {
+    const prefs = body.memberPreferences!;
+    const memberLines = prefs.map((p) =>
+      `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range "${p.distance}", budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}`
+    ).join("\n");
+
+    // Aggregate to find common ground
+    const allVibes = prefs.flatMap((p) => p.vibes);
+    const vibeCounts: Record<string, number> = {};
+    allVibes.forEach((v) => { vibeCounts[v] = (vibeCounts[v] ?? 0) + 1; });
+    const topVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([v]) => v);
+
+    prompt = `You are a world-class group travel expert. A friend group can't agree on where to go. Based on EACH member's individual preferences below, suggest exactly 3 destinations that best satisfy the group as a whole — finding common ground and making smart compromises.
+
+Individual member preferences:
+${memberLines}
+
+Group profile summary:
+- Most popular vibes across the group: ${topVibes.join(", ")}
+- Number of members: ${prefs.length}
+
+Rules:
+1. Make the 3 destinations genuinely different — different regions or meaningfully different vibes.
+2. Pick destinations that honour the MAJORITY preferences while still working for outliers.
+3. Each pitch must be ONE punchy sentence (max 12 words) that speaks to why it works for THIS group.
+4. Each destination gets exactly 3 short tags (2-4 words each).
+5. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe".
+6. bestTime: e.g. "May–Sept" or "Year-round".
+
+Respond with ONLY valid JSON, no markdown:
+{
+  "suggestions": [
+    {
+      "name": "Lisbon, Portugal",
+      "pitch": "Sun, pastéis, cheap wine, and Europe's best nightlife.",
+      "tags": ["Warm weather", "Food scene", "Budget-friendly"],
+      "flightHint": "~2h from London",
+      "bestTime": "April–October"
+    }
+  ]
+}`;
+  } else {
+    prompt = `You are a world-class travel expert. Suggest exactly 3 distinct destination options for a group trip.
 
 Trip preferences:
-- Travel style: ${tripType.join(", ")}
-- Flight range: ${distance}
-- Budget level: ${budget}
-- Duration: ${days} days${mustHaves ? `\n- Must have: ${mustHaves}` : ""}
+- Travel style: ${body.tripType!.join(", ")}
+- Flight range: ${body.distance}
+- Budget level: ${body.budget}
+- Duration: ${body.days} days${body.mustHaves ? `\n- Must have: ${body.mustHaves}` : ""}
 
 Rules:
 1. Make the 3 destinations genuinely different from each other — different continents or meaningfully different vibes.
@@ -249,6 +306,7 @@ Respond with ONLY valid JSON, no markdown:
     }
   ]
 }`;
+  }
 
   try {
     const body = {

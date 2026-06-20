@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { createTrip, joinTrip, storeDestinationSuggestions } from "@/hooks/useFirebase";
+import { createTrip, joinTrip, setCollectingPreferences } from "@/hooks/useFirebase";
 
 const VIBES = [
   "Adventure", "Culture", "Food", "Beach",
@@ -27,7 +27,6 @@ const VIBES = [
 ];
 
 const BUDGETS = ["Budget", "Midrange", "Luxury"] as const;
-const DISTANCES = ["Nearby (< 3h)", "Mid-haul (3–8h)", "Anywhere"] as const;
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -45,8 +44,6 @@ export default function CreateScreen() {
 
   const [knowDestination, setKnowDestination] = useState(true);
   const [destination, setDestination] = useState("");
-  const [distance, setDistance] = useState<typeof DISTANCES[number]>("Mid-haul (3–8h)");
-  const [mustHaves, setMustHaves] = useState("");
   const [days, setDays] = useState(5);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -94,7 +91,6 @@ export default function CreateScreen() {
   };
 
   const handleSuggest = async () => {
-    if (selectedVibes.length === 0) { setError("Pick at least one vibe."); return; }
     if (!user) { setError("You must be signed in."); return; }
     setError("");
     setSuggesting(true);
@@ -102,36 +98,15 @@ export default function CreateScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const tripId = await createTrip({
         destination: "",
-        days,
-        vibes: selectedVibes,
-        budget: budget.toLowerCase(),
-        startDate: startDate ? toISODate(startDate) : null,
+        days: 5,
+        vibes: [],
+        budget: "midrange",
+        startDate: null,
         uid: user.uid,
         displayName: user.displayName ?? "Traveler",
       });
-
-      const baseUrl = Platform.OS === "web"
-        ? ""
-        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-
-      const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tripType: selectedVibes,
-          distance,
-          budget: budget.toLowerCase(),
-          days,
-          mustHaves: mustHaves.trim() || undefined,
-        }),
-      });
-
-      if (!res.ok) throw new Error("AI couldn't generate suggestions. Try again.");
-      const data = await res.json() as { suggestions: any[] };
-      if (!data.suggestions?.length) throw new Error("No suggestions returned.");
-
-      await storeDestinationSuggestions(tripId, data.suggestions);
-      router.push(`/destination-vote/${tripId}`);
+      await setCollectingPreferences(tripId, true);
+      router.push(`/destination-preferences/${tripId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -222,42 +197,6 @@ export default function CreateScreen() {
                 </Text>
               </View>
 
-              <View style={{ marginTop: 12 }}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>How far are you willing to fly?</Text>
-                <View style={styles.distanceRow}>
-                  {DISTANCES.map((d) => (
-                    <Pressable
-                      key={d}
-                      onPress={() => setDistance(d)}
-                      style={[
-                        styles.distanceChip,
-                        {
-                          backgroundColor: distance === d ? colors.primary : colors.muted,
-                          borderColor: distance === d ? colors.primary : colors.border,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.distanceText, { color: distance === d ? "#fff" : colors.foreground }]}>
-                        {d}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View style={{ marginTop: 12 }}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Any must-haves? (optional)</Text>
-                <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <TextInput
-                    style={[styles.input, { color: colors.foreground }]}
-                    placeholder="e.g. warm weather, no long flights"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={mustHaves}
-                    onChangeText={setMustHaves}
-                    returnKeyType="done"
-                  />
-                </View>
-              </View>
             </View>
           )}
 
