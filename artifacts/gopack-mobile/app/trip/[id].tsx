@@ -275,6 +275,8 @@ export default function TripHubScreen() {
     );
   }
 
+  const pendingDestination = !trip.destination && !!trip.destinationSuggestions?.length;
+
   const waitingMembers = members
     .filter(([uid]) => !lockedBy[uid])
     .map(([, m]) => m.name);
@@ -296,6 +298,18 @@ export default function TripHubScreen() {
           <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
         </Pressable>
       </View>
+
+      {/* Pending destination banner */}
+      {pendingDestination && (
+        <Pressable
+          onPress={() => router.push(`/destination-vote/${id}`)}
+          style={[styles.destBanner, { backgroundColor: colors.primary }]}
+        >
+          <Feather name="zap" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Your pack is voting on the destination — join the vote</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
 
       {/* Members strip */}
       <View style={[styles.membersRow, { borderBottomColor: colors.border }]}>
@@ -673,6 +687,12 @@ const styles = StyleSheet.create({
   packCardLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
   packCardTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
   packCardBtn: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+
+  destBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 16, paddingVertical: 11,
+  },
+  destBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
 
   /* Modals */
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

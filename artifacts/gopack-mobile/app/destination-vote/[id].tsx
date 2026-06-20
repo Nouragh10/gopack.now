@@ -1,0 +1,420 @@
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useAuth } from "@/context/AuthContext";
+import { useColors } from "@/hooks/useColors";
+import {
+  DestinationSuggestion,
+  confirmDestination,
+  lockDestinationVotes,
+  unlockDestinationVotes,
+  useTrip,
+  voteDestination,
+} from "@/hooks/useFirebase";
+
+const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+
+function Avatar({ name, index, size = 28 }: { name: string; index: number; size?: number }) {
+  const bg = MEMBER_COLORS[index % MEMBER_COLORS.length];
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#fff" }}>
+      <Text style={{ color: "#fff", fontSize: size * 0.38, fontFamily: "DmSans_700Bold" }}>
+        {(name ?? "?")[0].toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+interface SuggestionCardProps {
+  suggestion: DestinationSuggestion;
+  idx: number;
+  tripId: string;
+  uid: string;
+  votes: Record<string, "up" | "down">;
+  members: Record<string, { name: string }>;
+  isWinning: boolean;
+  allLocked: boolean;
+  isCreator: boolean;
+  colors: any;
+  onConfirm: () => void;
+}
+
+function SuggestionCard({
+  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
+}: SuggestionCardProps) {
+  const myVote = votes[uid] ?? null;
+  const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
+  const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
+  const score = upVoters.length - downVoters.length;
+
+  const upNames = upVoters.map(([id]) => members[id]?.name ?? "Unknown");
+  const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
+
+  const handleVote = (dir: "up" | "down") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    voteDestination(tripId, idx, uid, dir);
+  };
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: isWinning && allLocked ? "#2B2723" : colors.card,
+          borderColor: isWinning && allLocked ? "#E85D3A" : colors.border,
+          borderWidth: isWinning && allLocked ? 2 : 1,
+        },
+      ]}
+    >
+      {isWinning && allLocked && (
+        <View style={styles.winBadge}>
+          <Text style={styles.winBadgeText}>⭐ WINNER</Text>
+        </View>
+      )}
+
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={[styles.cardName, { color: isWinning && allLocked ? "#FFFDF9" : colors.foreground }]}>
+            {suggestion.name}
+          </Text>
+          <Text style={[styles.cardPitch, { color: isWinning && allLocked ? "#BDB0A0" : colors.mutedForeground }]}>
+            {suggestion.pitch}
+          </Text>
+        </View>
+
+        <View style={styles.arrowStack}>
+          <Pressable
+            onPress={() => handleVote("up")}
+            style={[styles.arrowBtn, { backgroundColor: myVote === "up" ? colors.primary + "22" : "transparent" }]}
+          >
+            <Feather name="arrow-up" size={20} color={myVote === "up" ? colors.primary : colors.mutedForeground} />
+          </Pressable>
+          <Text style={[styles.scoreText, { color: score > 0 ? colors.primary : score < 0 ? colors.mutedForeground : colors.mutedForeground }]}>
+            {score > 0 ? `+${score}` : score}
+          </Text>
+          <Pressable
+            onPress={() => handleVote("down")}
+            style={[styles.arrowBtn, { backgroundColor: myVote === "down" ? "#9E9E9E22" : "transparent" }]}
+          >
+            <Feather name="arrow-down" size={20} color={myVote === "down" ? colors.foreground : colors.mutedForeground} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Tags */}
+      <View style={styles.tagsRow}>
+        {suggestion.tags.map((tag) => (
+          <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.tagText, { color: colors.foreground }]}>{tag}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Meta */}
+      <View style={styles.metaRow}>
+        <View style={styles.metaItem}>
+          <Feather name="navigation" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{suggestion.flightHint}</Text>
+        </View>
+        <View style={styles.metaItem}>
+          <Feather name="sun" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{suggestion.bestTime}</Text>
+        </View>
+      </View>
+
+      {/* Voter names */}
+      {upNames.length > 0 && (
+        <View style={styles.voterRow}>
+          <Feather name="arrow-up" size={11} color={colors.primary} />
+          <Text style={[styles.voterNames, { color: colors.primary }]} numberOfLines={1}>
+            {upNames.join(", ")}
+          </Text>
+        </View>
+      )}
+      {downNames.length > 0 && (
+        <View style={styles.voterRow}>
+          <Feather name="arrow-down" size={11} color={colors.mutedForeground} />
+          <Text style={[styles.voterNames, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {downNames.join(", ")}
+          </Text>
+        </View>
+      )}
+
+      {/* Confirm button — creator only, winning card, all locked */}
+      {isCreator && isWinning && allLocked && (
+        <Pressable onPress={onConfirm} style={styles.confirmBtn}>
+          <Feather name="check" size={16} color="#fff" />
+          <Text style={styles.confirmBtnText}>Set as destination</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/* ── Screen ──────────────────────────────────────────────────────── */
+
+export default function DestinationVoteScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const { trip, loading } = useTrip(id);
+  const [locking, setLocking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
+
+  const suggestions = trip?.destinationSuggestions ?? [];
+  const allVotes = trip?.destinationVotes ?? {};
+  const lockedBy = trip?.destinationLockedBy ?? {};
+  const members = trip?.members ?? {};
+  const memberCount = Object.keys(members).length;
+  const lockedCount = Object.keys(lockedBy).length;
+  const allLocked = memberCount > 0 && lockedCount >= memberCount;
+  const myLocked = !!lockedBy[user?.uid ?? ""];
+  const isCreator = trip?.hostMemberId === user?.uid;
+
+  const getVotesForIdx = (idx: number): Record<string, "up" | "down"> =>
+    (allVotes[idx] ?? {}) as Record<string, "up" | "down">;
+
+  const getScore = (idx: number) => {
+    const v = getVotesForIdx(idx);
+    const up = Object.values(v).filter((d) => d === "up").length;
+    const down = Object.values(v).filter((d) => d === "down").length;
+    return up - down;
+  };
+
+  const winnerIdx = suggestions.reduce((best, _, idx) => {
+    return getScore(idx) > getScore(best) ? idx : best;
+  }, 0);
+
+  const handleToggleLock = async () => {
+    if (!user || !id) return;
+
+    if (!myLocked) {
+      const unvoted = suggestions.filter((_, idx) => !getVotesForIdx(idx)[user.uid]);
+      if (unvoted.length > 0) {
+        Alert.alert(
+          "Vote on all destinations first",
+          `You need to vote on ${unvoted.length} more destination${unvoted.length > 1 ? "s" : ""} before locking in.`,
+          [{ text: "OK" }],
+        );
+        return;
+      }
+    }
+
+    setLocking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (myLocked) {
+        await unlockDestinationVotes(id, user.uid);
+      } else {
+        await lockDestinationVotes(id, user.uid);
+      }
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!id || !suggestions[winnerIdx]) return;
+    setConfirming(true);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await confirmDestination(id, suggestions[winnerIdx].name);
+      router.replace(`/trip/${id}`);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!trip || suggestions.length === 0) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No suggestions yet.</Text>
+        <Pressable onPress={() => router.back()} style={[styles.backLink, { borderColor: colors.border }]}>
+          <Text style={[styles.backLinkText, { color: colors.foreground }]}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.headerLabel, { color: colors.primary }]}>WHERE TO?</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Vote on a destination</Text>
+        </View>
+      </View>
+
+      {/* Lock-in bar */}
+      <View style={[styles.lockBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
+            {allLocked ? "All votes locked in ✓" : `${lockedCount} of ${memberCount} locked in`}
+          </Text>
+          <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
+            <View
+              style={[
+                styles.lockProgressFill,
+                {
+                  backgroundColor: allLocked ? "#4CAF50" : colors.primary,
+                  width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
+                },
+              ]}
+            />
+          </View>
+        </View>
+        <Pressable
+          onPress={handleToggleLock}
+          disabled={locking}
+          style={[styles.lockBtn, { backgroundColor: myLocked ? "#4CAF50" : colors.primary }]}
+        >
+          {locking ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Feather name={myLocked ? "check" : "lock"} size={14} color="#fff" />
+              <Text style={styles.lockBtnText}>{myLocked ? "Locked" : "Lock in"}</Text>
+            </>
+          )}
+        </Pressable>
+      </View>
+
+      {/* Member avatars */}
+      <View style={[styles.membersRow, { borderBottomColor: colors.border }]}>
+        {Object.entries(members).map(([uid, m], i) => (
+          <View key={uid} style={{ marginRight: i < Object.keys(members).length - 1 ? -6 : 0 }}>
+            <Avatar name={m.name} index={i} size={26} />
+          </View>
+        ))}
+        <Text style={[styles.membersLabel, { color: colors.mutedForeground }]}>
+          {"  "}{Object.values(members).map((m) => m.name).join(", ")}
+        </Text>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
+      >
+        {allLocked && !isCreator && (
+          <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="clock" size={16} color={colors.mutedForeground} />
+            <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
+              Waiting for the trip creator to confirm the destination…
+            </Text>
+          </View>
+        )}
+
+        {confirming && (
+          <View style={[styles.confirmingBanner, { backgroundColor: colors.primary + "18" }]}>
+            <ActivityIndicator color={colors.primary} size="small" />
+            <Text style={[styles.waitingText, { color: colors.primary }]}>Setting destination…</Text>
+          </View>
+        )}
+
+        {suggestions.map((s, idx) => (
+          <SuggestionCard
+            key={idx}
+            suggestion={s}
+            idx={idx}
+            tripId={id!}
+            uid={user?.uid ?? ""}
+            votes={getVotesForIdx(idx)}
+            members={members}
+            isWinning={idx === winnerIdx}
+            allLocked={allLocked}
+            isCreator={isCreator}
+            colors={colors}
+            onConfirm={handleConfirm}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
+  backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
+
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 12 },
+  backBtn: { padding: 4 },
+  headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
+  headerTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20 },
+
+  lockBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  lockBarTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 13, marginBottom: 6 },
+  lockProgress: { height: 4, borderRadius: 2, overflow: "hidden" },
+  lockProgressFill: { height: 4, borderRadius: 2 },
+  lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
+  lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+
+  membersRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
+
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  winBadge: { alignSelf: "flex-start", backgroundColor: "#E85D3A", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  winBadgeText: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff", letterSpacing: 1 },
+
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  cardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
+  cardPitch: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20 },
+
+  arrowStack: { alignItems: "center", gap: 2 },
+  arrowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  scoreText: { fontFamily: "DmSans_700Bold", fontSize: 14, minWidth: 24, textAlign: "center" },
+
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  tagText: { fontFamily: "DmSans_500Medium", fontSize: 12 },
+
+  metaRow: { flexDirection: "row", gap: 16 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  metaText: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+
+  voterRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
+
+  confirmBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: "#E85D3A", borderRadius: 12, paddingVertical: 13, marginTop: 4,
+  },
+  confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
+
+  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
+  confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
+  waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
+});

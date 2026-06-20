@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { createTrip, joinTrip } from "@/hooks/useFirebase";
+import { createTrip, joinTrip, storeDestinationSuggestions } from "@/hooks/useFirebase";
 
 const VIBES = [
   "Adventure", "Culture", "Food", "Beach",
@@ -27,6 +27,7 @@ const VIBES = [
 ];
 
 const BUDGETS = ["Budget", "Midrange", "Luxury"] as const;
+const DISTANCES = ["Nearby (< 3h)", "Mid-haul (3–8h)", "Anywhere"] as const;
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -42,13 +43,17 @@ export default function CreateScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
+  const [knowDestination, setKnowDestination] = useState(true);
   const [destination, setDestination] = useState("");
+  const [distance, setDistance] = useState<typeof DISTANCES[number]>("Mid-haul (3–8h)");
+  const [mustHaves, setMustHaves] = useState("");
   const [days, setDays] = useState(5);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [budget, setBudget] = useState<"Budget" | "Midrange" | "Luxury">("Midrange");
   const [loading, setLoading] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const [error, setError] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
@@ -63,7 +68,7 @@ export default function CreateScreen() {
   };
 
   const handleCreate = async () => {
-    if (!destination.trim()) { setError("Enter a destination."); return; }
+    if (knowDestination && !destination.trim()) { setError("Enter a destination."); return; }
     if (selectedVibes.length === 0) { setError("Pick at least one vibe."); return; }
     if (!user) { setError("You must be signed in to create a trip."); return; }
     setError("");
@@ -88,6 +93,53 @@ export default function CreateScreen() {
     }
   };
 
+  const handleSuggest = async () => {
+    if (selectedVibes.length === 0) { setError("Pick at least one vibe."); return; }
+    if (!user) { setError("You must be signed in."); return; }
+    setError("");
+    setSuggesting(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const tripId = await createTrip({
+        destination: "",
+        days,
+        vibes: selectedVibes,
+        budget: budget.toLowerCase(),
+        startDate: startDate ? toISODate(startDate) : null,
+        uid: user.uid,
+        displayName: user.displayName ?? "Traveler",
+      });
+
+      const baseUrl = Platform.OS === "web"
+        ? ""
+        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+
+      const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tripType: selectedVibes,
+          distance,
+          budget: budget.toLowerCase(),
+          days,
+          mustHaves: mustHaves.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) throw new Error("AI couldn't generate suggestions. Try again.");
+      const data = await res.json() as { suggestions: any[] };
+      if (!data.suggestions?.length) throw new Error("No suggestions returned.");
+
+      await storeDestinationSuggestions(tripId, data.suggestions);
+      router.push(`/destination-vote/${tripId}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const handleJoin = async () => {
     if (!joinCode.trim() || !user) return;
     setJoinLoading(true);
@@ -104,6 +156,7 @@ export default function CreateScreen() {
   };
 
   const minDate = new Date();
+  const isLoading = loading || suggesting;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -119,21 +172,94 @@ export default function CreateScreen() {
         </View>
 
         <View style={styles.form}>
-          {/* Destination */}
+          {/* Destination mode toggle */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Destination</Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="map-pin" size={16} color={colors.primary} />
-              <TextInput
-                style={[styles.input, { color: colors.foreground }]}
-                placeholder="Tokyo, Paris, Bali..."
-                placeholderTextColor={colors.mutedForeground}
-                value={destination}
-                onChangeText={setDestination}
-                returnKeyType="done"
-              />
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Do you know where you're going?</Text>
+            <View style={[styles.toggle, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Pressable
+                onPress={() => { setKnowDestination(true); Haptics.selectionAsync(); }}
+                style={[styles.toggleBtn, knowDestination && { backgroundColor: colors.primary }]}
+              >
+                <Feather name="map-pin" size={14} color={knowDestination ? "#fff" : colors.mutedForeground} />
+                <Text style={[styles.toggleText, { color: knowDestination ? "#fff" : colors.mutedForeground }]}>
+                  Yes, we've decided
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { setKnowDestination(false); Haptics.selectionAsync(); }}
+                style={[styles.toggleBtn, !knowDestination && { backgroundColor: colors.primary }]}
+              >
+                <Feather name="zap" size={14} color={!knowDestination ? "#fff" : colors.mutedForeground} />
+                <Text style={[styles.toggleText, { color: !knowDestination ? "#fff" : colors.mutedForeground }]}>
+                  Help us pick
+                </Text>
+              </Pressable>
             </View>
           </View>
+
+          {/* Destination input OR distance picker */}
+          {knowDestination ? (
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Destination</Text>
+              <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="map-pin" size={16} color={colors.primary} />
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  placeholder="Tokyo, Paris, Bali..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={destination}
+                  onChangeText={setDestination}
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.suggestBlock}>
+              <View style={[styles.suggestBadge, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}>
+                <Feather name="zap" size={14} color={colors.primary} />
+                <Text style={[styles.suggestBadgeText, { color: colors.primary }]}>
+                  Claude will suggest 3 destinations for your group to vote on
+                </Text>
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>How far are you willing to fly?</Text>
+                <View style={styles.distanceRow}>
+                  {DISTANCES.map((d) => (
+                    <Pressable
+                      key={d}
+                      onPress={() => setDistance(d)}
+                      style={[
+                        styles.distanceChip,
+                        {
+                          backgroundColor: distance === d ? colors.primary : colors.muted,
+                          borderColor: distance === d ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.distanceText, { color: distance === d ? "#fff" : colors.foreground }]}>
+                        {d}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Any must-haves? (optional)</Text>
+                <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TextInput
+                    style={[styles.input, { color: colors.foreground }]}
+                    placeholder="e.g. warm weather, no long flights"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={mustHaves}
+                    onChangeText={setMustHaves}
+                    returnKeyType="done"
+                  />
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Start Date */}
           <View>
@@ -161,12 +287,7 @@ export default function CreateScreen() {
                   style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}
                 >
                   <Feather name="calendar" size={16} color={colors.primary} />
-                  <Text
-                    style={[
-                      styles.input,
-                      { color: startDate ? colors.foreground : colors.mutedForeground, paddingVertical: 0 },
-                    ]}
-                  >
+                  <Text style={[styles.input, { color: startDate ? colors.foreground : colors.mutedForeground, paddingVertical: 0 }]}>
                     {startDate ? formatDate(startDate) : "Optional — pick a start date"}
                   </Text>
                   {startDate && (
@@ -175,27 +296,11 @@ export default function CreateScreen() {
                     </Pressable>
                   )}
                 </Pressable>
-
-                <Modal
-                  visible={showDatePicker}
-                  transparent
-                  animationType="slide"
-                  onRequestClose={() => setShowDatePicker(false)}
-                >
-                  <Pressable
-                    style={styles.dateModalOverlay}
-                    onPress={() => setShowDatePicker(false)}
-                  >
-                    <View
-                      style={[
-                        styles.dateModalSheet,
-                        { backgroundColor: colors.card, borderColor: colors.border },
-                      ]}
-                    >
+                <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+                  <Pressable style={styles.dateModalOverlay} onPress={() => setShowDatePicker(false)}>
+                    <View style={[styles.dateModalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={styles.dateModalHeader}>
-                        <Text style={[styles.dateModalTitle, { color: colors.foreground }]}>
-                          Select start date
-                        </Text>
+                        <Text style={[styles.dateModalTitle, { color: colors.foreground }]}>Select start date</Text>
                         <Pressable onPress={() => setShowDatePicker(false)}>
                           <Text style={[styles.dateModalDone, { color: colors.primary }]}>Done</Text>
                         </Pressable>
@@ -220,18 +325,12 @@ export default function CreateScreen() {
           <View>
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Duration</Text>
             <View style={styles.daysRow}>
-              <Pressable
-                onPress={() => setDays((d) => Math.max(1, d - 1))}
-                style={[styles.dayBtn, { borderColor: colors.border }]}
-              >
+              <Pressable onPress={() => setDays((d) => Math.max(1, d - 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
                 <Feather name="minus" size={18} color={colors.foreground} />
               </Pressable>
               <Text style={[styles.daysNum, { color: colors.foreground }]}>{days}</Text>
               <Text style={[styles.daysLabel, { color: colors.mutedForeground }]}>days</Text>
-              <Pressable
-                onPress={() => setDays((d) => Math.min(30, d + 1))}
-                style={[styles.dayBtn, { borderColor: colors.border }]}
-              >
+              <Pressable onPress={() => setDays((d) => Math.min(30, d + 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
                 <Feather name="plus" size={18} color={colors.foreground} />
               </Pressable>
             </View>
@@ -247,22 +346,9 @@ export default function CreateScreen() {
                   <Pressable
                     key={v}
                     onPress={() => toggleVibe(v)}
-                    style={[
-                      styles.vibeChip,
-                      {
-                        backgroundColor: selected ? colors.primary : colors.muted,
-                        borderColor: selected ? colors.primary : colors.border,
-                      },
-                    ]}
+                    style={[styles.vibeChip, { backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
                   >
-                    <Text
-                      style={[
-                        styles.vibeChipText,
-                        { color: selected ? "#fff" : colors.foreground },
-                      ]}
-                    >
-                      {v}
-                    </Text>
+                    <Text style={[styles.vibeChipText, { color: selected ? "#fff" : colors.foreground }]}>{v}</Text>
                   </Pressable>
                 );
               })}
@@ -277,18 +363,9 @@ export default function CreateScreen() {
                 <Pressable
                   key={b}
                   onPress={() => setBudget(b)}
-                  style={[
-                    styles.budgetChip,
-                    {
-                      backgroundColor: budget === b ? colors.primary : colors.muted,
-                      borderColor: budget === b ? colors.primary : colors.border,
-                      flex: 1,
-                    },
-                  ]}
+                  style={[styles.budgetChip, { backgroundColor: budget === b ? colors.primary : colors.muted, borderColor: budget === b ? colors.primary : colors.border, flex: 1 }]}
                 >
-                  <Text style={[styles.budgetText, { color: budget === b ? "#fff" : colors.foreground }]}>
-                    {b}
-                  </Text>
+                  <Text style={[styles.budgetText, { color: budget === b ? "#fff" : colors.foreground }]}>{b}</Text>
                 </Pressable>
               ))}
             </View>
@@ -298,17 +375,37 @@ export default function CreateScreen() {
             <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
           )}
 
-          <Pressable
-            onPress={handleCreate}
-            style={[styles.createBtn, { backgroundColor: colors.primary }, loading && { opacity: 0.6 }]}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.createBtnText}>Create trip</Text>
-            )}
-          </Pressable>
+          {knowDestination ? (
+            <Pressable
+              onPress={handleCreate}
+              style={[styles.createBtn, { backgroundColor: colors.primary }, isLoading && { opacity: 0.6 }]}
+              disabled={isLoading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.createBtnText}>Create trip</Text>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={handleSuggest}
+              style={[styles.createBtn, { backgroundColor: colors.primary }, isLoading && { opacity: 0.6 }]}
+              disabled={isLoading}
+            >
+              {suggesting ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.createBtnText}>Claude is thinking…</Text>
+                </View>
+              ) : (
+                <View style={styles.loadingRow}>
+                  <Feather name="zap" size={16} color="#fff" />
+                  <Text style={styles.createBtnText}>Suggest destinations</Text>
+                </View>
+              )}
+            </Pressable>
+          )}
 
           <View style={[styles.joinCard, { borderColor: colors.border }]}>
             <Text style={[styles.joinLabel, { color: colors.mutedForeground }]}>Join an existing trip</Text>
@@ -344,109 +441,42 @@ export default function CreateScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 24 },
-  headline: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 32,
-    lineHeight: 40,
-    letterSpacing: -0.5,
-  },
+  headline: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 32, lineHeight: 40, letterSpacing: -0.5 },
   form: { paddingHorizontal: 20, gap: 20 },
-  fieldLabel: {
-    fontFamily: "DmSans_500Medium",
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
+  fieldLabel: { fontFamily: "DmSans_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 },
+  toggle: { flexDirection: "row", borderRadius: 12, borderWidth: 1, padding: 3, gap: 3 },
+  toggleBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 9 },
+  toggleText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  suggestBlock: { gap: 0 },
+  suggestBadge: { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, borderWidth: 1, padding: 12 },
+  suggestBadgeText: { fontFamily: "DmSans_500Medium", fontSize: 13, flex: 1, lineHeight: 18 },
+  distanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  distanceChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  distanceText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
+  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 14 },
   input: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 15 },
   daysRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  dayBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  dayBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   daysNum: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28, minWidth: 36, textAlign: "center" },
   daysLabel: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   vibeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  vibeChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  vibeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   vibeChipText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   budgetRow: { flexDirection: "row", gap: 8 },
-  budgetChip: {
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: "center",
-  },
+  budgetChip: { paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: "center" },
   budgetText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   errorText: { fontFamily: "DmSans_400Regular", fontSize: 13, textAlign: "center" },
-  createBtn: {
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  createBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center", justifyContent: "center" },
   createBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
-  joinCard: {
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
-  },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  joinCard: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14, padding: 16, gap: 10 },
   joinLabel: { fontFamily: "DmSans_500Medium", fontSize: 13 },
   joinRow: { flexDirection: "row", gap: 8 },
-  joinInput: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: "DmSans_500Medium",
-    fontSize: 15,
-    letterSpacing: 2,
-  },
-  joinBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dateModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  dateModalSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    paddingBottom: 40,
-  },
-  dateModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    paddingBottom: 8,
-  },
+  joinInput: { flex: 1, borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontFamily: "DmSans_500Medium", fontSize: 15, letterSpacing: 2 },
+  joinBtn: { width: 48, height: 48, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  dateModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  dateModalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, paddingBottom: 40 },
+  dateModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingBottom: 8 },
   dateModalTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
   dateModalDone: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
 });

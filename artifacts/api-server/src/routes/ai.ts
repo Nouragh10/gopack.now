@@ -194,4 +194,93 @@ Respond with ONLY valid JSON (no markdown):
   }
 });
 
+router.post("/suggest-destinations", async (req: Request, res: Response): Promise<void> => {
+  const { tripType, distance, budget, days, mustHaves } = req.body as {
+    tripType: string[];
+    distance: string;
+    budget: string;
+    days: number;
+    mustHaves?: string;
+  };
+
+  if (!tripType?.length || !distance || !budget || !days) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const prompt = `You are a world-class travel expert. Suggest exactly 3 distinct destination options for a group trip.
+
+Trip preferences:
+- Travel style: ${tripType.join(", ")}
+- Flight range: ${distance}
+- Budget level: ${budget}
+- Duration: ${days} days${mustHaves ? `\n- Must have: ${mustHaves}` : ""}
+
+Rules:
+1. Make the 3 destinations genuinely different from each other — different continents or meaningfully different vibes.
+2. Each pitch must be ONE punchy sentence (max 12 words). No fluff.
+3. Each destination gets exactly 3 short tags (2-4 words each).
+4. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe".
+5. bestTime: e.g. "May–Sept" or "Year-round".
+
+Respond with ONLY valid JSON, no markdown:
+{
+  "suggestions": [
+    {
+      "name": "Lisbon, Portugal",
+      "pitch": "Sun, pastéis, cheap wine, and Europe's best nightlife.",
+      "tags": ["Warm weather", "Food scene", "Budget-friendly"],
+      "flightHint": "~2h from London",
+      "bestTime": "April–October"
+    },
+    {
+      "name": "Mexico City, Mexico",
+      "pitch": "World-class tacos, ancient ruins, and a buzzing art scene.",
+      "tags": ["Rich culture", "Amazing food", "City energy"],
+      "flightHint": "~5h from NYC",
+      "bestTime": "Oct–April"
+    },
+    {
+      "name": "Chiang Mai, Thailand",
+      "pitch": "Temples, jungle treks, street food for pennies.",
+      "tags": ["Adventure", "Budget-friendly", "Nature"],
+      "flightHint": "~11h from London",
+      "bestTime": "Nov–Feb"
+    }
+  ]
+}`;
+
+  try {
+    const body = {
+      model: "claude-haiku-4-5",
+      max_tokens: 800,
+      messages: [{ role: "user", content: prompt }],
+    };
+
+    const response = await callAnthropic(body);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+    };
+
+    if (!(response as unknown as globalThis.Response).ok) {
+      req.log.error({ data }, "Anthropic API error (suggest-destinations)");
+      res.status((response as unknown as globalThis.Response).status).json(data);
+      return;
+    }
+
+    const allText = (data.content ?? [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("");
+
+    const cleanJson = extractJson(allText);
+    const result = JSON.parse(cleanJson);
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to suggest destinations");
+    res.status(500).json({ error: (err as Error).message || "Failed to suggest destinations" });
+  }
+});
+
 export default router;

@@ -10,6 +10,14 @@ export interface TripMember {
   isHost: boolean;
 }
 
+export interface DestinationSuggestion {
+  name: string;
+  pitch: string;
+  tags: string[];
+  flightHint: string;
+  bestTime: string;
+}
+
 export interface Trip {
   id: string;
   destination: string;
@@ -23,6 +31,9 @@ export interface Trip {
   inviteCode?: string;
   itinerary?: { title: string; days: ItineraryDay[] };
   votesLockedBy?: Record<string, boolean>;
+  destinationSuggestions?: DestinationSuggestion[];
+  destinationVotes?: Record<string, Record<string, "up" | "down">>;
+  destinationLockedBy?: Record<string, boolean>;
 }
 
 export interface Wish {
@@ -393,6 +404,44 @@ export async function lockVotes(tripId: string, uid: string) {
 
 export async function unlockVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/votesLockedBy/${uid}`), null);
+}
+
+/* ── Destination suggester ────────────────────────────────────────── */
+
+export async function storeDestinationSuggestions(
+  tripId: string,
+  suggestions: DestinationSuggestion[],
+) {
+  await set(ref(db, `trips/${tripId}/destinationSuggestions`), suggestions);
+}
+
+export async function voteDestination(
+  tripId: string,
+  idx: number,
+  uid: string,
+  dir: "up" | "down",
+) {
+  const voteRef = ref(db, `trips/${tripId}/destinationVotes/${idx}/${uid}`);
+  const snap = await get(voteRef);
+  const current = snap.val() as string | null;
+  await set(voteRef, current === dir ? null : dir);
+}
+
+export async function lockDestinationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), true);
+}
+
+export async function unlockDestinationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), null);
+}
+
+export async function confirmDestination(tripId: string, name: string) {
+  await update(ref(db, `trips/${tripId}`), {
+    destination: name,
+    destinationSuggestions: null,
+    destinationVotes: null,
+    destinationLockedBy: null,
+  });
 }
 
 /* ── sendMessage ──────────────────────────────────────────────────── */
