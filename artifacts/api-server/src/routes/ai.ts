@@ -69,7 +69,8 @@ CRITICAL RULES:
 2. Every activity's "tag" field MUST be one of: ${validTags}. No other tag values allowed.
 3. Incorporate as many top-voted wishes as possible, marking them with "fromWish": true and the author's name as "suggester".
 4. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
-5. Keep activity descriptions to 1-2 sentences with practical tips.
+5. Keep descriptions to ONE short sentence (max 15 words). Be concise.
+6. Limit to exactly 4 activities per day. No more.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -99,7 +100,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
   try {
     const body = {
       model: "claude-sonnet-4-5",
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: "user", content: prompt }],
     };
 
