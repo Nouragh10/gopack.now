@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -223,6 +224,19 @@ export default function TripHubScreen() {
 
   const handleToggleLock = async () => {
     if (!user || !id) return;
+    if (!myLocked && wishes.length > 0) {
+      const unvoted = wishes.filter(
+        (w) => !w.upvoters?.[user.uid] && !w.downvoters?.[user.uid],
+      );
+      if (unvoted.length > 0) {
+        Alert.alert(
+          "Vote on everything first",
+          `You still need to vote on ${unvoted.length} wish${unvoted.length > 1 ? "es" : ""} before locking in. Go through the list and give each one a ▲ or ▼.`,
+          [{ text: "OK" }],
+        );
+        return;
+      }
+    }
     setLockingVotes(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
