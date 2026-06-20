@@ -70,6 +70,13 @@ function getDayDate(startDate: string | null | undefined, dayNumber: number): st
 
 /* ── PDF HTML builder ────────────────────────────────────────────────── */
 
+interface AccomSummary {
+  name: string;
+  location: string;
+  costPerPerson: number;
+  type?: string;
+}
+
 function buildItineraryHTML(
   title: string,
   destination: string,
@@ -78,6 +85,7 @@ function buildItineraryHTML(
   budget: string,
   startDate: string | null | undefined,
   totalCost: number,
+  accom?: AccomSummary | null,
 ): string {
   const totalDays = days.reduce((s, d) => s + d.activities.length, 0);
 
@@ -182,6 +190,14 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
 .act-desc{font-size:12.5px;color:#4A4440;line-height:1.55;margin-bottom:6px}
 .act-cost{font-size:11px;color:#756C66;font-weight:500}
 
+/* Accommodation */
+.accom-section{padding:32px 48px;border-bottom:1px solid #EDE8DE}
+.accom-card{display:flex;align-items:flex-start;gap:18px;background:#F0FAF9;border:1.5px solid #26A69A;border-radius:14px;padding:18px 20px;margin-top:12px}
+.accom-icon{font-size:28px;flex-shrink:0;margin-top:2px}
+.accom-name{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:700;color:#0E0D0B;margin-bottom:4px}
+.accom-meta{font-size:12px;color:#4A4440;margin-bottom:6px;text-transform:capitalize}
+.accom-cost{font-size:12px;font-weight:600;color:#26A69A}
+
 /* Vibes */
 .vibes-section{padding:32px 48px;border-bottom:1px solid #EDE8DE;display:flex;align-items:center;gap:12px}
 .vibe-tag{display:inline-block;background:#F5F0E8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:500;color:#0E0D0B;text-transform:capitalize}
@@ -235,6 +251,19 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
   <div class="chips">${memberChips}</div>
 </div>
 
+${accom ? `
+<div class="accom-section">
+  <div class="eyebrow">Accommodation</div>
+  <div class="accom-card">
+    <div class="accom-icon">🏠</div>
+    <div>
+      <div class="accom-name">${accom.name}</div>
+      <div class="accom-meta">${accom.location}${accom.type ? ` · ${accom.type}` : ""}</div>
+      <div class="accom-cost">~$${accom.costPerPerson} per person (total stay)</div>
+    </div>
+  </div>
+</div>` : ""}
+
 ${daysHtml}
 
 ${
@@ -244,7 +273,7 @@ ${
         <div>
           <div class="total-label">Estimated total · all ${days.length} days</div>
           <div class="total-val">~$${totalCost}</div>
-          <div class="total-note">per person · ${totalDays} activities planned</div>
+          <div class="total-note">per person · ${totalDays} activities${accom ? " + accommodation" : ""}</div>
         </div>
       </div>`
     : ""
@@ -380,10 +409,12 @@ export default function ItineraryScreen() {
   const currentDay = days.find((d) => d.dayNumber === selectedDay) ?? days[0];
   const members = Object.values(trip?.members ?? {});
 
-  const totalCost = days.reduce(
-    (sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0),
-    0,
-  );
+  const accom = trip?.confirmedAccommodation ?? null;
+  const accomCost = accom?.costPerPerson ?? 0;
+
+  const totalCost =
+    days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
+    accomCost;
 
   const handleEdit = (act: Activity, idx: number, dayNum: number) => {
     setEditModal({
@@ -465,6 +496,7 @@ export default function ItineraryScreen() {
         trip.budget ?? "midrange",
         trip.startDate,
         totalCost,
+        accom,
       );
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
@@ -626,16 +658,41 @@ export default function ItineraryScreen() {
           </>
         )}
 
+        {/* Confirmed accommodation card */}
+        {accom && (
+          <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
+            <View style={styles.accomCardHead}>
+              <Feather name="home" size={14} color="#26A69A" />
+              <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION</Text>
+            </View>
+            <Text style={[styles.accomCardName, { color: colors.foreground }]}>{accom.name}</Text>
+            <Text style={[styles.accomCardMeta, { color: colors.mutedForeground }]}>
+              {accom.location}{accom.type ? ` · ${accom.type}` : ""}
+            </Text>
+            <View style={styles.accomCostRow}>
+              <Feather name="dollar-sign" size={13} color="#26A69A" />
+              <Text style={[styles.accomCostText, { color: "#26A69A" }]}>
+                ~${accomCost} per person (total stay)
+              </Text>
+            </View>
+          </View>
+        )}
+
         {totalCost > 0 && (
           <View style={[styles.costCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name="dollar-sign" size={18} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>
-                ESTIMATED TOTAL (ALL DAYS)
+                ESTIMATED TOTAL (ALL DAYS{accom ? " + ACCOMMODATION" : ""})
               </Text>
               <Text style={[styles.costValue, { color: colors.foreground }]}>
                 ~${totalCost} per person
               </Text>
+              {accom && (
+                <Text style={[styles.costBreakdown, { color: colors.mutedForeground }]}>
+                  Activities ~${totalCost - accomCost}  ·  Stay ~${accomCost}
+                </Text>
+              )}
             </View>
           </View>
         )}
@@ -851,6 +908,18 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   costValue: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
+  costBreakdown: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 3 },
+
+  accomCard: {
+    borderRadius: 14, borderWidth: 1.5, padding: 14, marginTop: 4, gap: 3,
+  },
+  accomCardHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  accomCardLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 1.5 },
+  accomCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 17 },
+  accomCardMeta: { fontFamily: "DmSans_400Regular", fontSize: 12, textTransform: "capitalize" },
+  accomCostRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  accomCostText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
+
   emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
