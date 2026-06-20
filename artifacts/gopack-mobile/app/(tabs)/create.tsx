@@ -218,7 +218,7 @@ export default function CreateScreen() {
               <View style={[styles.suggestBadge, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}>
                 <Feather name="zap" size={14} color={colors.primary} />
                 <Text style={[styles.suggestBadgeText, { color: colors.primary }]}>
-                  Claude will suggest 3 destinations for your group to vote on
+                  AI will suggest 3 destinations for your group to vote on
                 </Text>
               </View>
 
@@ -396,7 +396,7 @@ export default function CreateScreen() {
               {suggesting ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={styles.createBtnText}>Claude is thinking…</Text>
+                  <Text style={styles.createBtnText}>AI is thinking…</Text>
                 </View>
               ) : (
                 <View style={styles.loadingRow}>

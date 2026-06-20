@@ -161,7 +161,7 @@ export default function Landing() {
             </div>
             <div>
               <h3 className="font-semibold mb-1">AI itineraries</h3>
-              <p className="text-sm text-muted-foreground">Claude turns your wishes into a real day-by-day plan</p>
+              <p className="text-sm text-muted-foreground">AI turns your wishes into a real day-by-day plan</p>
             </div>
           </div>
           <div className="flex gap-4">

@@ -427,7 +427,7 @@ export default function TripHub() {
                 <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
                 <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>
                 <p className="text-muted-foreground mb-8">
-                  Claude will turn your top wishes into a perfect day-by-day plan for {trip.destination}.
+                  AI will turn your top wishes into a perfect day-by-day plan for {trip.destination}.
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
