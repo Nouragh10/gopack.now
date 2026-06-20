@@ -283,12 +283,20 @@ function ActivityCard({
 }: ActivityCardProps) {
   const tagColor = getTagColor(activity.tag);
 
-  const openMaps = async () => {
-    const query = encodeURIComponent(`${activity.name}, ${destination}`);
-    await Linking.openURL(`https://maps.google.com/maps?q=${query}`);
+  const openURL = (url: string) => {
+    if (Platform.OS === "web") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      Linking.openURL(url);
+    }
   };
 
-  const openCalendar = async () => {
+  const openMaps = () => {
+    const query = encodeURIComponent(`${activity.name}, ${destination}`);
+    openURL(`https://maps.google.com/maps?q=${query}`);
+  };
+
+  const openCalendar = () => {
     const dateStr = getDayDate(startDate, dayNumber);
     const t = encodeURIComponent(activity.name);
     const d = encodeURIComponent(activity.description);
@@ -296,7 +304,7 @@ function ActivityCard({
     const url = dateStr
       ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
       : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
-    await Linking.openURL(url);
+    openURL(url);
   };
 
   return (
