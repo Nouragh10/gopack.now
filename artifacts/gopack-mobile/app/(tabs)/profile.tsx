@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback } from "react";
 import {
   Platform,
   Pressable,
@@ -21,16 +21,22 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { trips } = useTrips(user?.uid);
+  const { trips, refetch } = useTrips(user?.uid);
   const router = useRouter();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
 
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
   const displayName = user?.displayName ?? (user?.isAnonymous ? "Guest" : "Explorer");
   const initial = displayName[0].toUpperCase();
   const totalDays = trips.reduce((sum, t) => sum + (t.days ?? 0), 0);
-  const totalWishes = 0;
+  const uniqueCities = new Set(trips.map((t) => t.destination.split(",")[0].trim())).size;
 
   const handleSignOut = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -61,8 +67,8 @@ export default function ProfileScreen() {
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{totalWishes}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>wishes</Text>
+            <Text style={[styles.statNum, { color: colors.foreground }]}>{uniqueCities}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>cities</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statItem}>
@@ -84,11 +90,25 @@ export default function ProfileScreen() {
                   <Text style={[styles.tripName, { color: colors.foreground }]}>{trip.destination}</Text>
                   <Text style={[styles.tripMeta, { color: colors.mutedForeground }]}>
                     {trip.days} days · {trip.budget}
+                    {trip.startDate ? ` · ${trip.startDate}` : ""}
+                  </Text>
+                  <Text style={[styles.tripMembers, { color: colors.mutedForeground }]}>
+                    {Object.keys(trip.members ?? {}).length} member{Object.keys(trip.members ?? {}).length !== 1 ? "s" : ""}
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
               </Pressable>
             ))}
+          </View>
+        )}
+
+        {trips.length === 0 && (
+          <View style={styles.emptyState}>
+            <Feather name="map" size={36} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No trips yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Create or join a trip to get started.
+            </Text>
           </View>
         )}
 
@@ -149,6 +169,10 @@ const styles = StyleSheet.create({
   },
   tripName: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
   tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  tripMembers: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 2 },
+  emptyState: { alignItems: "center", paddingHorizontal: 40, paddingTop: 32, paddingBottom: 24, gap: 10 },
+  emptyTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
+  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
   signOutBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback } from "react";
 import {
   FlatList,
   Platform,
@@ -78,13 +78,19 @@ export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { trips, loading } = useTrips(user?.uid);
+  const { trips, loading, refetch } = useTrips(user?.uid);
   const router = useRouter();
 
   const displayName = user?.displayName ?? (user?.isAnonymous ? "Traveler" : "Explorer");
   const firstName = displayName.split(" ")[0];
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -127,39 +133,44 @@ export default function DashboardScreen() {
           </Pressable>
         )}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-            Your trips
-          </Text>
-          {loading ? (
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Loading...</Text>
-          ) : trips.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Feather name="map" size={36} color={colors.border} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No trips yet. Start one!
-              </Text>
-              <Pressable
-                onPress={() => router.push("/(tabs)/create")}
-                style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text style={[styles.emptyBtnText, { color: colors.primaryForeground }]}>
-                  Create a trip
-                </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={{ gap: 12 }}>
-              {trips.map((trip) => (
-                <TripCard
-                  key={trip.id}
-                  trip={trip}
-                  onPress={() => router.push(`/trip/${trip.id}`)}
-                />
-              ))}
-            </View>
-          )}
+        <View style={styles.quickActions}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/create")}
+            style={[styles.actionBtn, { backgroundColor: colors.primary }]}
+          >
+            <Feather name="plus" size={18} color="#fff" />
+            <Text style={styles.actionBtnText}>New trip</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/join")}
+            style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+          >
+            <Feather name="users" size={18} color={colors.foreground} />
+            <Text style={[styles.actionBtnText, { color: colors.foreground }]}>Join trip</Text>
+          </Pressable>
         </View>
+
+        {loading ? null : trips.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Your trips</Text>
+            <FlatList
+              data={trips}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TripCard trip={item} onPress={() => router.push(`/trip/${item.id}`)} />
+              )}
+              scrollEnabled={false}
+            />
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Feather name="map" size={40} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No trips yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Create your first trip or join one with an invite code.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -174,36 +185,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  logoText: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 22,
-    letterSpacing: -0.5,
-  },
-  headerIcon: { padding: 6 },
-  heroSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
-  greetingText: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  heroTitle: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 30,
-    lineHeight: 38,
-    letterSpacing: -0.5,
-  },
+  logoText: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26 },
+  headerIcon: { padding: 4 },
+  heroSection: { paddingHorizontal: 20, paddingBottom: 20 },
+  greetingText: { fontFamily: "DmSans_400Regular", fontSize: 14, marginBottom: 6 },
+  heroTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30, lineHeight: 38 },
   activeCard: {
     marginHorizontal: 20,
-    marginBottom: 24,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderRadius: 12,
     padding: 16,
-    gap: 4,
+    marginBottom: 16,
   },
-  activeCardInner: { flexDirection: "row", alignItems: "center", gap: 6 },
-  activeCardText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-  activeCardSub: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  activeCardInner: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  activeCardText: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
+  activeCardSub: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  quickActions: { flexDirection: "row", paddingHorizontal: 20, gap: 12, marginBottom: 28 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  actionBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
   section: { paddingHorizontal: 20 },
   sectionTitle: {
     fontFamily: "DmSans_500Medium",
@@ -213,20 +220,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tripCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 16,
-    gap: 10,
+    marginBottom: 10,
   },
-  tripCardTop: { flexDirection: "row", alignItems: "center" },
-  tripDestination: { fontFamily: "DmSans_600SemiBold", fontSize: 16, marginBottom: 2 },
+  tripCardTop: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  tripDestination: { fontFamily: "DmSans_600SemiBold", fontSize: 16, marginBottom: 3 },
   tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
   avatarRow: { flexDirection: "row", alignItems: "center" },
   avatar: { alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#fff" },
   avatarText: { color: "#fff", fontFamily: "DmSans_700Bold" },
   moreText: { fontFamily: "DmSans_500Medium", fontSize: 12, marginLeft: 10 },
-  emptyState: { alignItems: "center", paddingVertical: 32, gap: 12 },
-  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
-  emptyBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
-  emptyBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  emptyState: { alignItems: "center", paddingHorizontal: 40, paddingTop: 40, gap: 12 },
+  emptyTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 18 },
+  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
 });

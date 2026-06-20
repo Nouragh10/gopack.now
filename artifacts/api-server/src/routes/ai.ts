@@ -5,13 +5,12 @@ const router: IRouter = Router();
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function callAnthropic(body: object, useBeta = false, retries = 3): Promise<Response> {
+async function callAnthropic(body: object, retries = 3): Promise<Response> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
     "anthropic-version": "2023-06-01",
   };
-  if (useBeta) headers["anthropic-beta"] = "web-search-2025-03-05";
 
   for (let i = 0; i < retries; i++) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -29,8 +28,6 @@ async function callAnthropic(body: object, useBeta = false, retries = 3): Promis
 
 function extractJson(text: string): string {
   const stripped = text
-    .replace(/<cite[^>]*>|<\/cite>/g, "")
-    .replace(/\[\d+\]/g, "")
     .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
     .trim();
   const jsonMatch = stripped.match(/\{[\s\S]*\}/);
@@ -53,19 +50,26 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
       `${i + 1}. "${w.text}" by ${w.author} (${w.votes} votes)`
     );
 
+  const validTags = vibes.map(v => v.toLowerCase()).join("|");
+
   const prompt = `You are a world-class group travel planner. Generate a detailed ${days}-day itinerary for a group trip to ${destination}.
 
 Trip details:
 - Destination: ${destination}
 - Duration: ${days} days
-- Vibes: ${vibes.join(", ")}
+- Vibes chosen by the group: ${vibes.join(", ")}
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
 Group wishes (voted by the group, most popular first):
 ${topWishes.length > 0 ? topWishes.join("\n") : "No specific wishes provided"}
 
-Use web search to find real, current venues, opening hours, prices, and insider tips for ${destination}. Incorporate as many top-voted wishes as possible.
+CRITICAL RULES:
+1. ONLY generate activities that match EXACTLY these vibes: ${vibes.join(", ")}. Do NOT add activities outside these categories.
+2. Every activity's "tag" field MUST be one of: ${validTags}. No other tag values allowed.
+3. Incorporate as many top-voted wishes as possible, marking them with "fromWish": true and the author's name as "suggester".
+4. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
+5. Keep activity descriptions to 1-2 sentences with practical tips.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -74,19 +78,18 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
     {
       "dayNumber": 1,
       "city": "City name",
-      "theme": "Day theme (e.g. 'Arrival & First Bites')",
+      "theme": "Day theme",
       "activities": [
         {
           "time": "9:00 AM",
           "name": "Activity name",
-          "description": "2-3 sentence description with insider tips",
-          "tag": "food|culture|adventure|relaxation|nightlife|shopping|travel",
+          "description": "1-2 sentence description with practical tip",
+          "tag": "${vibes[0]?.toLowerCase() ?? "culture"}",
           "fromWish": true,
           "suggester": "member name or 'AI pick'",
           "estimatedCost": 25,
-          "labels": ["Must-try", "Group favorite"],
-          "nearPrevious": false,
-          "actId": "act_001"
+          "labels": ["Must-try"],
+          "nearPrevious": false
         }
       ]
     }
@@ -96,12 +99,11 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
   try {
     const body = {
       model: "claude-sonnet-4-5",
-      max_tokens: 8000,
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
     };
 
-    const response = await callAnthropic(body, true);
+    const response = await callAnthropic(body);
     const data = await (response as unknown as globalThis.Response).json() as {
       content?: Array<{ type: string; text?: string }>;
       error?: { message: string };
@@ -144,9 +146,9 @@ Trip details:
 - Vibes: ${vibes.join(", ")}
 - Budget: ${budget}
 
-Create a practical packing list tailored to these trip vibes and destination. Include destination-specific items (e.g. prayer-appropriate clothing for religious sites, water shoes for beach trips, etc.).
+Create a practical packing list tailored to these trip vibes and destination. Include destination-specific items.
 
-Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
+Respond with ONLY valid JSON (no markdown):
 {
   "list": {
     "essentials": ["Passport", "Travel insurance docs"],
@@ -165,7 +167,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       messages: [{ role: "user", content: prompt }],
     };
 
-    const response = await callAnthropic(body, false);
+    const response = await callAnthropic(body);
     const data = await (response as unknown as globalThis.Response).json() as {
       content?: Array<{ type: string; text?: string }>;
       error?: { message: string };

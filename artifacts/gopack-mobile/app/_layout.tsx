@@ -1,8 +1,8 @@
 import {
-  DmSans_400Regular,
-  DmSans_500Medium,
-  DmSans_600SemiBold,
-  DmSans_700Bold,
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
   useFonts,
 } from "@expo-google-fonts/dm-sans";
 import {
@@ -59,6 +59,8 @@ function RootLayoutNav() {
       <Stack.Screen name="building/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="itinerary/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="packing/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="join" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
@@ -66,10 +68,10 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    DmSans_400Regular,
-    DmSans_500Medium,
-    DmSans_600SemiBold,
-    DmSans_700Bold,
+    DmSans_400Regular: DMSans_400Regular,
+    DmSans_500Medium: DMSans_500Medium,
+    DmSans_600SemiBold: DMSans_600SemiBold,
+    DmSans_700Bold: DMSans_700Bold,
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
   });

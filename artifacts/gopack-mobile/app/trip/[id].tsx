@@ -278,6 +278,25 @@ export default function TripHubScreen() {
               <Feather name="arrow-right" size={22} color="#fff" />
             </View>
           </Pressable>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push(`/packing/${id}`);
+            }}
+            style={[styles.packCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={styles.packCardLeft}>
+              <Text style={[styles.packCardLabel, { color: colors.primary }]}>AI PACKING LIST</Text>
+              <Text style={[styles.packCardTitle, { color: colors.foreground }]}>
+                Pack smart{"\n"}for the trip
+              </Text>
+            </View>
+            <View style={[styles.packCardBtn, { backgroundColor: colors.muted }]}>
+              <Feather name="package" size={20} color={colors.foreground} />
+            </View>
+          </Pressable>
+
           <Pressable onPress={() => setShowInvite(true)}>
             <Text style={[styles.goManageLink, { color: colors.mutedForeground }]}>
               Manage invite & privacy
@@ -477,6 +496,25 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   goManageLink: { fontFamily: "DmSans_400Regular", fontSize: 13, textDecorationLine: "underline" },
+  packCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 20,
+  },
+  packCardLeft: { gap: 6 },
+  packCardLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
+  packCardTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
+  packCardBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

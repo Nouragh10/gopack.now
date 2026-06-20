@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { db, get, onValue, push, ref, set, update } from "@/lib/firebase";
+
+/* ── Interfaces ───────────────────────────────────────────────────── */
 
 export interface TripMember {
   name: string;
@@ -59,7 +61,14 @@ export interface Activity {
   nearPrevious: boolean;
 }
 
-/* ── AsyncStorage helpers for local trip ID index ─────────────────── */
+export interface PackItem {
+  text: string;
+  checked: boolean;
+}
+
+export type PackingList = Record<string, PackItem[]>;
+
+/* ── AsyncStorage helpers ─────────────────────────────────────────── */
 
 function storageKey(uid: string) {
   return `gopack:trips:${uid}`;
@@ -91,6 +100,9 @@ async function addLocalTripId(uid: string, tripId: string): Promise<void> {
 export function useTrips(uid: string | undefined) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+
+  const refetch = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
     if (!uid) {
@@ -100,6 +112,7 @@ export function useTrips(uid: string | undefined) {
     }
 
     let cancelled = false;
+    setLoading(true);
 
     async function load() {
       const localIds = await getLocalTripIds(uid!);
@@ -141,9 +154,9 @@ export function useTrips(uid: string | undefined) {
 
     load();
     return () => { cancelled = true; };
-  }, [uid]);
+  }, [uid, version]);
 
-  return { trips, loading };
+  return { trips, loading, refetch };
 }
 
 /* ── useTrip ──────────────────────────────────────────────────────── */
@@ -198,6 +211,23 @@ export function useChat(tripId: string | undefined) {
   }, [tripId]);
 
   return messages;
+}
+
+/* ── usePackingList ───────────────────────────────────────────────── */
+
+export function usePackingList(tripId: string | undefined) {
+  const [packingList, setPackingList] = useState<PackingList | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tripId) { setLoading(false); return; }
+    return onValue(ref(db, `trips/${tripId}/packingItems`), (snap) => {
+      setPackingList(snap.exists() ? (snap.val() as PackingList) : null);
+      setLoading(false);
+    });
+  }, [tripId]);
+
+  return { packingList, loading };
 }
 
 /* ── usePublicReviews ─────────────────────────────────────────────── */
@@ -299,7 +329,7 @@ export async function joinTrip(code: string, uid: string, displayName: string) {
   return tripId;
 }
 
-/* ── addWish ──────────────────────────────────────────────────────── */
+/* ── addWish / voteWish ───────────────────────────────────────────── */
 
 export async function addWish(
   tripId: string,
@@ -317,8 +347,6 @@ export async function addWish(
     createdAt: Date.now(),
   });
 }
-
-/* ── voteWish ─────────────────────────────────────────────────────── */
 
 export async function voteWish(
   tripId: string,
@@ -358,5 +386,77 @@ export async function sendMessage(
 /* ── saveItinerary ────────────────────────────────────────────────── */
 
 export async function saveItinerary(tripId: string, itinerary: unknown) {
+  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+}
+
+/* ── Packing list ─────────────────────────────────────────────────── */
+
+export async function savePackingList(
+  tripId: string,
+  rawList: Record<string, string[]>,
+) {
+  const converted: PackingList = Object.fromEntries(
+    Object.entries(rawList).map(([cat, items]) => [
+      cat,
+      items.map((text) => ({ text, checked: false })),
+    ]),
+  );
+  await set(ref(db, `trips/${tripId}/packingItems`), converted);
+}
+
+export async function togglePackItem(
+  tripId: string,
+  category: string,
+  index: number,
+  checked: boolean,
+) {
+  await set(
+    ref(db, `trips/${tripId}/packingItems/${category}/${index}/checked`),
+    checked,
+  );
+}
+
+/* ── Activity CRUD ────────────────────────────────────────────────── */
+
+export async function updateActivity(
+  tripId: string,
+  dayNumber: number,
+  actIndex: number,
+  partial: Partial<Activity>,
+) {
+  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
+  if (!snap.exists()) return;
+  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
+  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
+  if (dayIdx === -1) return;
+  itinerary.days[dayIdx].activities[actIndex] = {
+    ...itinerary.days[dayIdx].activities[actIndex],
+    ...partial,
+  };
+  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+}
+
+export async function addActivity(
+  tripId: string,
+  dayNumber: number,
+  activity: Partial<Activity>,
+) {
+  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
+  if (!snap.exists()) return;
+  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
+  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
+  if (dayIdx === -1) return;
+  const newAct: Activity = {
+    time: activity.time ?? "12:00 PM",
+    name: activity.name ?? "New activity",
+    description: activity.description ?? "",
+    tag: activity.tag ?? "culture",
+    fromWish: false,
+    suggester: activity.suggester ?? "You",
+    estimatedCost: activity.estimatedCost ?? 0,
+    labels: [],
+    nearPrevious: false,
+  };
+  itinerary.days[dayIdx].activities.push(newAct);
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
