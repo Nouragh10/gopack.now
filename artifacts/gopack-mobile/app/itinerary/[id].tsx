@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +25,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import {
   Activity,
+  ItineraryDay,
+  TripMember,
   addActivity,
   updateActivity,
   useTrip,
@@ -64,38 +68,234 @@ function getDayDate(startDate: string | null | undefined, dayNumber: number): st
   }
 }
 
+/* ── PDF HTML builder ────────────────────────────────────────────────── */
+
+function buildItineraryHTML(
+  title: string,
+  destination: string,
+  days: ItineraryDay[],
+  members: TripMember[],
+  budget: string,
+  startDate: string | null | undefined,
+  totalCost: number,
+): string {
+  const totalDays = days.reduce((s, d) => s + d.activities.length, 0);
+
+  const memberChips = members
+    .map(
+      (m, i) => `
+      <div class="chip">
+        <div class="chip-avatar" style="background:${MEMBER_COLORS[i % MEMBER_COLORS.length]}">
+          ${m.name[0].toUpperCase()}
+        </div>
+        <span class="chip-name">${m.name}</span>
+      </div>`,
+    )
+    .join("");
+
+  const daysHtml = days
+    .map((day) => {
+      const activitiesHtml = day.activities
+        .map(
+          (act) => `
+          <div class="act">
+            <div class="act-bar" style="background:${getTagColor(act.tag)}"></div>
+            <div class="act-body">
+              <div class="act-meta">
+                <span class="act-time">${act.time}</span>
+                ${act.fromWish ? '<span class="wish-badge">★ Wish</span>' : ""}
+              </div>
+              <div class="act-name">${act.name}</div>
+              ${act.suggester ? `<div class="act-suggester">${act.fromWish ? `✦ ${act.suggester}'s wish` : `✦ ${act.suggester}`}</div>` : ""}
+              <div class="act-desc">${act.description}</div>
+              ${act.estimatedCost > 0 ? `<div class="act-cost">~$${act.estimatedCost} per person</div>` : ""}
+            </div>
+          </div>`,
+        )
+        .join("");
+
+      return `
+        <div class="day">
+          <div class="day-head">
+            <div class="day-badge">Day ${day.dayNumber}</div>
+            <div class="day-city">${day.city}</div>
+            <div class="day-theme">${day.theme}</div>
+          </div>
+          ${activitiesHtml}
+        </div>`;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',Helvetica,Arial,sans-serif;background:#FFFDF9;color:#0E0D0B;font-size:13px;line-height:1.5}
+h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
+
+/* Cover */
+.cover{background:#1C1916;padding:60px 48px 56px;color:#FFFDF9;position:relative;overflow:hidden}
+.cover-blob{position:absolute;right:-60px;top:-60px;width:260px;height:260px;background:#E85D3A;opacity:.07;border-radius:50%}
+.cover-blob2{position:absolute;left:-40px;bottom:-80px;width:200px;height:200px;background:#E85D3A;opacity:.05;border-radius:50%}
+.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:52px}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:#E85D3A}
+.logo-text{font-family:'Playfair Display',Georgia,serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#E85D3A}
+.cover-eyebrow{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#756C66;margin-bottom:12px}
+.cover-title{font-size:44px;font-weight:700;line-height:1.05;margin-bottom:10px;color:#FFFDF9}
+.cover-dest{font-size:16px;color:#8C8480;margin-bottom:48px}
+.cover-stats{display:flex;gap:0;border-top:1px solid #2E2A27;padding-top:28px}
+.stat{flex:1;padding-right:24px}
+.stat+.stat{padding-left:24px;border-left:1px solid #2E2A27}
+.stat-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#756C66;margin-bottom:5px}
+.stat-val{font-size:18px;font-weight:600;color:#FFFDF9}
+
+/* Pack section */
+.pack-section{padding:40px 48px;border-bottom:1px solid #EDE8DE}
+.eyebrow{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#E85D3A;margin-bottom:8px}
+.section-h{font-size:22px;font-weight:700;margin-bottom:20px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#F5F0E8;border-radius:28px;padding:6px 14px 6px 6px}
+.chip-avatar{width:28px;height:28px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff}
+.chip-name{font-size:13px;font-weight:500}
+
+/* Day */
+.day{padding:40px 48px;border-bottom:1px solid #EDE8DE;page-break-inside:avoid}
+.day-head{display:flex;align-items:baseline;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #E85D3A}
+.day-badge{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#E85D3A;white-space:nowrap}
+.day-city{font-size:26px;font-weight:700;flex:1}
+.day-theme{font-size:12px;color:#756C66;font-style:italic;white-space:nowrap}
+
+/* Activity */
+.act{display:flex;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid #EDE8DE;background:#FEFCF8;page-break-inside:avoid}
+.act-bar{width:4px;flex-shrink:0}
+.act-body{flex:1;padding:14px 18px}
+.act-meta{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+.act-time{font-size:11px;font-weight:600;color:#A8A298;letter-spacing:.3px;min-width:58px}
+.wish-badge{font-size:10px;background:#FFF3E0;color:#E65100;border-radius:10px;padding:2px 8px;font-weight:600}
+.act-name{font-size:16px;font-weight:700;margin-bottom:4px;color:#0E0D0B}
+.act-suggester{font-size:11px;color:#E85D3A;font-weight:500;margin-bottom:6px}
+.act-desc{font-size:12.5px;color:#4A4440;line-height:1.55;margin-bottom:6px}
+.act-cost{font-size:11px;color:#756C66;font-weight:500}
+
+/* Vibes */
+.vibes-section{padding:32px 48px;border-bottom:1px solid #EDE8DE;display:flex;align-items:center;gap:12px}
+.vibe-tag{display:inline-block;background:#F5F0E8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:500;color:#0E0D0B;text-transform:capitalize}
+
+/* Total */
+.total-section{padding:40px 48px;background:linear-gradient(135deg,#1C1916 0%,#2B2420 100%);display:flex;align-items:center;gap:24px}
+.total-icon{width:48px;height:48px;background:#E85D3A;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.total-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#756C66;margin-bottom:6px}
+.total-val{font-family:'Playfair Display',Georgia,serif;font-size:40px;font-weight:700;color:#FFFDF9;line-height:1}
+.total-note{font-size:12px;color:#756C66;margin-top:4px}
+
+/* Footer */
+.footer{background:#0E0D0B;padding:24px 48px;display:flex;align-items:center;justify-content:space-between}
+.footer-logo{font-family:'Playfair Display',Georgia,serif;font-size:20px;color:#FFFDF9}
+.footer-tagline{font-size:11px;color:#4A4440}
+.footer-date{font-size:11px;color:#4A4440}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-blob"></div>
+  <div class="cover-blob2"></div>
+  <div class="logo-row">
+    <div class="logo-dot"></div>
+    <div class="logo-text">GoPack</div>
+  </div>
+  <div class="cover-eyebrow">Group Travel Itinerary</div>
+  <h1 class="cover-title">${title}</h1>
+  <div class="cover-dest">${destination}</div>
+  <div class="cover-stats">
+    <div class="stat">
+      <div class="stat-label">Duration</div>
+      <div class="stat-val">${days.length} day${days.length !== 1 ? "s" : ""}</div>
+    </div>
+    ${startDate ? `<div class="stat"><div class="stat-label">Start date</div><div class="stat-val">${startDate}</div></div>` : ""}
+    <div class="stat">
+      <div class="stat-label">Budget</div>
+      <div class="stat-val" style="text-transform:capitalize">${budget}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Pack size</div>
+      <div class="stat-val">${members.length} ${members.length === 1 ? "person" : "people"}</div>
+    </div>
+  </div>
+</div>
+
+<div class="pack-section">
+  <div class="eyebrow">The Pack</div>
+  <h2 class="section-h">Who's coming</h2>
+  <div class="chips">${memberChips}</div>
+</div>
+
+${daysHtml}
+
+${
+  totalCost > 0
+    ? `<div class="total-section">
+        <div class="total-icon">💰</div>
+        <div>
+          <div class="total-label">Estimated total · all ${days.length} days</div>
+          <div class="total-val">~$${totalCost}</div>
+          <div class="total-note">per person · ${totalDays} activities planned</div>
+        </div>
+      </div>`
+    : ""
+}
+
+<div class="footer">
+  <div class="footer-logo">gopack</div>
+  <div class="footer-tagline">Plan trips together ✦</div>
+  <div class="footer-date">Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+</div>
+
+</body>
+</html>`;
+}
+
+/* ── Activity card ───────────────────────────────────────────────────── */
+
 interface ActivityCardProps {
   activity: Activity;
   actIndex: number;
   dayNumber: number;
   destination: string;
   startDate?: string | null;
-  tripId: string;
   colors: any;
   onEdit: (act: Activity, idx: number, day: number) => void;
 }
 
-function ActivityCard({ activity, actIndex, dayNumber, destination, startDate, tripId, colors, onEdit }: ActivityCardProps) {
+function ActivityCard({
+  activity,
+  actIndex,
+  dayNumber,
+  destination,
+  startDate,
+  colors,
+  onEdit,
+}: ActivityCardProps) {
   const tagColor = getTagColor(activity.tag);
 
   const openMaps = async () => {
     const query = encodeURIComponent(`${activity.name}, ${destination}`);
-    const url = `https://maps.google.com/maps?q=${query}`;
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) await Linking.openURL(url);
+    await Linking.openURL(`https://maps.google.com/maps?q=${query}`);
   };
 
   const openCalendar = async () => {
     const dateStr = getDayDate(startDate, dayNumber);
-    const title = encodeURIComponent(activity.name);
-    const details = encodeURIComponent(activity.description);
-    const location = encodeURIComponent(destination);
-    let url: string;
-    if (dateStr) {
-      url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}&details=${details}&location=${location}`;
-    } else {
-      url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
-    }
+    const t = encodeURIComponent(activity.name);
+    const d = encodeURIComponent(activity.description);
+    const l = encodeURIComponent(destination);
+    const url = dateStr
+      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
+      : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
     await Linking.openURL(url);
   };
 
@@ -110,25 +310,20 @@ function ActivityCard({ activity, actIndex, dayNumber, destination, startDate, t
             <Feather name="edit-2" size={13} color={colors.mutedForeground} />
           </Pressable>
         </View>
-
         <Text style={[styles.actName, { color: colors.foreground }]}>{activity.name}</Text>
-
         {activity.suggester ? (
           <Text style={[styles.actSuggester, { color: colors.primary }]}>
             {activity.fromWish ? `✦ ${activity.suggester}'s wish` : `✦ ${activity.suggester}`}
           </Text>
         ) : null}
-
         <Text style={[styles.actDesc, { color: colors.mutedForeground }]} numberOfLines={3}>
           {activity.description}
         </Text>
-
         {activity.estimatedCost > 0 && (
           <Text style={[styles.actCost, { color: colors.mutedForeground }]}>
             ~${activity.estimatedCost} est. per person
           </Text>
         )}
-
         <View style={styles.actActions}>
           <Pressable onPress={openMaps} style={[styles.actActionBtn, { borderColor: colors.border }]}>
             <Feather name="map-pin" size={13} color={colors.foreground} />
@@ -144,7 +339,9 @@ function ActivityCard({ activity, actIndex, dayNumber, destination, startDate, t
   );
 }
 
-interface EditModal {
+/* ── Edit modal state ────────────────────────────────────────────────── */
+
+interface EditState {
   dayNumber: number;
   actIndex: number | null;
   name: string;
@@ -152,6 +349,8 @@ interface EditModal {
   description: string;
   estimatedCost: string;
 }
+
+/* ── Screen ──────────────────────────────────────────────────────────── */
 
 export default function ItineraryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -161,8 +360,9 @@ export default function ItineraryScreen() {
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
-  const [editModal, setEditModal] = useState<EditModal | null>(null);
+  const [editModal, setEditModal] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -189,9 +389,8 @@ export default function ItineraryScreen() {
   };
 
   const handleAddActivity = () => {
-    const dayNum = currentDay?.dayNumber ?? 1;
     setEditModal({
-      dayNumber: dayNum,
+      dayNumber: currentDay?.dayNumber ?? 1,
       actIndex: null,
       name: "",
       time: "12:00 PM",
@@ -235,25 +434,53 @@ export default function ItineraryScreen() {
         `── Day ${day.dayNumber}: ${day.city} ──`,
         day.theme,
         ...day.activities.map(
-          (a) =>
-            `${a.time}  ${a.name}${a.estimatedCost > 0 ? ` (~$${a.estimatedCost})` : ""}`,
+          (a) => `${a.time}  ${a.name}${a.estimatedCost > 0 ? ` (~$${a.estimatedCost})` : ""}`,
         ),
         "",
       ]),
       totalCost > 0 ? `💰 Estimated total: ~$${totalCost}/person` : "",
       "Built with GoPack 🎒",
     ].filter(Boolean);
-
     await Share.share({ message: lines.join("\n") });
+  };
+
+  const handleExportPDF = async () => {
+    if (!trip || !itinerary) return;
+    setExportingPDF(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const html = buildItineraryHTML(
+        itinerary.title,
+        trip.destination,
+        days,
+        members,
+        trip.budget ?? "midrange",
+        trip.startDate,
+        totalCost,
+      );
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: `${trip.destination} Itinerary`,
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        Alert.alert("PDF saved", "Your itinerary PDF has been created.");
+      }
+    } catch (err) {
+      Alert.alert("Export failed", "Could not generate PDF. Please try again.");
+    } finally {
+      setExportingPDF(false);
+    }
   };
 
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-          Loading itinerary…
-        </Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Loading itinerary…</Text>
       </View>
     );
   }
@@ -283,9 +510,25 @@ export default function ItineraryScreen() {
               {trip.destination}
             </Text>
           </View>
-          <Pressable onPress={handleShare} style={styles.shareBtn}>
-            <Feather name="share" size={20} color={colors.foreground} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable onPress={handleShare} style={[styles.iconBtn, { borderColor: colors.border }]}>
+              <Feather name="share" size={16} color={colors.foreground} />
+            </Pressable>
+            <Pressable
+              onPress={handleExportPDF}
+              disabled={exportingPDF}
+              style={[styles.pdfBtn, { backgroundColor: colors.primary }]}
+            >
+              {exportingPDF ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Feather name="file-text" size={14} color="#fff" />
+                  <Text style={styles.pdfBtnText}>PDF</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         {members.length > 0 && (
@@ -295,7 +538,10 @@ export default function ItineraryScreen() {
                 key={i}
                 style={[
                   styles.memberAvatar,
-                  { backgroundColor: MEMBER_COLORS[i % MEMBER_COLORS.length], marginLeft: i > 0 ? -8 : 0 },
+                  {
+                    backgroundColor: MEMBER_COLORS[i % MEMBER_COLORS.length],
+                    marginLeft: i > 0 ? -8 : 0,
+                  },
                 ]}
               >
                 <Text style={styles.memberInitial}>{m.name[0].toUpperCase()}</Text>
@@ -358,7 +604,6 @@ export default function ItineraryScreen() {
                 dayNumber={currentDay.dayNumber}
                 destination={trip.destination}
                 startDate={trip.startDate}
-                tripId={id!}
                 colors={colors}
                 onEdit={handleEdit}
               />
@@ -411,12 +656,15 @@ export default function ItineraryScreen() {
         animationType="slide"
         onRequestClose={() => setEditModal(null)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <Pressable style={styles.modalOverlay} onPress={() => { Keyboard.dismiss(); setEditModal(null); }}>
-            <Pressable
-              style={[styles.editSheet, { backgroundColor: colors.card }]}
-              onPress={() => {}}
-            >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => { Keyboard.dismiss(); setEditModal(null); }}
+          >
+            <Pressable style={[styles.editSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
               <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
               <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
                 {editModal?.actIndex === null ? "Add activity" : "Edit activity"}
@@ -428,7 +676,7 @@ export default function ItineraryScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 placeholder="e.g. Sunset hike"
                 value={editModal?.name ?? ""}
-                onChangeText={(t) => setEditModal((prev) => prev ? { ...prev, name: t } : prev)}
+                onChangeText={(t) => setEditModal((p) => p ? { ...p, name: t } : p)}
               />
 
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Time</Text>
@@ -437,7 +685,7 @@ export default function ItineraryScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 placeholder="e.g. 10:00 AM"
                 value={editModal?.time ?? ""}
-                onChangeText={(t) => setEditModal((prev) => prev ? { ...prev, time: t } : prev)}
+                onChangeText={(t) => setEditModal((p) => p ? { ...p, time: t } : p)}
               />
 
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Description</Text>
@@ -448,7 +696,7 @@ export default function ItineraryScreen() {
                 value={editModal?.description ?? ""}
                 multiline
                 numberOfLines={3}
-                onChangeText={(t) => setEditModal((prev) => prev ? { ...prev, description: t } : prev)}
+                onChangeText={(t) => setEditModal((p) => p ? { ...p, description: t } : p)}
               />
 
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Est. cost ($)</Text>
@@ -458,7 +706,7 @@ export default function ItineraryScreen() {
                 placeholder="0"
                 keyboardType="numeric"
                 value={editModal?.estimatedCost ?? ""}
-                onChangeText={(t) => setEditModal((prev) => prev ? { ...prev, estimatedCost: t } : prev)}
+                onChangeText={(t) => setEditModal((p) => p ? { ...p, estimatedCost: t } : p)}
               />
 
               <View style={styles.sheetBtns}>
@@ -488,12 +736,29 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   header: { paddingHorizontal: 16, paddingBottom: 0, borderBottomWidth: 1 },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 10 },
   backBtn: { padding: 4, marginTop: 2 },
-  headerTitles: { flex: 1, gap: 4 },
+  headerTitles: { flex: 1, gap: 3 },
   headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
-  headerDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, letterSpacing: -0.5 },
-  shareBtn: { padding: 4, marginTop: 2 },
+  headerDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, letterSpacing: -0.5 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pdfBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    height: 34,
+  },
+  pdfBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
   membersRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -513,12 +778,7 @@ const styles = StyleSheet.create({
   membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
   dayScrollWrap: { maxHeight: 56, borderBottomWidth: 1 },
   dayScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row" },
-  dayChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  dayChip: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   dayChipText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
   dayHeader: { paddingVertical: 14 },
   dayCity: { fontFamily: "DmSans_600SemiBold", fontSize: 18, marginBottom: 2 },
@@ -572,7 +832,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 4,
   },
-  costLabel: { fontFamily: "DmSans_500Medium", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 },
+  costLabel: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
   costValue: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
   emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
@@ -595,33 +861,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   footerBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  editSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 36,
-    gap: 8,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    alignSelf: "center", marginBottom: 12,
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  editSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, gap: 8 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
   sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 8 },
-  fieldLabel: { fontFamily: "DmSans_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, marginTop: 4 },
+  fieldLabel: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginTop: 4,
+  },
   fieldInput: {
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11,
-    fontFamily: "DmSans_400Regular", fontSize: 15,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontFamily: "DmSans_400Regular",
+    fontSize: 15,
   },
   fieldMultiline: { minHeight: 80, paddingTop: 11, textAlignVertical: "top" },
   sheetBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
-  sheetCancelBtn: {
-    flex: 1, alignItems: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 13,
-  },
+  sheetCancelBtn: { flex: 1, alignItems: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 13 },
   sheetCancelText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   sheetSaveBtn: { flex: 1, alignItems: "center", borderRadius: 12, paddingVertical: 13 },
   sheetSaveText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },

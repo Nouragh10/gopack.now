@@ -60,6 +60,8 @@
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@react-native-community/datetimepicker": "^8.4.4",
     "expo-clipboard": "^8.0.8",
+    "expo-print": "^15.0.8",
+    "expo-sharing": "^14.0.8",
     "firebase": "^12.15.0"
   }
 }
