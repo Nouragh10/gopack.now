@@ -1,3 +1,4 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
@@ -26,6 +27,7 @@ import {
   lockVotes,
   setAccommodationStatus,
   unlockVotes,
+  updateTripStartDate,
   useTrip,
   useWishes,
   voteWish,
@@ -206,6 +208,9 @@ export default function TripHubScreen() {
   const [copiedId, setCopiedId] = useState(false);
   const [lockingVotes, setLockingVotes] = useState(false);
   const [showAccomModal, setShowAccomModal] = useState(false);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [tempDate, setTempDate] = useState<Date>(new Date());
+  const [savingDate, setSavingDate] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 12;
@@ -291,6 +296,7 @@ export default function TripHubScreen() {
 
   const accomStatus = trip.accommodationStatus;
   const destConfirmed = !!trip.destination;
+  const hasStartDate = !!trip.startDate;
   const showAccomBanner = destConfirmed && !accomStatus;
   const accomCollecting = accomStatus === "collecting_prefs";
   const accomVoting = accomStatus === "voting";
@@ -299,6 +305,27 @@ export default function TripHubScreen() {
   const waitingMembers = members
     .filter(([uid]) => !lockedBy[uid])
     .map(([, m]) => m.name);
+
+  const minDate = new Date();
+
+  function formatDate(d: Date): string {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function toISODate(d: Date): string {
+    return d.toISOString().split("T")[0];
+  }
+
+  const handleSaveDate = async () => {
+    if (!id) return;
+    setSavingDate(true);
+    try {
+      await updateTripStartDate(id, toISODate(tempDate));
+      setShowDateModal(false);
+      setShowAccomModal(true);
+    } finally {
+      setSavingDate(false);
+    }
+  };
 
   const handleAccomChoice = async (choice: "help" | "booked" | "later") => {
     setShowAccomModal(false);
@@ -355,8 +382,21 @@ export default function TripHubScreen() {
         </Pressable>
       )}
 
-      {/* Accommodation: prompt to choose */}
-      {showAccomBanner && (
+      {/* Accommodation: prompt to choose (requires start date) */}
+      {showAccomBanner && !hasStartDate && (
+        <Pressable
+          onPress={() => {
+            setTempDate(new Date());
+            setShowDateModal(true);
+          }}
+          style={[styles.destBanner, { backgroundColor: "#F59E0B" }]}
+        >
+          <Feather name="calendar" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Add your trip start date to find accommodation</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
+        </Pressable>
+      )}
+      {showAccomBanner && hasStartDate && (
         <Pressable
           onPress={() => setShowAccomModal(true)}
           style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
@@ -677,6 +717,71 @@ export default function TripHubScreen() {
         </ScrollView>
       )}
 
+      {/* Start date required modal */}
+      <Modal visible={showDateModal} transparent animationType="slide" onRequestClose={() => setShowDateModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDateModal(false)}>
+          <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <Feather name="calendar" size={20} color="#F59E0B" />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Set trip start date</Text>
+            </View>
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground, textTransform: "none", letterSpacing: 0, fontSize: 13, marginBottom: 2 }]}>
+              A start date is required to generate accurate Airbnb and Booking.com links with your exact travel dates.
+            </Text>
+
+            {Platform.OS === "web" ? (
+              <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="calendar" size={15} color={colors.primary} />
+                <TextInput
+                  style={[styles.dateWebInput, { color: colors.foreground }]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={tempDate ? tempDate.toISOString().split("T")[0] : ""}
+                  onChangeText={(t) => {
+                    const d = new Date(t);
+                    if (!isNaN(d.getTime())) setTempDate(d);
+                  }}
+                />
+              </View>
+            ) : (
+              <>
+                <View style={[styles.datePreviewRow, { borderColor: colors.border }]}>
+                  <Feather name="calendar" size={15} color="#F59E0B" />
+                  <Text style={[styles.datePreviewText, { color: colors.foreground }]}>
+                    {formatDate(tempDate)}
+                  </Text>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={minDate}
+                  onChange={(_e, d) => { if (d) setTempDate(d); }}
+                  style={{ width: "100%" }}
+                  textColor={colors.foreground}
+                />
+              </>
+            )}
+
+            <Pressable
+              onPress={handleSaveDate}
+              disabled={savingDate}
+              style={[styles.dateConfirmBtn, { backgroundColor: "#26A69A" }]}
+            >
+              {savingDate ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Feather name="check" size={16} color="#fff" />
+                  <Text style={styles.dateConfirmBtnText}>Confirm date &amp; choose accommodation</Text>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Accommodation choice modal */}
       <Modal visible={showAccomModal} transparent animationType="slide" onRequestClose={() => setShowAccomModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowAccomModal(false)}>
@@ -916,6 +1021,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
   },
   accomBookBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+
+  inputWrap: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  dateWebInput: { fontFamily: "DmSans_400Regular", fontSize: 15, flex: 1 },
+  datePreviewRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 4,
+  },
+  datePreviewText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  dateConfirmBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 14, paddingVertical: 14, marginTop: 4,
+  },
+  dateConfirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
 
   /* Modals */
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

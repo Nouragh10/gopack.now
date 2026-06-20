@@ -561,6 +561,12 @@ export async function togglePackItem(
   );
 }
 
+/* ── Trip metadata ────────────────────────────────────────────────── */
+
+export async function updateTripStartDate(tripId: string, startDate: string) {
+  await update(ref(db, `trips/${tripId}`), { startDate });
+}
+
 /* ── Accommodation flow ───────────────────────────────────────────── */
 
 export async function setAccommodationStatus(
