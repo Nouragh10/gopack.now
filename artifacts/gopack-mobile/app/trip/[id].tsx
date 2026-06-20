@@ -106,7 +106,7 @@ export default function TripHubScreen() {
     setWishInput("");
   };
 
-  const inviteLink = `https://gopack.now/join/${trip?.inviteCode ?? ""}`;
+  const inviteLink = `https://gopack.now/join/${id ?? ""}`;
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(inviteLink);
@@ -331,9 +331,9 @@ export default function TripHubScreen() {
               </Pressable>
             </View>
 
-            <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>CODE</Text>
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP ID</Text>
             <Text style={[styles.inviteCode, { color: colors.primary }]}>
-              {trip.inviteCode}
+              {id}
             </Text>
           </Pressable>
         </Pressable>

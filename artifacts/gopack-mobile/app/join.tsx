@@ -30,19 +30,20 @@ export default function JoinScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
   const handleJoin = async () => {
-    if (!code.trim() || !user) return;
+    const trimmed = code.trim();
+    if (!trimmed || !user) return;
     setLoading(true);
     setError(null);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const tripId = await joinTrip(
-        code.trim().toUpperCase(),
+        trimmed,
         user.uid,
         user.displayName ?? "Traveler",
       );
       router.replace(`/trip/${tripId}`);
     } catch (e) {
-      setError((e as Error).message ?? "Invalid invite code.");
+      setError((e as Error).message ?? "Trip not found.");
     } finally {
       setLoading(false);
     }
@@ -62,17 +63,27 @@ export default function JoinScreen() {
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.foreground }]}>Join the pack</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Enter the 6-character invite code to join a trip.
+          Paste the Trip ID shared by your group to join their trip.
         </Text>
 
         <TextInput
-          style={[styles.codeInput, { backgroundColor: colors.card, borderColor: error ? colors.destructive : colors.border, color: colors.foreground }]}
-          placeholder="e.g. ABC123"
+          style={[
+            styles.codeInput,
+            {
+              backgroundColor: colors.card,
+              borderColor: error ? colors.destructive : colors.border,
+              color: colors.foreground,
+            },
+          ]}
+          placeholder="Paste trip ID here"
           placeholderTextColor={colors.mutedForeground}
           value={code}
-          onChangeText={(t) => { setCode(t.toUpperCase()); setError(null); }}
-          autoCapitalize="characters"
-          maxLength={6}
+          onChangeText={(t) => {
+            setCode(t);
+            setError(null);
+          }}
+          autoCapitalize="none"
+          autoCorrect={false}
           returnKeyType="done"
           onSubmitEditing={handleJoin}
           autoFocus
@@ -84,10 +95,10 @@ export default function JoinScreen() {
 
         <Pressable
           onPress={handleJoin}
-          disabled={loading || code.length < 4}
+          disabled={loading || code.trim().length < 4}
           style={[
             styles.joinBtn,
-            { backgroundColor: code.length >= 4 ? colors.primary : colors.muted },
+            { backgroundColor: code.trim().length >= 4 ? colors.primary : colors.muted },
           ]}
         >
           {loading ? (
@@ -99,6 +110,13 @@ export default function JoinScreen() {
             </>
           )}
         </Pressable>
+
+        <View style={[styles.hint, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Feather name="info" size={14} color={colors.mutedForeground} />
+          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+            Ask the trip host to open the Invite sheet and share their Trip ID with you.
+          </Text>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -108,7 +126,13 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 8 },
   backBtn: { padding: 4 },
-  content: { flex: 1, paddingHorizontal: 28, justifyContent: "center", gap: 16, marginTop: -60 },
+  content: {
+    flex: 1,
+    paddingHorizontal: 28,
+    justifyContent: "center",
+    gap: 16,
+    marginTop: -60,
+  },
   title: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30 },
   subtitle: { fontFamily: "DmSans_400Regular", fontSize: 15, lineHeight: 22 },
   codeInput: {
@@ -116,13 +140,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    fontFamily: "DmSans_700Bold",
-    fontSize: 28,
-    letterSpacing: 6,
-    textAlign: "center",
+    fontFamily: "DmSans_400Regular",
+    fontSize: 15,
     marginTop: 8,
   },
-  errorText: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center" },
+  errorText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+  },
   joinBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -133,4 +159,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   joinBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
+  hint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 4,
+  },
+  hintText: {
+    flex: 1,
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+  },
 });

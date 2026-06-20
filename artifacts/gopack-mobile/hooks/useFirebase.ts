@@ -304,23 +304,15 @@ export async function createTrip(data: {
 
 /* ── joinTrip ─────────────────────────────────────────────────────── */
 
-export async function joinTrip(code: string, uid: string, displayName: string) {
-  const normalised = code.trim().toUpperCase();
+export async function joinTrip(tripId: string, uid: string, displayName: string) {
+  const id = tripId.trim();
 
-  // Query trips directly by the inviteCode field — reliable because the code
-  // is stored inside the trip record itself, not a separate index that may be
-  // blocked by security rules.
-  const tripsQuery = query(
-    ref(db, "trips"),
-    orderByChild("inviteCode"),
-    equalTo(normalised),
-  );
-  const snap = await get(tripsQuery);
-  if (!snap.exists()) throw new Error("No trip found for that code. Double-check and try again.");
+  // Read the specific trip by ID — Firebase rules allow reading a known trip
+  // by its ID for any authenticated user (same approach as the web app).
+  const snap = await get(ref(db, `trips/${id}`));
+  if (!snap.exists()) throw new Error("Trip not found. Check the ID and try again.");
 
-  const tripId = Object.keys(snap.val())[0];
-
-  await update(ref(db, `trips/${tripId}/members`), {
+  await update(ref(db, `trips/${id}/members`), {
     [uid]: {
       name: displayName,
       joinedAt: new Date().toISOString(),
@@ -328,10 +320,10 @@ export async function joinTrip(code: string, uid: string, displayName: string) {
     },
   });
 
-  await addLocalTripId(uid, tripId);
-  try { await set(ref(db, `userTrips/${uid}/${tripId}`), true); } catch {}
+  await addLocalTripId(uid, id);
+  try { await set(ref(db, `userTrips/${uid}/${id}`), true); } catch {}
 
-  return tripId;
+  return id;
 }
 
 /* ── addWish / voteWish ───────────────────────────────────────────── */
