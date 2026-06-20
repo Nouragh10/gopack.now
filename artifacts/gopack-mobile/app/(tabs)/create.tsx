@@ -200,115 +200,117 @@ export default function CreateScreen() {
             </View>
           )}
 
-          {/* Start Date */}
-          <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Start Date</Text>
-            {Platform.OS === "web" ? (
-              <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Feather name="calendar" size={16} color={colors.primary} />
-                <TextInput
-                  style={[styles.input, { color: colors.foreground }]}
-                  placeholder="YYYY-MM-DD (optional)"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={startDate ? toISODate(startDate) : ""}
-                  onChangeText={(t) => {
-                    if (!t) { setStartDate(null); return; }
-                    const d = new Date(t);
-                    if (!isNaN(d.getTime())) setStartDate(d);
-                  }}
-                  returnKeyType="done"
-                />
-              </View>
-            ) : (
-              <>
-                <Pressable
-                  onPress={() => setShowDatePicker(true)}
-                  style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}
-                >
+          {knowDestination && <>
+            {/* Start Date */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Start Date</Text>
+              {Platform.OS === "web" ? (
+                <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Feather name="calendar" size={16} color={colors.primary} />
-                  <Text style={[styles.input, { color: startDate ? colors.foreground : colors.mutedForeground, paddingVertical: 0 }]}>
-                    {startDate ? formatDate(startDate) : "Optional — pick a start date"}
-                  </Text>
-                  {startDate && (
-                    <Pressable onPress={() => setStartDate(null)}>
-                      <Feather name="x" size={16} color={colors.mutedForeground} />
-                    </Pressable>
-                  )}
-                </Pressable>
-                <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-                  <Pressable style={styles.dateModalOverlay} onPress={() => setShowDatePicker(false)}>
-                    <View style={[styles.dateModalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <View style={styles.dateModalHeader}>
-                        <Text style={[styles.dateModalTitle, { color: colors.foreground }]}>Select start date</Text>
-                        <Pressable onPress={() => setShowDatePicker(false)}>
-                          <Text style={[styles.dateModalDone, { color: colors.primary }]}>Done</Text>
-                        </Pressable>
-                      </View>
-                      <DateTimePicker
-                        value={startDate ?? minDate}
-                        mode="date"
-                        display="spinner"
-                        minimumDate={minDate}
-                        onChange={(_e, d) => { if (d) setStartDate(d); }}
-                        style={{ width: "100%" }}
-                        textColor={colors.foreground}
-                      />
-                    </View>
-                  </Pressable>
-                </Modal>
-              </>
-            )}
-          </View>
-
-          {/* Days */}
-          <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Duration</Text>
-            <View style={styles.daysRow}>
-              <Pressable onPress={() => setDays((d) => Math.max(1, d - 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
-                <Feather name="minus" size={18} color={colors.foreground} />
-              </Pressable>
-              <Text style={[styles.daysNum, { color: colors.foreground }]}>{days}</Text>
-              <Text style={[styles.daysLabel, { color: colors.mutedForeground }]}>days</Text>
-              <Pressable onPress={() => setDays((d) => Math.min(30, d + 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
-                <Feather name="plus" size={18} color={colors.foreground} />
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Vibe */}
-          <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Vibe</Text>
-            <View style={styles.vibeGrid}>
-              {VIBES.map((v) => {
-                const selected = selectedVibes.includes(v);
-                return (
+                  <TextInput
+                    style={[styles.input, { color: colors.foreground }]}
+                    placeholder="YYYY-MM-DD (optional)"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={startDate ? toISODate(startDate) : ""}
+                    onChangeText={(t) => {
+                      if (!t) { setStartDate(null); return; }
+                      const d = new Date(t);
+                      if (!isNaN(d.getTime())) setStartDate(d);
+                    }}
+                    returnKeyType="done"
+                  />
+                </View>
+              ) : (
+                <>
                   <Pressable
-                    key={v}
-                    onPress={() => toggleVibe(v)}
-                    style={[styles.vibeChip, { backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
+                    onPress={() => setShowDatePicker(true)}
+                    style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
-                    <Text style={[styles.vibeChipText, { color: selected ? "#fff" : colors.foreground }]}>{v}</Text>
+                    <Feather name="calendar" size={16} color={colors.primary} />
+                    <Text style={[styles.input, { color: startDate ? colors.foreground : colors.mutedForeground, paddingVertical: 0 }]}>
+                      {startDate ? formatDate(startDate) : "Optional — pick a start date"}
+                    </Text>
+                    {startDate && (
+                      <Pressable onPress={() => setStartDate(null)}>
+                        <Feather name="x" size={16} color={colors.mutedForeground} />
+                      </Pressable>
+                    )}
                   </Pressable>
-                );
-              })}
+                  <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+                    <Pressable style={styles.dateModalOverlay} onPress={() => setShowDatePicker(false)}>
+                      <View style={[styles.dateModalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={styles.dateModalHeader}>
+                          <Text style={[styles.dateModalTitle, { color: colors.foreground }]}>Select start date</Text>
+                          <Pressable onPress={() => setShowDatePicker(false)}>
+                            <Text style={[styles.dateModalDone, { color: colors.primary }]}>Done</Text>
+                          </Pressable>
+                        </View>
+                        <DateTimePicker
+                          value={startDate ?? minDate}
+                          mode="date"
+                          display="spinner"
+                          minimumDate={minDate}
+                          onChange={(_e, d) => { if (d) setStartDate(d); }}
+                          style={{ width: "100%" }}
+                          textColor={colors.foreground}
+                        />
+                      </View>
+                    </Pressable>
+                  </Modal>
+                </>
+              )}
             </View>
-          </View>
 
-          {/* Budget */}
-          <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Budget</Text>
-            <View style={styles.budgetRow}>
-              {BUDGETS.map((b) => (
-                <Pressable
-                  key={b}
-                  onPress={() => setBudget(b)}
-                  style={[styles.budgetChip, { backgroundColor: budget === b ? colors.primary : colors.muted, borderColor: budget === b ? colors.primary : colors.border, flex: 1 }]}
-                >
-                  <Text style={[styles.budgetText, { color: budget === b ? "#fff" : colors.foreground }]}>{b}</Text>
+            {/* Days */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Duration</Text>
+              <View style={styles.daysRow}>
+                <Pressable onPress={() => setDays((d) => Math.max(1, d - 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
+                  <Feather name="minus" size={18} color={colors.foreground} />
                 </Pressable>
-              ))}
+                <Text style={[styles.daysNum, { color: colors.foreground }]}>{days}</Text>
+                <Text style={[styles.daysLabel, { color: colors.mutedForeground }]}>days</Text>
+                <Pressable onPress={() => setDays((d) => Math.min(30, d + 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
+                  <Feather name="plus" size={18} color={colors.foreground} />
+                </Pressable>
+              </View>
             </View>
-          </View>
+
+            {/* Vibe */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Vibe</Text>
+              <View style={styles.vibeGrid}>
+                {VIBES.map((v) => {
+                  const selected = selectedVibes.includes(v);
+                  return (
+                    <Pressable
+                      key={v}
+                      onPress={() => toggleVibe(v)}
+                      style={[styles.vibeChip, { backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
+                    >
+                      <Text style={[styles.vibeChipText, { color: selected ? "#fff" : colors.foreground }]}>{v}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Budget */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Budget</Text>
+              <View style={styles.budgetRow}>
+                {BUDGETS.map((b) => (
+                  <Pressable
+                    key={b}
+                    onPress={() => setBudget(b)}
+                    style={[styles.budgetChip, { backgroundColor: budget === b ? colors.primary : colors.muted, borderColor: budget === b ? colors.primary : colors.border, flex: 1 }]}
+                  >
+                    <Text style={[styles.budgetText, { color: budget === b ? "#fff" : colors.foreground }]}>{b}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </>}
 
           {!!error && (
             <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
