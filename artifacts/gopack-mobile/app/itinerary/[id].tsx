@@ -675,6 +675,66 @@ export default function ItineraryScreen() {
                 ~${accomCost} per person (total stay)
               </Text>
             </View>
+            {/* Booking buttons */}
+            <View style={styles.accomBtns}>
+              {accom.link ? (
+                <Pressable
+                  onPress={() => {
+                    if (Platform.OS === "web") window.open(accom.link, "_blank", "noopener,noreferrer");
+                    else Linking.openURL(accom.link!);
+                  }}
+                  style={[styles.accomBtn, { backgroundColor: "#26A69A" }]}
+                >
+                  <Feather name="external-link" size={13} color="#fff" />
+                  <Text style={[styles.accomBtnText, { color: "#fff" }]}>View listing</Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      const q = encodeURIComponent(`${accom.name} ${accom.location}`);
+                      const ci = trip.startDate ?? "";
+                      const co = (() => {
+                        if (!trip.startDate) return "";
+                        try {
+                          const d = new Date(trip.startDate + "T00:00:00");
+                          d.setDate(d.getDate() + (trip.days ?? 0));
+                          return d.toISOString().split("T")[0];
+                        } catch { return ""; }
+                      })();
+                      const url = `https://www.airbnb.com/s/${encodeURIComponent(accom.location)}/homes?query=${q}${ci ? `&checkin=${ci}&checkout=${co}` : ""}`;
+                      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+                      else Linking.openURL(url);
+                    }}
+                    style={[styles.accomBtn, { backgroundColor: "#FF5A5F" }]}
+                  >
+                    <Feather name="search" size={13} color="#fff" />
+                    <Text style={[styles.accomBtnText, { color: "#fff" }]}>Airbnb</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      const q = encodeURIComponent(`${accom.name} ${accom.location}`);
+                      const ci = trip.startDate ?? "";
+                      const co = (() => {
+                        if (!trip.startDate) return "";
+                        try {
+                          const d = new Date(trip.startDate + "T00:00:00");
+                          d.setDate(d.getDate() + (trip.days ?? 0));
+                          return d.toISOString().split("T")[0];
+                        } catch { return ""; }
+                      })();
+                      const url = `https://www.booking.com/search.html?ss=${q}${ci ? `&checkin=${ci}&checkout=${co}` : ""}`;
+                      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+                      else Linking.openURL(url);
+                    }}
+                    style={[styles.accomBtn, { backgroundColor: "#003580" }]}
+                  >
+                    <Feather name="search" size={13} color="#fff" />
+                    <Text style={[styles.accomBtnText, { color: "#fff" }]}>Booking.com</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           </View>
         )}
 
@@ -919,6 +979,12 @@ const styles = StyleSheet.create({
   accomCardMeta: { fontFamily: "DmSans_400Regular", fontSize: 12, textTransform: "capitalize" },
   accomCostRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   accomCostText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
+  accomBtns: { flexDirection: "row", gap: 8, marginTop: 10 },
+  accomBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+  },
+  accomBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
   emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },

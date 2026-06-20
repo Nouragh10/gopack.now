@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -570,20 +571,63 @@ export default function TripHubScreen() {
           </View>
 
           {/* Confirmed accommodation card */}
-          {accomConfirmed && trip.confirmedAccommodation && (
-            <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <Feather name="home" size={13} color="#26A69A" />
-                <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION CONFIRMED</Text>
+          {accomConfirmed && trip.confirmedAccommodation && (() => {
+            const a = trip.confirmedAccommodation!;
+            const openURL = (url: string) => {
+              if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+              else Linking.openURL(url);
+            };
+            const checkIn = trip.startDate ?? "";
+            const checkOut = (() => {
+              if (!trip.startDate) return "";
+              try {
+                const d = new Date(trip.startDate + "T00:00:00");
+                d.setDate(d.getDate() + (trip.days ?? 0));
+                return d.toISOString().split("T")[0];
+              } catch { return ""; }
+            })();
+            const q = encodeURIComponent(`${a.name} ${a.location}`);
+            return (
+              <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <Feather name="home" size={13} color="#26A69A" />
+                  <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION CONFIRMED</Text>
+                </View>
+                <Text style={[styles.accomCardName, { color: colors.foreground }]}>{a.name}</Text>
+                <Text style={[styles.accomCardSub, { color: colors.mutedForeground }]}>
+                  {a.location} · ${a.costPerPerson}/person
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  {a.link ? (
+                    <Pressable
+                      onPress={() => openURL(a.link!)}
+                      style={[styles.accomBookBtn, { backgroundColor: "#26A69A" }]}
+                    >
+                      <Feather name="external-link" size={13} color="#fff" />
+                      <Text style={styles.accomBookBtnText}>View listing</Text>
+                    </Pressable>
+                  ) : (
+                    <>
+                      <Pressable
+                        onPress={() => openURL(`https://www.airbnb.com/s/${encodeURIComponent(a.location)}/homes?query=${q}${checkIn ? `&checkin=${checkIn}&checkout=${checkOut}` : ""}`)}
+                        style={[styles.accomBookBtn, { backgroundColor: "#FF5A5F" }]}
+                      >
+                        <Feather name="search" size={13} color="#fff" />
+                        <Text style={styles.accomBookBtnText}>Airbnb</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => openURL(`https://www.booking.com/search.html?ss=${q}${checkIn ? `&checkin=${checkIn}&checkout=${checkOut}` : ""}`)}
+                        style={[styles.accomBookBtn, { backgroundColor: "#003580" }]}
+                      >
+                        <Feather name="search" size={13} color="#fff" />
+                        <Text style={styles.accomBookBtnText}>Booking.com</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
               </View>
-              <Text style={[styles.accomCardName, { color: colors.foreground }]}>
-                {trip.confirmedAccommodation.name}
-              </Text>
-              <Text style={[styles.accomCardSub, { color: colors.mutedForeground }]}>
-                {trip.confirmedAccommodation.location} · ${trip.confirmedAccommodation.costPerPerson}/person
-              </Text>
-            </View>
-          )}
+            );
+          })()}
 
           {/* Generate itinerary card */}
           <Pressable
@@ -867,6 +911,11 @@ const styles = StyleSheet.create({
   },
   accomOptionTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
   accomOptionSub: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17 },
+  accomBookBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+  },
+  accomBookBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
 
   /* Modals */
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
