@@ -22,6 +22,7 @@ export interface Trip {
   createdAt: string;
   inviteCode?: string;
   itinerary?: { title: string; days: ItineraryDay[] };
+  votesLockedBy?: Record<string, boolean>;
 }
 
 export interface Wish {
@@ -29,8 +30,9 @@ export interface Wish {
   text: string;
   authorId: string;
   authorName: string;
-  votes: number;
-  voters: Record<string, boolean>;
+  upvoters: Record<string, string>;   // uid → displayName
+  downvoters: Record<string, string>; // uid → displayName
+  score: number;                      // computed: upvotes - downvotes
   createdAt: number;
 }
 
@@ -185,10 +187,15 @@ export function useWishes(tripId: string | undefined) {
   useEffect(() => {
     if (!tripId) return;
     return onValue(ref(db, `trips/${tripId}/wishes`), (snap) => {
-      const data = snap.val() as Record<string, Omit<Wish, "id">> | null;
+      const data = snap.val() as Record<string, any> | null;
       if (!data) { setWishes([]); return; }
-      const list = Object.entries(data).map(([id, w]) => ({ id, ...w } as Wish));
-      setWishes(list.sort((a, b) => b.votes - a.votes));
+      const list = Object.entries(data).map(([id, w]) => {
+        const upvoters: Record<string, string> = w.upvoters ?? {};
+        const downvoters: Record<string, string> = w.downvoters ?? {};
+        const score = Object.keys(upvoters).length - Object.keys(downvoters).length;
+        return { id, ...w, upvoters, downvoters, score } as Wish;
+      });
+      setWishes(list.sort((a, b) => b.score - a.score));
     });
   }, [tripId]);
 
@@ -339,8 +346,8 @@ export async function addWish(
     text,
     authorId: uid,
     authorName: displayName,
-    votes: 0,
-    voters: {},
+    upvoters: {},
+    downvoters: {},
     createdAt: Date.now(),
   });
 }
@@ -349,18 +356,43 @@ export async function voteWish(
   tripId: string,
   wishId: string,
   uid: string,
-  currentVotes: number,
-  hasVoted: boolean,
+  userName: string,
+  dir: "up" | "down",
 ) {
+  const snap = await get(ref(db, `trips/${tripId}/wishes/${wishId}`));
+  const wish = snap.val() ?? {};
+  const upvoters: Record<string, string> = wish.upvoters ?? {};
+  const downvoters: Record<string, string> = wish.downvoters ?? {};
   const updates: Record<string, unknown> = {};
-  if (hasVoted) {
-    updates[`trips/${tripId}/wishes/${wishId}/votes`] = Math.max(0, currentVotes - 1);
-    updates[`trips/${tripId}/wishes/${wishId}/voters/${uid}`] = null;
+
+  if (dir === "up") {
+    if (upvoters[uid]) {
+      updates[`trips/${tripId}/wishes/${wishId}/upvoters/${uid}`] = null;
+    } else {
+      updates[`trips/${tripId}/wishes/${wishId}/upvoters/${uid}`] = userName;
+      if (downvoters[uid]) {
+        updates[`trips/${tripId}/wishes/${wishId}/downvoters/${uid}`] = null;
+      }
+    }
   } else {
-    updates[`trips/${tripId}/wishes/${wishId}/votes`] = currentVotes + 1;
-    updates[`trips/${tripId}/wishes/${wishId}/voters/${uid}`] = true;
+    if (downvoters[uid]) {
+      updates[`trips/${tripId}/wishes/${wishId}/downvoters/${uid}`] = null;
+    } else {
+      updates[`trips/${tripId}/wishes/${wishId}/downvoters/${uid}`] = userName;
+      if (upvoters[uid]) {
+        updates[`trips/${tripId}/wishes/${wishId}/upvoters/${uid}`] = null;
+      }
+    }
   }
   await update(ref(db), updates);
+}
+
+export async function lockVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/votesLockedBy/${uid}`), true);
+}
+
+export async function unlockVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/votesLockedBy/${uid}`), null);
 }
 
 /* ── sendMessage ──────────────────────────────────────────────────── */

@@ -62,9 +62,9 @@ export default function BuildingScreen() {
     const run = async () => {
       try {
         const sortedWishes = [...wishes]
-          .sort((a, b) => b.votes - a.votes)
+          .sort((a, b) => b.score - a.score)
           .slice(0, 10)
-          .map((w) => ({ text: w.text, author: w.authorName, votes: w.votes }));
+          .map((w) => ({ text: w.text, author: w.authorName, votes: w.score }));
 
         const baseUrl = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
         const res = await fetch(`${baseUrl}/api/itinerary`, {
