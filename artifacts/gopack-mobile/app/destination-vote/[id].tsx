@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -176,6 +178,17 @@ export default function DestinationVoteScreen() {
   const { trip, loading } = useTrip(id);
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const inviteLink = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "gopacknow.com"}/join/${id}`;
+
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -274,6 +287,9 @@ export default function DestinationVoteScreen() {
           <Text style={[styles.headerLabel, { color: colors.primary }]}>WHERE TO?</Text>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Vote on a destination</Text>
         </View>
+        <Pressable onPress={() => setShowInvite(true)} style={[styles.inviteBtn, { borderColor: colors.primary }]}>
+          <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
+        </Pressable>
       </View>
 
       {/* Lock-in bar */}
@@ -359,6 +375,31 @@ export default function DestinationVoteScreen() {
           />
         ))}
       </ScrollView>
+      {/* Invite modal */}
+      <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowInvite(false)}>
+          <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={styles.sheetHeader}>
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Invite the pack</Text>
+              <Pressable onPress={() => setShowInvite(false)}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP LINK</Text>
+            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Text style={[styles.sheetLinkText, { color: colors.foreground }]} numberOfLines={1}>
+                {inviteLink}
+              </Text>
+              <Pressable onPress={handleCopy} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
+                <Feather name={copied ? "check" : "copy"} size={16} color="#fff" />
+              </Pressable>
+            </View>
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP ID</Text>
+            <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -417,4 +458,18 @@ const styles = StyleSheet.create({
   waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
+
+  inviteBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  inviteBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  inviteSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48, gap: 10 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
+  sheetLabel: { fontFamily: "DmSans_500Medium", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase" },
+  sheetLinkRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
+  sheetLinkText: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 13 },
+  copyBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  inviteCode: { fontFamily: "DmSans_700Bold", fontSize: 22, letterSpacing: 3, textAlign: "center", paddingVertical: 8 },
 });
