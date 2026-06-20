@@ -201,6 +201,7 @@ export default function TripHubScreen() {
   const [wishInput, setWishInput] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const [lockingVotes, setLockingVotes] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
@@ -256,6 +257,13 @@ export default function TripHubScreen() {
     await Clipboard.setStringAsync(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleCopyId = async () => {
+    await Clipboard.setStringAsync(id ?? "");
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -559,7 +567,12 @@ export default function TripHubScreen() {
               </Pressable>
             </View>
             <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP ID</Text>
-            <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
+            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
+              <Pressable onPress={handleCopyId} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
+                <Feather name={copiedId ? "check" : "copy"} size={16} color="#fff" />
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>

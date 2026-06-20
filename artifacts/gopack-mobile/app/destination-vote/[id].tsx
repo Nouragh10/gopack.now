@@ -180,6 +180,7 @@ export default function DestinationVoteScreen() {
   const [confirming, setConfirming] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
   const inviteLink = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "gopacknow.com"}/join/${id}`;
 
@@ -187,6 +188,13 @@ export default function DestinationVoteScreen() {
     await Clipboard.setStringAsync(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleCopyId = async () => {
+    await Clipboard.setStringAsync(id ?? "");
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -396,7 +404,12 @@ export default function DestinationVoteScreen() {
               </Pressable>
             </View>
             <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP ID</Text>
-            <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
+            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
+              <Pressable onPress={handleCopyId} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
+                <Feather name={copiedId ? "check" : "copy"} size={16} color="#fff" />
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
