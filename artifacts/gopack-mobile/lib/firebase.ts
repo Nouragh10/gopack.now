@@ -1,0 +1,68 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApps, initializeApp } from "firebase/app";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  getReactNativePersistence,
+  initializeAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  updateProfile,
+  User,
+} from "firebase/auth";
+import {
+  get,
+  getDatabase,
+  onValue,
+  push,
+  ref,
+  set,
+  update,
+} from "firebase/database";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDtdq065PaOR3xlML_fekm53h2XcPz3NAo",
+  authDomain: "gopacknow-83d54.firebaseapp.com",
+  databaseURL: "https://gopacknow-83d54-default-rtdb.firebaseio.com",
+  projectId: "gopacknow-83d54",
+  storageBucket: "gopacknow-83d54.firebasestorage.app",
+  messagingSenderId: "107013969008",
+  appId: "1:107013969008:web:5c6026da49efe7b58510b5",
+};
+
+const app =
+  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+let auth: ReturnType<typeof getAuth>;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch {
+  auth = getAuth(app);
+}
+
+export { auth, onAuthStateChanged };
+export type { User };
+
+export const db = getDatabase(app);
+
+export const signInWithEmail = (email: string, password: string) =>
+  signInWithEmailAndPassword(auth, email, password);
+
+export const signUpWithEmail = async (
+  email: string,
+  password: string,
+  displayName: string,
+) => {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(cred.user, { displayName });
+  return cred;
+};
+
+export const signInGuest = () => signInAnonymously(auth);
+export const signOut = () => firebaseSignOut(auth);
+
+export { get, onValue, push, ref, set, update };

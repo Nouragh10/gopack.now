@@ -1,3 +1,5 @@
 - [Firebase RTDB vs Firestore](firebase-rtdb-note.md) — gopack uses Realtime Database (not Firestore); databaseURL must be set in config
 - [onAuthStateChanged typo](auth-hook-fix.md) — Firebase exports `onAuthStateChanged`, not `onAuthStateStateChanged`; double-check when writing auth hooks
 - [OpenAPI body naming](openapi-body-naming.md) — body schemas must be entity-shaped (ItineraryInput not GenerateItineraryBody) or TS2308 collision breaks typecheck
+- [Expo SDK 54 + Firebase babel fix](expo-babel-firebase.md) — installing firebase pulls @babel/core@8.x; must add workspace-level pnpm override `"@babel/core": "^7.26.0"` to keep Expo SDK 54 bundling
+- [expo-clipboard version for SDK 54](expo-clipboard-sdk54.md) — expo-clipboard for Expo SDK 54 is ~8.0.8; plain `pnpm add expo-clipboard` installs wrong major; pin explicitly

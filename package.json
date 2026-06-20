@@ -15,5 +15,10 @@
   },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "@babel/core": "^7.26.0"
+    }
   }
 }
