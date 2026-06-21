@@ -218,6 +218,20 @@ Respond with ONLY valid JSON (no markdown):
   }
 });
 
+function flightRangeDescription(distance: string): string {
+  const d = distance.toLowerCase();
+  if (d.includes("nearby") || d.includes("< 3") || d.includes("<3")) {
+    return "under 3 hours (short-haul only — do NOT suggest destinations that require 3+ hours of flying)";
+  }
+  if (d.includes("mid") || d.includes("3") && d.includes("8")) {
+    return "between 3 and 8 hours — MINIMUM 3 hours and MAXIMUM 8 hours. Destinations reachable in UNDER 3 hours are TOO CLOSE and must not be included. Destinations requiring MORE THAN 8 hours are TOO FAR and must not be included.";
+  }
+  if (d.includes("anywhere") || d.includes("long") || d.includes("any")) {
+    return "any flight duration — no restriction on distance";
+  }
+  return distance;
+}
+
 router.post("/suggest-destinations", async (req: Request, res: Response): Promise<void> => {
   // Support both single-preference (legacy) and multi-member preferences
   const body = req.body as {
@@ -251,7 +265,7 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
   if (isGroupMode) {
     const prefs = body.memberPreferences!;
     const memberLines = prefs.map((p) =>
-      `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range "${p.distance}", budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}${p.startLocation ? `, flying from ${p.startLocation}` : ""}`
+      `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range: ${flightRangeDescription(p.distance)}, budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}${p.startLocation ? `, flying from ${p.startLocation}` : ""}`
     ).join("\n");
 
     // Aggregate to find common ground
@@ -270,7 +284,7 @@ Group profile summary:
 - Number of members: ${prefs.length}
 
 Rules:
-1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Before including any destination, verify that the actual non-stop or typical flight time from the stated start location(s) is within the member's stated range. If a member says "<3 hours from Riyadh", the Maldives (4.5h), South East Asia (7h+), and Europe (6-7h) are all invalid — stick to genuinely close destinations like Egypt, Jordan, Turkey, Cyprus, Georgia, Ethiopia, Oman, etc.
+1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Each member's flight range is stated explicitly above. "Between 3 and 8 hours" means destinations under 3h are TOO CLOSE (reject them) and destinations over 8h are TOO FAR (reject them). Only suggest destinations whose actual flight time falls squarely within every member's stated range. If a member says "under 3 hours from Riyadh", Europe (6-7h), South East Asia (7h+), and the Maldives (4.5h) are all invalid.
 2. If members have DIFFERENT flight ranges, find destinations that satisfy the tightest constraint OR pick destinations that work for the majority and note the trade-off in the pitch.
 3. Make the 3 destinations genuinely different — different regions or meaningfully different vibes.
 4. Pick destinations that honour the MAJORITY preferences while still working for outliers.
@@ -296,12 +310,12 @@ Respond with ONLY valid JSON, no markdown:
 
 Trip preferences:
 - Travel style: ${body.tripType!.join(", ")}
-- Flight range: ${body.distance}
+- Flight range: ${flightRangeDescription(body.distance!)}
 - Budget level: ${body.budget}
 - Duration: ${body.days} days${body.mustHaves ? `\n- Must have: ${body.mustHaves}` : ""}
 
 Rules:
-1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Every destination you suggest MUST be reachable within the stated flight range. Double-check real flight times before including a destination. For example, if the range is "<3 hours", do not suggest destinations that are actually 4+ hours away.
+1. FLIGHT TIME IS A HARD LIMIT — not a guideline. The flight range is described explicitly above. If the range says "between 3 and 8 hours", then destinations under 3h are TOO CLOSE (do not suggest them) and destinations over 8h are TOO FAR (do not suggest them). Every suggestion must fall squarely within those bounds.
 2. Make the 3 destinations genuinely different from each other — different regions or meaningfully different vibes.
 3. Each pitch must be ONE punchy sentence (max 12 words). No fluff.
 4. Each destination gets exactly 3 short tags (2-4 words each).
