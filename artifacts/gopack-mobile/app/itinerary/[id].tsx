@@ -85,6 +85,7 @@ function buildItineraryHTML(
   budget: string,
   startDate: string | null | undefined,
   totalCost: number,
+  vibes: string[],
   accom?: AccomSummary | null,
 ): string {
   const totalDays = days.reduce((s, d) => s + d.activities.length, 0);
@@ -100,6 +101,8 @@ function buildItineraryHTML(
       </div>`,
     )
     .join("");
+
+  const vibeTags = vibes.map(v => `<span class="vibe-tag">${v}</span>`).join("");
 
   const daysHtml = days
     .map((day) => {
@@ -250,6 +253,12 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
   <h2 class="section-h">Who's coming</h2>
   <div class="chips">${memberChips}</div>
 </div>
+
+${vibes.length > 0 ? `
+<div class="vibes-section">
+  <div class="eyebrow" style="margin-bottom:0;white-space:nowrap">Trip vibes</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">${vibeTags}</div>
+</div>` : ""}
 
 ${accom ? `
 <div class="accom-section">
@@ -496,6 +505,7 @@ export default function ItineraryScreen() {
         trip.budget ?? "midrange",
         trip.startDate,
         totalCost,
+        trip.vibes ?? [],
         accom,
       );
       const { uri } = await Print.printToFileAsync({ html, base64: false });

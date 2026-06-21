@@ -88,13 +88,15 @@ VIBE → ACTIVITY GUIDE (only suggest activities that fall within these categori
 ${vibeGuide}
 
 CRITICAL RULES:
-1. EVERY activity MUST match one of the chosen vibes: ${vibes.join(", ")}. Do NOT add transport, hotel check-ins, or generic travel activities unless the group specifically voted for them as wishes.
-2. Every activity's "tag" field MUST be one of these exact values: ${validTags.join(", ")}. No other tag values allowed.
-3. Incorporate as many top-voted wishes as possible, marking them with "fromWish": true and the author's name as "suggester".
-4. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
-5. Keep descriptions to ONE short sentence (max 15 words). Be concise.
-6. Generate EXACTLY ${activitiesPerDay} activities per day (group pace: ${pace}). No more, no less.
-7. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market"). Use the full official name so it resolves correctly on Google Maps.
+1. Generate EXACTLY ${days} days — the "days" array MUST contain EXACTLY ${days} elements, numbered 1 through ${days}. Never generate more or fewer days.
+2. EVERY activity MUST match one of the chosen vibes: ${vibes.join(", ")}. Do NOT add transport, hotel check-ins, or generic travel activities unless the group specifically voted for them as wishes.
+3. Every activity's "tag" field MUST be one of these exact values: ${validTags.join(", ")}. No other tag values allowed.
+4. Wishes are SPECIFIC activities to slot in — not themes for the whole trip. Treat each wish as 1–2 individual activity slots spread across the itinerary. The remaining slots MUST be varied and diverse, covering different aspects of the chosen vibes. A single wish about shopping does NOT make the whole trip a shopping trip.
+5. Incorporate top-voted wishes by marking them with "fromWish": true and the author's name as "suggester". Aim for at most 30% of all activities to be wish-derived so the itinerary stays diverse.
+6. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
+7. Keep descriptions to ONE short sentence (max 15 words). Be concise.
+8. Generate EXACTLY ${activitiesPerDay} activities per day (group pace: ${pace}). No more, no less.
+9. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market"). Use the full official name so it resolves correctly on Google Maps.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
