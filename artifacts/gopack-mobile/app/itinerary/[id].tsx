@@ -595,36 +595,37 @@ export default function ItineraryScreen() {
         )}
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.dayScrollWrap, { borderBottomColor: colors.border }]}
-        contentContainerStyle={styles.dayScroll}
-      >
-        {days.map((day) => {
-          const isSelected = day.dayNumber === selectedDay;
-          return (
-            <Pressable
-              key={day.dayNumber}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSelectedDay(day.dayNumber);
-              }}
-              style={[
-                styles.dayChip,
-                {
-                  backgroundColor: isSelected ? colors.primary : colors.muted,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
-                Day {day.dayNumber}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={[styles.dayScrollWrap, { borderBottomColor: colors.border }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.dayScroll}
+        >
+          {days.map((day) => {
+            const isSelected = day.dayNumber === selectedDay;
+            return (
+              <Pressable
+                key={day.dayNumber}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedDay(day.dayNumber);
+                }}
+                style={[
+                  styles.dayChip,
+                  {
+                    backgroundColor: isSelected ? colors.primary : colors.muted,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
+                  Day {day.dayNumber}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
