@@ -66,25 +66,34 @@ export default function BuildingScreen() {
           .slice(0, 10)
           .map((w) => ({ text: w.text, author: w.authorName, votes: w.score }));
 
+        const memberPrefs = Object.values((trip as any).memberPreferences ?? {}) as Array<Record<string, unknown>>;
+
+        // Days: average of all member preferences, rounded. Fall back to trip.days if no prefs exist.
+        const prefDays = memberPrefs.map(p => Number(p.days)).filter(d => d > 0);
+        const resolvedDays = prefDays.length > 0
+          ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
+          : (trip.days ?? 5);
+
+        // Pace: majority vote across member preferences.
+        const paceVotes: Record<string, number> = {};
+        for (const pref of memberPrefs) {
+          const p = (pref.pace as string) ?? "balanced";
+          paceVotes[p] = (paceVotes[p] ?? 0) + 1;
+        }
+        const resolvedPace = Object.entries(paceVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "balanced";
+
         const baseUrl = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
         const res = await fetch(`${baseUrl}/api/itinerary`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             destination: trip.destination,
-            days: trip.days,
+            days: resolvedDays,
             vibes: trip.vibes ?? [],
             budget: trip.budget ?? "midrange",
             startDate: trip.startDate ?? null,
             wishes: sortedWishes,
-            pace: (() => {
-              const paceVotes: Record<string, number> = {};
-              for (const pref of Object.values((trip as any).memberPreferences ?? {})) {
-                const p = (pref as any).pace ?? "balanced";
-                paceVotes[p] = (paceVotes[p] ?? 0) + 1;
-              }
-              return Object.entries(paceVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "balanced";
-            })(),
+            pace: resolvedPace,
           }),
         });
 
