@@ -74,6 +74,12 @@ export default function BuildingScreen() {
           ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
           : (trip.days ?? 5);
 
+        // Vibes: union of all member vibe selections. Fall back to trip.vibes if no prefs exist.
+        const prefVibes = memberPrefs.flatMap(p => (p.vibes as string[] | undefined) ?? []);
+        const resolvedVibes = prefVibes.length > 0
+          ? [...new Set(prefVibes)]
+          : (trip.vibes?.length ? trip.vibes : ["culture", "food"]);
+
         // Pace: majority vote across member preferences.
         const paceVotes: Record<string, number> = {};
         for (const pref of memberPrefs) {
@@ -89,7 +95,7 @@ export default function BuildingScreen() {
           body: JSON.stringify({
             destination: trip.destination,
             days: resolvedDays,
-            vibes: trip.vibes ?? [],
+            vibes: resolvedVibes,
             budget: trip.budget ?? "midrange",
             startDate: trip.startDate ?? null,
             wishes: sortedWishes,
