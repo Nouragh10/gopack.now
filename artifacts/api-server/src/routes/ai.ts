@@ -453,6 +453,84 @@ Respond with ONLY valid JSON, no markdown:
   }
 });
 
+router.post("/parse-accommodation", async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as { url?: string; destination?: string };
+  if (!body.url) {
+    res.status(400).json({ error: "Missing url." });
+    return;
+  }
+
+  const rawUrl = body.url.trim();
+  const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+  const destination = body.destination ?? "the destination";
+
+  // Try to fetch the listing page for content extraction
+  let pageContent = "";
+  try {
+    const pageRes = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; GoPackBot/1.0; +https://gopack.app)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (pageRes.ok) {
+      const html = await pageRes.text();
+      // Strip tags, collapse whitespace, truncate
+      pageContent = html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+        .slice(0, 4000);
+    }
+  } catch {
+    // Fetch failed — Claude will infer from URL alone
+  }
+
+  const prompt = `You are extracting accommodation listing details for a travel app.
+
+URL: ${url}
+Trip destination: ${destination}
+${pageContent ? `\nPage content (truncated):\n${pageContent}` : "\n(Page could not be fetched — infer from URL and domain only.)"}
+
+Extract and return a JSON object with these fields:
+- name: string (property name, or a reasonable name inferred from the URL/domain)
+- type: "hotel" | "airbnb" | "hostel" | "other"
+- location: string (neighbourhood/city, use destination if unknown)
+- rating: number (0–10 scale if reviews found; 0–5 star rating kept as-is; 0 if unknown)
+- amenities: string[] (up to 6 key amenities, empty array if unknown)
+- cancellation: string (e.g. "Free cancellation", "Non-refundable", or "Check listing")
+- tags: string[] (2–4 short descriptive tags like "Central location", "Great views", "Pet-friendly")
+- distanceNote: string (distance to centre or landmark, or "See listing for details")
+- whyItFits: string (one short sentence on why this suits a group trip to ${destination})
+
+Respond with ONLY valid JSON. No markdown, no explanation.`;
+
+  try {
+    const response = await callAnthropic({
+      model: "claude-haiku-4-5",
+      max_tokens: 600,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+    };
+    if (!(response as unknown as globalThis.Response).ok) {
+      res.status((response as unknown as globalThis.Response).status).json(data);
+      return;
+    }
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const result = JSON.parse(extractJson(allText));
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to parse accommodation");
+    res.status(500).json({ error: "Could not parse listing. Please try again." });
+  }
+});
+
 router.post("/ai-pick-accommodation", async (req: Request, res: Response): Promise<void> => {
   const body = req.body as {
     suggestions: Array<{ name: string; type: string; location: string; costPerPerson: number; whyItFits: string }>;

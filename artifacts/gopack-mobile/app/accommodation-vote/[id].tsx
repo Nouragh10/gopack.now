@@ -283,11 +283,10 @@ export default function AccommodationVoteScreen() {
   const [confirming, setConfirming] = useState(false);
   const [breaking, setBreaking] = useState(false);
   const [showAddLink, setShowAddLink] = useState(false);
-  const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [linkType, setLinkType] = useState<"hotel" | "airbnb" | "hostel" | "other">("other");
   const [linkCost, setLinkCost] = useState("");
   const [addingLink, setAddingLink] = useState(false);
+  const [parseStatus, setParseStatus] = useState<"idle" | "fetching" | "saving">("idle");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -398,34 +397,60 @@ export default function AccommodationVoteScreen() {
   };
 
   const handleAddLink = async () => {
-    if (!linkName.trim() || !id) return;
+    const rawUrl = linkUrl.trim();
+    if (!rawUrl || !id) return;
     setAddingLink(true);
+
+    const memberCount = Object.keys(members).length || 1;
+    const total = parseFloat(linkCost) || 0;
+    const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+
     try {
-      const memberCount = Object.keys(members).length || 1;
-      const total = parseFloat(linkCost) || 0;
+      // Step 1: Ask AI to parse the listing
+      setParseStatus("fetching");
+      const apiBase = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const parseRes = await fetch(`${apiBase}/api/parse-accommodation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, destination: trip?.destination ?? "" }),
+      });
+
+      let parsed: Partial<AccommodationSuggestion> = {};
+      if (parseRes.ok) {
+        parsed = await parseRes.json();
+      }
+
+      // Step 2: Save to Firebase with AI-extracted + user-provided fields merged
+      setParseStatus("saving");
       const newSuggestion: AccommodationSuggestion = {
         id: `member-${Date.now()}`,
-        name: linkName.trim(),
-        type: linkType,
-        location: trip?.destination ?? "",
+        name: (parsed.name as string) || "Member pick",
+        type: (parsed.type as AccommodationSuggestion["type"]) || "other",
+        location: (parsed.location as string) || trip?.destination || "",
         totalCost: total,
-        costPerPerson: Math.round(total / memberCount),
+        costPerPerson: total ? Math.round(total / memberCount) : 0,
         nights: trip?.days ?? 1,
-        rating: 0,
-        amenities: [],
+        rating: (parsed.rating as number) || 0,
+        amenities: (parsed.amenities as string[]) || [],
         rooms: 1,
         beds: memberCount,
-        cancellation: "Check listing",
-        whyItFits: "Added by a pack member",
-        tags: ["Member pick"],
-        distanceNote: "See listing for details",
-        link: linkUrl.trim() || undefined,
+        cancellation: (parsed.cancellation as string) || "Check listing",
+        whyItFits: (parsed.whyItFits as string) || "Added by a pack member",
+        tags: (parsed.tags as string[]) || ["Member pick"],
+        distanceNote: (parsed.distanceNote as string) || "See listing for details",
+        link: url,
         submittedBy: user?.displayName ?? "Member",
       };
+
       await addMemberAccommodationLink(id, newSuggestion);
       setShowAddLink(false);
-      setLinkName(""); setLinkUrl(""); setLinkCost("");
+      setLinkUrl("");
+      setLinkCost("");
+      setParseStatus("idle");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Couldn't add listing", "Failed to parse or save the link. Please try again.");
+      setParseStatus("idle");
     } finally {
       setAddingLink(false);
     }
@@ -563,33 +588,29 @@ export default function AccommodationVoteScreen() {
 
       {/* Add member link modal */}
       <Modal visible={showAddLink} transparent animationType="slide" onRequestClose={() => setShowAddLink(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowAddLink(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => { if (!addingLink) setShowAddLink(false); }}>
           <Pressable style={[styles.addSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Add your own pick</Text>
-            <Text style={[styles.sheetSub, { color: colors.mutedForeground }]}>Found something? Add it so the pack can vote on it.</Text>
+            <Text style={[styles.sheetSub, { color: colors.mutedForeground }]}>
+              Paste any listing URL — Airbnb, Booking.com, Hotels.com, etc. AI will extract the details automatically.
+            </Text>
 
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Property name *</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Listing URL *</Text>
             <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
-                placeholder="e.g. Cozy Apartment near Sagrada Família"
+                placeholder="https://airbnb.com/rooms/..."
                 placeholderTextColor={colors.mutedForeground}
-                value={linkName}
-                onChangeText={setLinkName}
+                value={linkUrl}
+                onChangeText={setLinkUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+                editable={!addingLink}
               />
             </View>
 
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Type</Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {(["hotel", "airbnb", "hostel", "other"] as const).map((t) => (
-                <Pressable key={t} onPress={() => setLinkType(t)} style={[styles.typeChip, { backgroundColor: linkType === t ? TEAL : colors.muted, borderColor: linkType === t ? TEAL : colors.border }]}>
-                  <Text style={[styles.chipText, { color: linkType === t ? "#fff" : colors.foreground, fontSize: 12 }]}>{t}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Total cost for group ($)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Total cost for group (optional, $)</Text>
             <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
@@ -598,26 +619,23 @@ export default function AccommodationVoteScreen() {
                 value={linkCost}
                 onChangeText={setLinkCost}
                 keyboardType="numeric"
+                editable={!addingLink}
               />
             </View>
 
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Listing URL (optional)</Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.input, { color: colors.foreground }]}
-                placeholder="https://..."
-                placeholderTextColor={colors.mutedForeground}
-                value={linkUrl}
-                onChangeText={setLinkUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            </View>
+            {addingLink && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 }}>
+                <ActivityIndicator color={TEAL} size="small" />
+                <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }}>
+                  {parseStatus === "fetching" ? "AI is reading the listing…" : "Saving to vote…"}
+                </Text>
+              </View>
+            )}
 
             <Pressable
               onPress={handleAddLink}
-              disabled={addingLink || !linkName.trim()}
-              style={[styles.submitBtn, { backgroundColor: TEAL, opacity: addingLink || !linkName.trim() ? 0.6 : 1 }]}
+              disabled={addingLink || !linkUrl.trim()}
+              style={[styles.submitBtn, { backgroundColor: TEAL, opacity: addingLink || !linkUrl.trim() ? 0.6 : 1 }]}
             >
               {addingLink ? <ActivityIndicator color="#fff" size="small" /> : (
                 <Text style={styles.submitBtnText}>Add to vote</Text>
