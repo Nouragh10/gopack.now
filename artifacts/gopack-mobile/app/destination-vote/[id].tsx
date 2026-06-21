@@ -20,9 +20,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import {
   DestinationSuggestion,
-  clearDestinationSuggestions,
   confirmDestination,
   lockDestinationVotes,
+  storeRedoSuggestions,
   unlockDestinationVotes,
   useTrip,
   voteDestination,
@@ -268,21 +268,59 @@ export default function DestinationVoteScreen() {
   };
 
   const handleRedo = () => {
+    const memberPrefs = trip?.memberPreferences;
+    if (!memberPrefs || Object.keys(memberPrefs).length === 0) {
+      Alert.alert(
+        "Preferences not saved",
+        "Member preferences were not saved from the original generation. Go back to the preferences screen and submit again.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+
     Alert.alert(
       "Try new suggestions?",
-      "This will clear all current suggestions and votes so the pack can pick new preferences and regenerate.",
+      "The AI will generate 3 fresh destinations using the same preferences — votes are reset.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Yes, redo",
-          style: "destructive",
+          text: "Regenerate",
           onPress: async () => {
             if (!id) return;
             setRedoing(true);
             try {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              await clearDestinationSuggestions(id);
-              router.replace(`/destination-preferences/${id}`);
+              const memberPrefsList = Object.entries(memberPrefs).map(([uid, pref]) => ({
+                name: trip?.members[uid]?.name ?? "Member",
+                vibes: pref.vibes,
+                distance: pref.distance,
+                budget: pref.budget,
+                days: pref.days,
+                startDate: pref.startDate,
+                startLocation: pref.startLocation,
+              }));
+
+              const baseUrl = Platform.OS === "web"
+                ? ""
+                : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+
+              const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ memberPreferences: memberPrefsList }),
+              });
+
+              if (!res.ok) {
+                const errData = await res.json() as { error?: string };
+                throw new Error(errData.error ?? "AI couldn't generate suggestions. Try again.");
+              }
+              const data = await res.json() as { suggestions: DestinationSuggestion[] };
+              if (!data.suggestions?.length) throw new Error("No suggestions returned.");
+
+              await storeRedoSuggestions(id, data.suggestions);
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              Alert.alert("Error", msg);
             } finally {
               setRedoing(false);
             }
@@ -397,6 +435,13 @@ export default function DestinationVoteScreen() {
             <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
               Waiting for the trip creator to confirm the destination…
             </Text>
+          </View>
+        )}
+
+        {redoing && (
+          <View style={[styles.confirmingBanner, { backgroundColor: "#7E57C222" }]}>
+            <ActivityIndicator color="#7E57C2" size="small" />
+            <Text style={[styles.waitingText, { color: "#7E57C2" }]}>Asking AI for fresh suggestions…</Text>
           </View>
         )}
 

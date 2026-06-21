@@ -480,7 +480,18 @@ export async function storeDestinationSuggestions(
   await update(ref(db, `trips/${tripId}`), {
     destinationSuggestions: suggestions,
     collectingPreferences: null,
-    memberPreferences: null,
+    // memberPreferences intentionally kept so redo can re-use them
+  });
+}
+
+export async function storeRedoSuggestions(
+  tripId: string,
+  suggestions: DestinationSuggestion[],
+) {
+  await update(ref(db, `trips/${tripId}`), {
+    destinationSuggestions: suggestions,
+    destinationVotes: null,
+    destinationLockedBy: null,
   });
 }
 
