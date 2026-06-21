@@ -251,6 +251,8 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
       startDate?: string | null;
       startLocation?: string;
     }>;
+    // Destinations already shown — must not appear again
+    excludedDestinations?: string[];
   };
 
   const isGroupMode = Array.isArray(body.memberPreferences) && body.memberPreferences.length > 0;
@@ -261,6 +263,8 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
   }
 
   let prompt: string;
+
+  const excluded = body.excludedDestinations ?? [];
 
   if (isGroupMode) {
     const prefs = body.memberPreferences!;
@@ -282,7 +286,11 @@ ${memberLines}
 Group profile summary:
 - Most popular vibes across the group: ${topVibes.join(", ")}
 - Number of members: ${prefs.length}
-
+${excluded.length > 0 ? `
+ALREADY SHOWN — DO NOT REPEAT THESE UNDER ANY CIRCUMSTANCES:
+${excluded.map((d) => `- ${d}`).join("\n")}
+Every single one of the above must be excluded. Suggesting any of them is an error.
+` : ""}
 Rules:
 1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Each member's flight range is stated explicitly above. "Between 3 and 8 hours" means destinations under 3h are TOO CLOSE (reject them) and destinations over 8h are TOO FAR (reject them). Only suggest destinations whose actual flight time falls squarely within every member's stated range. If a member says "under 3 hours from Riyadh", Europe (6-7h), South East Asia (7h+), and the Maldives (4.5h) are all invalid.
 2. If members have DIFFERENT flight ranges, find destinations that satisfy the tightest constraint OR pick destinations that work for the majority and note the trade-off in the pitch.
@@ -313,7 +321,11 @@ Trip preferences:
 - Flight range: ${flightRangeDescription(body.distance!)}
 - Budget level: ${body.budget}
 - Duration: ${body.days} days${body.mustHaves ? `\n- Must have: ${body.mustHaves}` : ""}
-
+${excluded.length > 0 ? `
+ALREADY SHOWN — DO NOT REPEAT THESE UNDER ANY CIRCUMSTANCES:
+${excluded.map((d) => `- ${d}`).join("\n")}
+Every single one of the above must be excluded. Suggesting any of them is an error.
+` : ""}
 Rules:
 1. FLIGHT TIME IS A HARD LIMIT — not a guideline. The flight range is described explicitly above. If the range says "between 3 and 8 hours", then destinations under 3h are TOO CLOSE (do not suggest them) and destinations over 8h are TOO FAR (do not suggest them). Every suggestion must fall squarely within those bounds.
 2. Make the 3 destinations genuinely different from each other — different regions or meaningfully different vibes.

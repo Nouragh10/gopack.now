@@ -307,7 +307,10 @@ export default function DestinationVoteScreen() {
               const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ memberPreferences: memberPrefsList }),
+                body: JSON.stringify({
+                  memberPreferences: memberPrefsList,
+                  excludedDestinations: suggestions.map((s) => s.name),
+                }),
               });
 
               if (!res.ok) {
