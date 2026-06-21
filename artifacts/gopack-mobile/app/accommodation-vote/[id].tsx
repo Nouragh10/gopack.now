@@ -185,7 +185,7 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
 
       {/* Tags + distance */}
       <View style={styles.tagsRow}>
-        {suggestion.tags.map((tag) => (
+        {(suggestion.tags ?? []).map((tag) => (
           <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
             <Text style={[styles.tagText, { color: colors.foreground }]}>{tag}</Text>
           </View>
@@ -198,9 +198,9 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
       </View>
 
       {/* Amenities */}
-      {suggestion.amenities.length > 0 && (
+      {(suggestion.amenities ?? []).length > 0 && (
         <View style={styles.amenitiesRow}>
-          {suggestion.amenities.slice(0, 5).map((a) => (
+          {(suggestion.amenities ?? []).slice(0, 5).map((a) => (
             <View key={a} style={styles.amenityItem}>
               <Feather name="check" size={10} color={TEAL} />
               <Text style={[styles.amenityText, { color: colors.mutedForeground }]}>{a}</Text>
