@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  FlatList,
   Modal,
   Platform,
   Pressable,
@@ -24,6 +26,93 @@ const VIBES = [
   { label: "City", icon: "grid", color: "#5C6BC0" },
   { label: "Nature", icon: "feather", color: "#26A69A" },
 ];
+
+const MONTHLY_PICKS = [
+  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "History", "Nature"],   photo: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=900&q=80&auto=format&fit=crop" },
+  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach", "Nightlife"],    photo: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=900&q=80&auto=format&fit=crop" },
+  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"],          photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=900&q=80&auto=format&fit=crop" },
+  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Relaxation", "Culture"],   photo: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=900&q=80&auto=format&fit=crop" },
+  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"],         photo: "https://images.unsplash.com/photo-1534445867742-43195f401b6c?w=900&q=80&auto=format&fit=crop" },
+  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",      tags: ["Adventure", "Nature", "Wellness"],  photo: "https://images.unsplash.com/photo-1531168556467-80aace0d0144?w=900&q=80&auto=format&fit=crop" },
+  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "History", "City"],        photo: "https://images.unsplash.com/photo-1555990538-bbc2c5fdaee9?w=900&q=80&auto=format&fit=crop" },
+  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",       tags: ["Nature", "Adventure", "Culture"],   photo: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=900&q=80&auto=format&fit=crop" },
+  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",    tags: ["City", "Culture", "Food"],          photo: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=900&q=80&auto=format&fit=crop" },
+  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",            tags: ["Culture", "History", "Nature"],     photo: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=900&q=80&auto=format&fit=crop" },
+  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"],     photo: "https://images.unsplash.com/photo-1548013146-72479768bada?w=900&q=80&auto=format&fit=crop" },
+  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Relaxation", "Adventure"], photo: "https://images.unsplash.com/photo-1484950763426-56b5bf172dbb?w=900&q=80&auto=format&fit=crop" },
+];
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function BestThisMonth({ colors }: { colors: any }) {
+  const router = useRouter();
+  const month = new Date().getMonth();
+  const pick = MONTHLY_PICKS[month];
+
+  const handlePress = () => {
+    router.push({ pathname: "/(tabs)/create", params: { prefillDestination: pick.name } });
+  };
+
+  return (
+    <View style={bStyles.root}>
+      <Text style={[bStyles.sectionLabel, { color: colors.mutedForeground }]}>BEST THIS MONTH</Text>
+      <Pressable onPress={handlePress} style={[bStyles.card, { shadowColor: colors.foreground }]}>
+        <Image
+          source={{ uri: pick.photo }}
+          style={bStyles.image}
+          contentFit="cover"
+          transition={400}
+          placeholder="#2a2a2a"
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.82)"]}
+          style={bStyles.gradient}
+        >
+          <View style={bStyles.badgeRow}>
+            <View style={bStyles.badge}>
+              <Feather name="sun" size={10} color="#fff" />
+              <Text style={bStyles.badgeText}>{MONTH_NAMES[month].toUpperCase()}'S PICK</Text>
+            </View>
+          </View>
+          <View style={bStyles.bottom}>
+            <Text style={bStyles.destName}>{pick.name}</Text>
+            <Text style={bStyles.why} numberOfLines={2}>{pick.why}</Text>
+            <View style={bStyles.tagsRow}>
+              {pick.tags.map((t) => (
+                <View key={t} style={bStyles.tag}>
+                  <Text style={bStyles.tagText}>{t}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={bStyles.cta}>
+              <Text style={bStyles.ctaText}>Plan this trip</Text>
+              <Feather name="arrow-right" size={14} color="#fff" />
+            </View>
+          </View>
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+}
+
+const bStyles = StyleSheet.create({
+  root: { paddingHorizontal: 20, marginBottom: 28 },
+  sectionLabel: { fontFamily: "DmSans_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 },
+  card: { borderRadius: 20, overflow: "hidden", height: 300, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
+  image: { ...StyleSheet.absoluteFillObject },
+  gradient: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between", padding: 16 },
+  badgeRow: { flexDirection: "row" },
+  badge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.22)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontFamily: "DmSans_700Bold", fontSize: 10, color: "#fff", letterSpacing: 1 },
+  bottom: { gap: 8 },
+  destName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26, color: "#fff", lineHeight: 32, letterSpacing: -0.3 },
+  why: { fontFamily: "DmSans_400Regular", fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 18 },
+  tagsRow: { flexDirection: "row", gap: 6 },
+  tag: { backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  tagText: { fontFamily: "DmSans_500Medium", fontSize: 11, color: "#fff" },
+  cta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  ctaText: { fontFamily: "DmSans_700Bold", fontSize: 14, color: "#fff" },
+});
 
 type PublicReview = ReturnType<typeof usePublicReviews>[number];
 
@@ -145,6 +234,8 @@ export default function DiscoverScreen() {
             />
           </View>
         </View>
+
+        <BestThisMonth colors={colors} />
 
         {filtered.length > 0 && (
           <View style={styles.section}>

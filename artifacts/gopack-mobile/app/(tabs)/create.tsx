@@ -1,8 +1,8 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -41,9 +41,18 @@ export default function CreateScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
+  const { prefillDestination } = useLocalSearchParams<{ prefillDestination?: string }>();
 
   const [knowDestination, setKnowDestination] = useState(true);
   const [destination, setDestination] = useState("");
+
+  useEffect(() => {
+    if (prefillDestination) {
+      setKnowDestination(true);
+      setDestination(prefillDestination);
+    }
+  }, [prefillDestination]);
+
   const [days, setDays] = useState(5);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
