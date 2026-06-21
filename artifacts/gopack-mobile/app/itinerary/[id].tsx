@@ -280,7 +280,7 @@ ${
 }
 
 <div class="footer">
-  <div class="footer-logo">gopack</div>
+  <div class="footer-logo">PackClan</div>
   <div class="footer-tagline">Plan trips together ✦</div>
   <div class="footer-date">Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
 </div>

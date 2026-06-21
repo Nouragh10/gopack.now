@@ -259,7 +259,7 @@ export default function TripHubScreen() {
     }
   };
 
-  const inviteLink = `https://gopack.now/join/${id ?? ""}`;
+  const inviteLink = `https://packclan.app/join/${id ?? ""}`;
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(inviteLink);

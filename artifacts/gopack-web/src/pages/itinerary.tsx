@@ -102,7 +102,7 @@ function buildFullICS(itinerary: any, trip: any): string {
   const base = trip?.startDate ? new Date(trip.startDate) : new Date();
   const lines = [
     "BEGIN:VCALENDAR","VERSION:2.0",
-    "PRODID:-//GoPack//AI Travel Planner//EN",
+    "PRODID:-//PackClan//AI Travel Planner//EN",
     "CALSCALE:GREGORIAN","METHOD:PUBLISH",
     `X-WR-CALNAME:${itinerary.title || trip?.destination || "Trip"}`,
   ];
@@ -452,7 +452,7 @@ export default function Itinerary() {
               <div className="print-header-sub">{localItinerary.days?.length} days · {trip?.destination}</div>
             </div>
             <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
-              AI-generated itinerary<br/>gopack.now
+              AI-generated itinerary<br/>packclan.app
             </div>
           </div>
         )}
@@ -649,7 +649,7 @@ export default function Itinerary() {
 
               {/* print footer */}
               <div className="print-only print-footer">
-                gopack.now · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+                packclan.app · AI-powered group travel planning · Itinerary generated for {trip?.destination}
               </div>
 
               {/* save bar */}
@@ -713,7 +713,7 @@ export default function Itinerary() {
                     <div style={{fontSize:15,opacity:0.6}}>{localItinerary.days?.length} days · {trip?.destination}</div>
                   </div>
                   <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
-                    AI-generated itinerary<br/>gopack.now
+                    AI-generated itinerary<br/>packclan.app
                   </div>
                 </div>
 
@@ -753,7 +753,7 @@ export default function Itinerary() {
 
                   {/* Footer */}
                   <div style={{textAlign:"center",color:"#9ca3af",fontSize:11,fontFamily:"sans-serif",paddingTop:24,borderTop:"1px solid #f3f4f6"}}>
-                    gopack.now · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+                    packclan.app · AI-powered group travel planning · Itinerary generated for {trip?.destination}
                   </div>
                 </div>
               </div>

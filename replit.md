@@ -1,4 +1,4 @@
-# GoPack — AI Group Travel Planner
+# PackClan — AI Group Travel Planner
 
 AI-powered collaborative trip planning where friend groups wish, vote, and let Claude build the perfect day-by-day itinerary.
 
