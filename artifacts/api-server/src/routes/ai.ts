@@ -52,7 +52,25 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
       `${i + 1}. "${w.text}" by ${w.author} (${w.votes} votes)`
     );
 
-  const validTags = vibes.map(v => v.toLowerCase()).join("|");
+  const validTags = vibes.map(v => v.toLowerCase());
+
+  const vibeActivityGuide: Record<string, string> = {
+    culture: "museums, historical sites, galleries, monuments, UNESCO sites, local performances",
+    food: "restaurants, food markets, cooking classes, street food tours, wineries, breweries",
+    foodie: "restaurants, food markets, cooking classes, street food tours, fine dining, tastings",
+    adventure: "hiking, zip-lining, rock climbing, kayaking, paragliding, extreme sports",
+    relaxation: "spas, beaches, parks, scenic viewpoints, sunset spots, leisurely walks",
+    nightlife: "bars, clubs, rooftop lounges, night markets, live music venues, cocktail bars",
+    shopping: "markets, malls, boutiques, artisan shops, souvenir districts, designer stores",
+    nature: "national parks, botanical gardens, wildlife reserves, waterfalls, lakes, forests",
+    beach: "beaches, snorkeling spots, beachfront cafes, water sports, coastal walks",
+    wellness: "yoga studios, spas, meditation centers, hot springs, wellness retreats",
+  };
+
+  const vibeGuide = vibes.map(v => {
+    const key = v.toLowerCase();
+    return vibeActivityGuide[key] ? `- ${v}: ${vibeActivityGuide[key]}` : `- ${v}: activities matching this theme`;
+  }).join("\n");
 
   const prompt = `You are a world-class group travel planner. Generate a detailed ${days}-day itinerary for a group trip to ${destination}.
 
@@ -66,14 +84,17 @@ ${startDate ? `- Start date: ${startDate}` : ""}
 Group wishes (voted by the group, most popular first):
 ${topWishes.length > 0 ? topWishes.join("\n") : "No specific wishes provided"}
 
+VIBE → ACTIVITY GUIDE (only suggest activities that fall within these categories):
+${vibeGuide}
+
 CRITICAL RULES:
-1. ONLY generate activities that match EXACTLY these vibes: ${vibes.join(", ")}. Do NOT add activities outside these categories.
-2. Every activity's "tag" field MUST be one of: ${validTags}. No other tag values allowed.
+1. EVERY activity MUST match one of the chosen vibes: ${vibes.join(", ")}. Do NOT add transport, hotel check-ins, or generic travel activities unless the group specifically voted for them as wishes.
+2. Every activity's "tag" field MUST be one of these exact values: ${validTags.join(", ")}. No other tag values allowed.
 3. Incorporate as many top-voted wishes as possible, marking them with "fromWish": true and the author's name as "suggester".
 4. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
 5. Keep descriptions to ONE short sentence (max 15 words). Be concise.
 6. Generate EXACTLY ${activitiesPerDay} activities per day (group pace: ${pace}). No more, no less.
-7. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market", "Eiffel Tower" not "Iconic Landmark"). Use the full official name so it resolves correctly on Google Maps.
+7. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market"). Use the full official name so it resolves correctly on Google Maps.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {

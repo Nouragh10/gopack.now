@@ -4,7 +4,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import {
   Alert,
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -38,10 +37,34 @@ function Avatar({ name, index, size = 28 }: { name: string; index: number; size?
   );
 }
 
+const VIBE_COLORS: Record<string, string> = {
+  culture: "#9C5544",
+  food: "#E85D3A",
+  adventure: "#4CAF50",
+  relaxation: "#26A69A",
+  nightlife: "#FF7043",
+  shopping: "#FFB300",
+  nature: "#26C6DA",
+  beach: "#26C6DA",
+  wellness: "#AB7ACA",
+  foodie: "#E85D3A",
+};
+
+function VibeChip({ vibe }: { vibe: string }) {
+  const colors = useColors();
+  const color = VIBE_COLORS[vibe.toLowerCase()] ?? colors.primary;
+  return (
+    <View style={[styles.vibeChip, { backgroundColor: color + "20", borderColor: color + "60" }]}>
+      <Text style={[styles.vibeChipText, { color }]}>{vibe}</Text>
+    </View>
+  );
+}
+
 function TripCard({ trip, onPress, onLongPress }: { trip: Trip; onPress: () => void; onLongPress?: () => void }) {
   const colors = useColors();
   const memberNames = Object.values(trip.members ?? {}).map((m) => m.name);
   const memberCount = Object.keys(trip.members ?? {}).length;
+  const vibes = trip.vibes ?? [];
 
   return (
     <Pressable
@@ -60,6 +83,11 @@ function TripCard({ trip, onPress, onLongPress }: { trip: Trip; onPress: () => v
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </View>
+      {vibes.length > 0 && (
+        <View style={styles.vibeRow}>
+          {vibes.map((v) => <VibeChip key={v} vibe={v} />)}
+        </View>
+      )}
       <View style={styles.avatarRow}>
         {memberNames.slice(0, 4).map((name, i) => (
           <View key={i} style={{ marginRight: -6 }}>
@@ -177,18 +205,14 @@ export default function DashboardScreen() {
         {loading ? null : trips.length > 0 ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Your trips</Text>
-            <FlatList
-              data={trips}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TripCard
-                  trip={item}
-                  onPress={() => router.push(`/trip/${item.id}`)}
-                  onLongPress={() => handleDeleteTrip(item)}
-                />
-              )}
-              scrollEnabled={false}
-            />
+            {trips.map((item) => (
+              <TripCard
+                key={item.id}
+                trip={item}
+                onPress={() => router.push(`/trip/${item.id}`)}
+                onLongPress={() => handleDeleteTrip(item)}
+              />
+            ))}
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -253,9 +277,17 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
   },
-  tripCardTop: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  tripCardTop: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   tripDestination: { fontFamily: "DmSans_600SemiBold", fontSize: 16, marginBottom: 3 },
   tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  vibeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  vibeChip: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  vibeChipText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
   avatarRow: { flexDirection: "row", alignItems: "center" },
   avatar: { alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#fff" },
   avatarText: { color: "#fff", fontFamily: "DmSans_700Bold" },

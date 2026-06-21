@@ -478,7 +478,7 @@ export default function ItineraryScreen() {
         "",
       ]),
       totalCost > 0 ? `💰 Estimated total: ~$${totalCost}/person` : "",
-      "Built with GoPack 🎒",
+      "Built with PackClan 🎒",
     ].filter(Boolean);
     await Share.share({ message: lines.join("\n") });
   };
@@ -545,7 +545,7 @@ export default function ItineraryScreen() {
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACK ITINERARY</Text>
+            <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR PACKCLAN ITINERARY</Text>
             <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
               {trip.destination}
             </Text>
@@ -628,6 +628,7 @@ export default function ItineraryScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 20 }}
       >
         {currentDay && (
