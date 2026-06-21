@@ -220,8 +220,10 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
         <Pressable
           style={[styles.linkBtn, { borderColor: TEAL }]}
           onPress={() => {
-            if (Platform.OS === "web") window.open(suggestion.link, "_blank", "noopener,noreferrer");
-            else Linking.openURL(suggestion.link!);
+            const raw = suggestion.link!;
+            const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+            if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+            else Linking.openURL(url).catch(() => Alert.alert("Couldn't open link", "Make sure the URL is valid."));
           }}
         >
           <Feather name="external-link" size={13} color={TEAL} />
