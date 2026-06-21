@@ -29,7 +29,7 @@ export default function Login() {
       setLocation(redirectTo);
     } catch (err: any) {
       if (err?.code === "auth/popup-blocked") {
-        setError("Popup was blocked. Please allow popups for packclan.app and try again.");
+        setError("Popup was blocked. Please allow popups for gopacknow.app and try again.");
       } else if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
         setError("Sign-in was cancelled.");
       } else {
@@ -58,7 +58,7 @@ export default function Login() {
       {/* Left panel */}
       <div className="hidden md:flex flex-col justify-between w-1/2 bg-foreground text-background p-12">
         <div className="font-display font-bold text-2xl">
-          pack<span className="text-primary">clan</span>
+          go<span className="text-primary">packnow</span>
         </div>
         <div>
           <p className="text-5xl font-serif font-bold leading-tight mb-6">
@@ -73,7 +73,7 @@ export default function Login() {
             WISH &middot; VOTE &middot; GO
           </div>
         </div>
-        <div className="text-background/40 text-sm">PackClan &copy; 2026</div>
+        <div className="text-background/40 text-sm">GoPackNow &copy; 2026</div>
       </div>
 
       {/* Right panel */}

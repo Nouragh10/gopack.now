@@ -148,7 +148,7 @@ export default function DashboardScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <View>
-          <Text style={[styles.logoText, { color: colors.primary }]}>PackClan</Text>
+          <Text style={[styles.logoText, { color: colors.primary }]}>GoPackNow</Text>
         </View>
         <Pressable onPress={() => router.push("/(tabs)/notifications")} style={styles.headerIcon}>
           <Feather name="bell" size={22} color={colors.foreground} />

@@ -14,7 +14,7 @@ const avatarColors = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517"];
 
 const exploreTrips = [
   { dest: "Tokyo", days: 5, rating: 5, review: "The AI nailed our itinerary — every wish made it in.", by: "Razan's pack", vibes: ["Culture", "Foodie"] },
-  { dest: "Paris", days: 4, rating: 5, review: "Planning 8 people used to be chaos. PackClan sorted us in minutes.", by: "Noura's crew", vibes: ["Shopping", "Nightlife"] },
+  { dest: "Paris", days: 4, rating: 5, review: "Planning 8 people used to be chaos. GoPackNow sorted us in minutes.", by: "Noura's crew", vibes: ["Shopping", "Nightlife"] },
   { dest: "Bali", days: 7, rating: 4, review: "Perfect balance of beach and culture. The packing list was a lifesaver.", by: "Sam & friends", vibes: ["Relaxation", "Adventure"] },
 ];
 

@@ -280,7 +280,7 @@ ${
 }
 
 <div class="footer">
-  <div class="footer-logo">PackClan</div>
+  <div class="footer-logo">GoPackNow</div>
   <div class="footer-tagline">Plan trips together ✦</div>
   <div class="footer-date">Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
 </div>
@@ -478,7 +478,7 @@ export default function ItineraryScreen() {
         "",
       ]),
       totalCost > 0 ? `💰 Estimated total: ~$${totalCost}/person` : "",
-      "Built with PackClan 🎒",
+      "Built with GoPackNow 🎒",
     ].filter(Boolean);
     await Share.share({ message: lines.join("\n") });
   };
@@ -545,7 +545,7 @@ export default function ItineraryScreen() {
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR PACKCLAN ITINERARY</Text>
+            <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACKNOW ITINERARY</Text>
             <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
               {trip.destination}
             </Text>

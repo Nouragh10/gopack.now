@@ -116,7 +116,7 @@ export default function Explore() {
             <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-3">Community</p>
             <h1 className="font-serif text-5xl font-bold mb-3">Real trips. Real reviews.</h1>
             <p className="text-muted-foreground text-lg max-w-xl">
-              See where groups like yours went — and how PackClan helped them get there.
+              See where groups like yours went — and how GoPackNow helped them get there.
             </p>
           </motion.div>
         </div>
