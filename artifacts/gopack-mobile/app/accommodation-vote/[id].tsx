@@ -44,6 +44,21 @@ function Avatar({ name, index, size = 28 }: { name: string; index: number; size?
 }
 
 function StarRating({ rating }: { rating: number }) {
+  if (!rating || rating <= 0) return null;
+
+  // Ratings > 5 are on a /10 scale — show numeric only
+  if (rating > 5) {
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+        <Feather name="star" size={11} color="#FFA726" />
+        <Text style={{ fontFamily: "DmSans_600SemiBold", fontSize: 12, color: "#FFA726" }}>
+          {rating.toFixed(1)}<Text style={{ fontFamily: "DmSans_400Regular", color: "#BDB0A0" }}>/10</Text>
+        </Text>
+      </View>
+    );
+  }
+
+  // Ratings 1–5: show filled/empty stars + number
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
   return (
@@ -51,7 +66,7 @@ function StarRating({ rating }: { rating: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <Feather
           key={i}
-          name={i < full ? "star" : half && i === full ? "star" : "star"}
+          name="star"
           size={11}
           color={i < full || (half && i === full) ? "#FFA726" : "#D0C9C0"}
         />
