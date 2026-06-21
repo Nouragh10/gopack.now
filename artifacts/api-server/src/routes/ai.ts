@@ -464,19 +464,64 @@ router.post("/parse-accommodation", async (req: Request, res: Response): Promise
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   const destination = body.destination ?? "the destination";
 
-  // Try to fetch the listing page for content extraction
+  // ── Pre-parse the URL for structured hints ────────────────────────────────
+  let parsedObj: URL | null = null;
+  try { parsedObj = new URL(url); } catch { /* ignore */ }
+
+  const hostname = parsedObj?.hostname?.replace(/^www\./, "") ?? "";
+  const params = parsedObj ? Object.fromEntries(parsedObj.searchParams.entries()) : {};
+  const pathSegments = parsedObj?.pathname?.split("/").filter(Boolean) ?? [];
+
+  // Detect platform
+  const platform =
+    hostname.includes("airbnb") ? "airbnb" :
+    hostname.includes("booking.com") ? "booking.com" :
+    hostname.includes("expedia") ? "expedia" :
+    hostname.includes("hotels.com") ? "hotels.com" :
+    hostname.includes("hostelworld") ? "hostelworld" :
+    hostname.includes("vrbo") ? "vrbo" :
+    hostname.includes("tripadvisor") ? "tripadvisor" :
+    hostname;
+
+  // Extract human-readable slug from path (convert dashes to spaces, strip IDs)
+  const slugHints = pathSegments
+    .map(s => s.replace(/\.[a-z0-9]+$/i, ""))       // strip .h123 suffixes
+    .map(s => s.replace(/[-_]/g, " "))
+    .filter(s => s.length > 2 && !/^\d+$/.test(s))  // skip pure numeric segments
+    .join(" | ");
+
+  // Known query param keys that carry useful data across platforms
+  const paramHints: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (["destination", "city", "location", "place", "q", "query", "name",
+         "property_name", "hotel_name", "region", "chkin", "chkout",
+         "checkin", "checkout", "check_in", "check_out"].includes(k)) {
+      paramHints[k] = v;
+    }
+  }
+
+  const urlContext = [
+    `Platform: ${platform}`,
+    slugHints ? `Path hints: ${slugHints}` : "",
+    Object.keys(paramHints).length
+      ? `Query params: ${Object.entries(paramHints).map(([k,v]) => `${k}=${v}`).join(", ")}`
+      : "",
+  ].filter(Boolean).join("\n");
+
+  // ── Try fetching page content (best-effort; many sites block bots) ─────────
   let pageContent = "";
   try {
     const pageRes = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; GoPackBot/1.0; +https://gopack.app)",
-        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
       },
       signal: AbortSignal.timeout(8000),
     });
     if (pageRes.ok) {
       const html = await pageRes.text();
-      // Strip tags, collapse whitespace, truncate
       pageContent = html
         .replace(/<script[\s\S]*?<\/script>/gi, "")
         .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -486,27 +531,38 @@ router.post("/parse-accommodation", async (req: Request, res: Response): Promise
         .slice(0, 4000);
     }
   } catch {
-    // Fetch failed — Claude will infer from URL alone
+    // Silently fall back to URL-only inference
   }
 
-  const prompt = `You are extracting accommodation listing details for a travel app.
+  const prompt = `You are extracting accommodation listing details for a group travel app.
 
-URL: ${url}
-Trip destination: ${destination}
-${pageContent ? `\nPage content (truncated):\n${pageContent}` : "\n(Page could not be fetched — infer from URL and domain only.)"}
+Full URL: ${url}
+Trip destination (from app): ${destination}
 
-Extract and return a JSON object with these fields:
-- name: string (property name, or a reasonable name inferred from the URL/domain)
-- type: "hotel" | "airbnb" | "hostel" | "other"
-- location: string (neighbourhood/city, use destination if unknown)
-- rating: number (0–10 scale if reviews found; 0–5 star rating kept as-is; 0 if unknown)
-- amenities: string[] (up to 6 key amenities, empty array if unknown)
-- cancellation: string (e.g. "Free cancellation", "Non-refundable", or "Check listing")
-- tags: string[] (2–4 short descriptive tags like "Central location", "Great views", "Pet-friendly")
-- distanceNote: string (distance to centre or landmark, or "See listing for details")
-- whyItFits: string (one short sentence on why this suits a group trip to ${destination})
+URL analysis (pre-parsed — use these as primary hints):
+${urlContext}
 
-Respond with ONLY valid JSON. No markdown, no explanation.`;
+${pageContent ? `Page content (truncated, may be partial due to bot protection):\n${pageContent}` : "(Page content unavailable — infer entirely from the URL analysis above.)"}
+
+Instructions:
+- Extract the property name from the path slug or page content. For Expedia, the path is usually "{City}-Hotels-{Property-Name}.h{id}.Hotel-Information" — so extract just the property name part.
+- Infer the property type from the platform (airbnb → "airbnb", hostelworld → "hostel", expedia/booking/hotels.com → "hotel").
+- Use destination query param or path slug for location if page content is unavailable.
+- For rating: only set a non-zero value if you find an actual rating number. Use 0 if unknown.
+- Make amenities, tags, and whyItFits reasonable given the property name, platform, and destination.
+
+Return ONLY valid JSON with these fields (no markdown, no explanation):
+{
+  "name": string,
+  "type": "hotel" | "airbnb" | "hostel" | "other",
+  "location": string,
+  "rating": number,
+  "amenities": string[],
+  "cancellation": string,
+  "tags": string[],
+  "distanceNote": string,
+  "whyItFits": string
+}`;
 
   try {
     const response = await callAnthropic({
