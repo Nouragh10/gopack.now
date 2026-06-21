@@ -20,6 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import {
   DestinationSuggestion,
+  clearDestinationSuggestions,
   confirmDestination,
   lockDestinationVotes,
   unlockDestinationVotes,
@@ -178,6 +179,7 @@ export default function DestinationVoteScreen() {
   const { trip, loading } = useTrip(id);
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [redoing, setRedoing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -265,6 +267,31 @@ export default function DestinationVoteScreen() {
     }
   };
 
+  const handleRedo = () => {
+    Alert.alert(
+      "Try new suggestions?",
+      "This will clear all current suggestions and votes so the pack can pick new preferences and regenerate.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes, redo",
+          style: "destructive",
+          onPress: async () => {
+            if (!id) return;
+            setRedoing(true);
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              await clearDestinationSuggestions(id);
+              router.replace(`/destination-preferences/${id}`);
+            } finally {
+              setRedoing(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -295,9 +322,23 @@ export default function DestinationVoteScreen() {
           <Text style={[styles.headerLabel, { color: colors.primary }]}>WHERE TO?</Text>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Vote on a destination</Text>
         </View>
-        <Pressable onPress={() => setShowInvite(true)} style={[styles.inviteBtn, { borderColor: colors.primary }]}>
-          <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {isCreator && (
+            <Pressable
+              onPress={handleRedo}
+              disabled={redoing}
+              style={[styles.redoBtn, { borderColor: colors.border }]}
+            >
+              {redoing
+                ? <ActivityIndicator size="small" color={colors.mutedForeground} />
+                : <Feather name="refresh-cw" size={15} color={colors.mutedForeground} />
+              }
+            </Pressable>
+          )}
+          <Pressable onPress={() => setShowInvite(true)} style={[styles.inviteBtn, { borderColor: colors.primary }]}>
+            <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Lock-in bar */}
@@ -472,6 +513,7 @@ const styles = StyleSheet.create({
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
 
+  redoBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   inviteBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
   inviteBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 

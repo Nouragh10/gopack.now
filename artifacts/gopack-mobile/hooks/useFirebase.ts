@@ -513,6 +513,15 @@ export async function confirmDestination(tripId: string, name: string) {
   });
 }
 
+export async function clearDestinationSuggestions(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), {
+    destinationSuggestions: null,
+    destinationVotes: null,
+    destinationLockedBy: null,
+    collectingPreferences: true,
+  });
+}
+
 /* ── sendMessage ──────────────────────────────────────────────────── */
 
 export async function sendMessage(
