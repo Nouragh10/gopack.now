@@ -42,6 +42,8 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
   }
 
   const { destination, days, vibes, budget, startDate, wishes } = parsed.data;
+  const pace = (req.body as { pace?: string }).pace ?? "balanced";
+  const activitiesPerDay = pace === "relaxed" ? 3 : pace === "packed" ? 7 : 5;
 
   const topWishes = (wishes ?? [])
     .sort((a: { votes: number }, b: { votes: number }) => b.votes - a.votes)
@@ -70,7 +72,8 @@ CRITICAL RULES:
 3. Incorporate as many top-voted wishes as possible, marking them with "fromWish": true and the author's name as "suggester".
 4. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
 5. Keep descriptions to ONE short sentence (max 15 words). Be concise.
-6. Limit to exactly 4 activities per day. No more.
+6. Generate EXACTLY ${activitiesPerDay} activities per day (group pace: ${pace}). No more, no less.
+7. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market", "Eiffel Tower" not "Iconic Landmark"). Use the full official name so it resolves correctly on Google Maps.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -211,6 +214,7 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
       budget: string;
       days: number;
       startDate?: string | null;
+      startLocation?: string;
     }>;
   };
 
@@ -226,7 +230,7 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
   if (isGroupMode) {
     const prefs = body.memberPreferences!;
     const memberLines = prefs.map((p) =>
-      `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range "${p.distance}", budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}`
+      `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range "${p.distance}", budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}${p.startLocation ? `, flying from ${p.startLocation}` : ""}`
     ).join("\n");
 
     // Aggregate to find common ground
@@ -249,8 +253,9 @@ Rules:
 2. Pick destinations that honour the MAJORITY preferences while still working for outliers.
 3. Each pitch must be ONE punchy sentence (max 12 words) that speaks to why it works for THIS group.
 4. Each destination gets exactly 3 short tags (2-4 words each).
-5. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe".
+5. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe". If start locations are provided, reference the most common one.
 6. bestTime: e.g. "May–Sept" or "Year-round".
+7. If members list start locations, consider realistic travel times and connections from those cities.
 
 Respond with ONLY valid JSON, no markdown:
 {
@@ -445,6 +450,54 @@ Respond with ONLY valid JSON, no markdown:
   } catch (err) {
     req.log.error({ err }, "Failed to suggest accommodations");
     res.status(500).json({ error: (err as Error).message || "Failed to suggest accommodations" });
+  }
+});
+
+router.post("/ai-pick-accommodation", async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as {
+    suggestions: Array<{ name: string; type: string; location: string; costPerPerson: number; whyItFits: string }>;
+    destination: string;
+    memberCount: number;
+  };
+
+  if (!body.suggestions?.length || !body.destination) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const optionLines = body.suggestions
+    .map((s, i) =>
+      `Option ${i + 1} (index ${i}): ${s.name} (${s.type}) at ${s.location} — $${s.costPerPerson}/person — ${s.whyItFits}`
+    )
+    .join("\n");
+
+  const prompt = `A group of ${body.memberCount} travelers are tied on accommodation options for ${body.destination}. Break the tie by picking the single best option for the group.
+
+Options:
+${optionLines}
+
+Pick the best option by its 0-based index and explain in one sentence why it is the best group choice.
+Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`;
+
+  try {
+    const requestBody = {
+      model: "claude-haiku-4-5",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    };
+
+    const response = await callAnthropic(requestBody);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+    };
+
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const cleanJson = extractJson(allText);
+    const result = JSON.parse(cleanJson);
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to pick accommodation");
+    res.status(500).json({ error: "Could not determine accommodation winner." });
   }
 });
 

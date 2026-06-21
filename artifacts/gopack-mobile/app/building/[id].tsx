@@ -77,6 +77,14 @@ export default function BuildingScreen() {
             budget: trip.budget ?? "midrange",
             startDate: trip.startDate ?? null,
             wishes: sortedWishes,
+            pace: (() => {
+              const paceVotes: Record<string, number> = {};
+              for (const pref of Object.values((trip as any).memberPreferences ?? {})) {
+                const p = (pref as any).pace ?? "balanced";
+                paceVotes[p] = (paceVotes[p] ?? 0) + 1;
+              }
+              return Object.entries(paceVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "balanced";
+            })(),
           }),
         });
 

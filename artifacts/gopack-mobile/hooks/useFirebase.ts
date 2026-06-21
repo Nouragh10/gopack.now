@@ -24,6 +24,8 @@ export interface MemberPreference {
   budget: string;
   days: number;
   startDate: string | null;
+  startLocation?: string;
+  pace?: "relaxed" | "balanced" | "packed";
   submittedAt: string;
 }
 
@@ -683,4 +685,14 @@ export async function addActivity(
   };
   itinerary.days[dayIdx].activities.push(newAct);
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+}
+
+export async function deleteTrip(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}`), null);
+  try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
+}
+
+export async function leaveTrip(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/members/${uid}`), null);
+  try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
 }

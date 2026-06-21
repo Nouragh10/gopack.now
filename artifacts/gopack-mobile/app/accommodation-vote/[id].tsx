@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -218,7 +219,10 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
       {suggestion.link && (
         <Pressable
           style={[styles.linkBtn, { borderColor: TEAL }]}
-          onPress={() => {}}
+          onPress={() => {
+            if (Platform.OS === "web") window.open(suggestion.link, "_blank", "noopener,noreferrer");
+            else Linking.openURL(suggestion.link!);
+          }}
         >
           <Feather name="external-link" size={13} color={TEAL} />
           <Text style={[styles.linkBtnText, { color: TEAL }]}>View listing</Text>
@@ -260,6 +264,7 @@ export default function AccommodationVoteScreen() {
   const { trip, loading } = useTrip(id);
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [breaking, setBreaking] = useState(false);
   const [showAddLink, setShowAddLink] = useState(false);
   const [linkName, setLinkName] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
@@ -324,6 +329,57 @@ export default function AccommodationVoteScreen() {
     }
   };
 
+  const handleAiTiebreak = async () => {
+    if (!id || !trip) return;
+    const currentTopScore = getScore(winnerIdx);
+    const tiedOptions = suggestions
+      .map((s, i) => ({ ...s, origIdx: i }))
+      .filter((_, i) => getScore(i) === currentTopScore);
+    setBreaking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const res = await fetch(`${baseUrl}/api/ai-pick-accommodation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          suggestions: tiedOptions.map((s) => ({
+            name: s.name,
+            type: s.type,
+            location: s.location,
+            costPerPerson: s.costPerPerson,
+            whyItFits: s.whyItFits,
+          })),
+          destination: trip.destination,
+          memberCount,
+        }),
+      });
+      if (!res.ok) throw new Error("AI could not decide");
+      const result = await res.json() as { winnerIdx: number; reason: string };
+      const picked = tiedOptions[result.winnerIdx];
+      Alert.alert(
+        "AI Tiebreaker",
+        `AI picks: ${picked?.name ?? "Unknown"}\n\n"${result.reason}"`,
+        [
+          { text: "Keep voting", style: "cancel" },
+          isCreator && picked
+            ? {
+                text: "Confirm this pick",
+                onPress: async () => {
+                  await confirmAccommodation(id, suggestions[picked.origIdx]);
+                  router.replace(`/trip/${id}`);
+                },
+              }
+            : { text: "OK" },
+        ].filter(Boolean) as any,
+      );
+    } catch {
+      Alert.alert("Error", "Could not break the tie. Please try again.");
+    } finally {
+      setBreaking(false);
+    }
+  };
+
   const handleAddLink = async () => {
     if (!linkName.trim() || !id) return;
     setAddingLink(true);
@@ -366,16 +422,16 @@ export default function AccommodationVoteScreen() {
     );
   }
 
-  if (!trip || suggestions.length === 0) {
+  if (!trip) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No suggestions yet.</Text>
-        <Pressable onPress={() => router.back()} style={[styles.backLink, { borderColor: colors.border }]}>
-          <Text style={[styles.backLinkText, { color: colors.foreground }]}>Go back</Text>
-        </Pressable>
+        <ActivityIndicator color={TEAL} size="large" />
       </View>
     );
   }
+
+  const topScore = getScore(winnerIdx);
+  const isTied = allLocked && suggestions.length > 1 && suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -423,7 +479,38 @@ export default function AccommodationVoteScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}>
-        {allLocked && !isCreator && (
+        {suggestions.length === 0 && (
+          <View style={styles.emptyState}>
+            <Feather name="link" size={44} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No picks yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Be first! Add your preferred accommodation link so the pack can vote.
+            </Text>
+            <Pressable onPress={() => setShowAddLink(true)} style={[styles.addFirstBtn, { backgroundColor: TEAL }]}>
+              <Feather name="plus" size={16} color="#fff" />
+              <Text style={styles.addFirstBtnText}>Add your pick</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {isTied && (
+          <Pressable
+            onPress={handleAiTiebreak}
+            disabled={breaking}
+            style={[styles.aiTieBtn, { backgroundColor: "#7E57C218", borderColor: "#7E57C2" }]}
+          >
+            {breaking ? (
+              <ActivityIndicator color="#7E57C2" size="small" />
+            ) : (
+              <>
+                <Feather name="zap" size={16} color="#7E57C2" />
+                <Text style={[styles.aiTieBtnText, { color: "#7E57C2" }]}>Too close to call — let AI break the tie</Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
+        {allLocked && !isCreator && !isTied && (
           <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
             <Feather name="clock" size={16} color={colors.mutedForeground} />
             <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
@@ -532,6 +619,13 @@ const styles = StyleSheet.create({
   emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
+  emptyState: { alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 60, paddingHorizontal: 32 },
+  emptyTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, letterSpacing: -0.3 },
+  addFirstBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 4 },
+  addFirstBtnText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
+  aiTieBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderRadius: 16, padding: 14 },
+  aiTieBtnText: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
 
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 12 },
   backBtn: { padding: 4 },
@@ -594,7 +688,6 @@ const styles = StyleSheet.create({
   confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 13, marginTop: 4 },
   confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
 
-  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
 

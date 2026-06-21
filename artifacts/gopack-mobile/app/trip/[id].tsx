@@ -327,12 +327,12 @@ export default function TripHubScreen() {
     }
   };
 
-  const handleAccomChoice = async (choice: "help" | "booked" | "later") => {
+  const handleAccomChoice = async (choice: "vote" | "booked" | "later") => {
     setShowAccomModal(false);
     if (!id) return;
-    if (choice === "help") {
-      await setAccommodationStatus(id, "collecting_prefs");
-      router.push(`/accommodation-preferences/${id}`);
+    if (choice === "vote") {
+      await setAccommodationStatus(id, "voting");
+      router.push(`/accommodation-vote/${id}`);
     } else if (choice === "booked") {
       await setAccommodationStatus(id, "booked");
     } else {
@@ -407,14 +407,14 @@ export default function TripHubScreen() {
         </Pressable>
       )}
 
-      {/* Accommodation: collecting preferences */}
+      {/* Accommodation: collecting preferences (legacy) — redirect to vote */}
       {accomCollecting && (
         <Pressable
-          onPress={() => router.push(`/accommodation-preferences/${id}`)}
+          onPress={() => router.push(`/accommodation-vote/${id}`)}
           style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
         >
-          <Feather name="sliders" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Share your accommodation preferences</Text>
+          <Feather name="home" size={15} color="#fff" />
+          <Text style={styles.destBannerText}>Submit your accommodation pick — join the vote</Text>
           <Feather name="arrow-right" size={15} color="#fff" />
         </Pressable>
       )}
@@ -796,15 +796,15 @@ export default function TripHubScreen() {
             </Text>
 
             <Pressable
-              onPress={() => handleAccomChoice("help")}
+              onPress={() => handleAccomChoice("vote")}
               style={[styles.accomOption, { backgroundColor: "#26A69A10", borderColor: "#26A69A" }]}
             >
               <View style={[styles.accomOptionIcon, { backgroundColor: "#26A69A" }]}>
-                <Feather name="zap" size={18} color="#fff" />
+                <Feather name="link" size={18} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Help us choose</Text>
-                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Everyone shares preferences, AI suggests 3 options, the pack votes</Text>
+                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Submit & vote on links</Text>
+                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Everyone adds their preferred listing — the pack votes, AI breaks ties</Text>
               </View>
               <Feather name="arrow-right" size={18} color="#26A69A" />
             </Pressable>

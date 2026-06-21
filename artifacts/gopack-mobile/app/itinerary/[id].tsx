@@ -901,7 +901,7 @@ const styles = StyleSheet.create({
   },
   memberInitial: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff" },
   membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
-  dayScrollWrap: { height: 56, borderBottomWidth: 1 },
+  dayScrollWrap: { borderBottomWidth: 1 },
   dayScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row", alignItems: "center" },
   dayChip: {
     paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1,

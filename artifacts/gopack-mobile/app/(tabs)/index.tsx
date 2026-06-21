@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import {
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -15,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { Trip, useTrips } from "@/hooks/useFirebase";
+import { Trip, deleteTrip, leaveTrip, useTrips } from "@/hooks/useFirebase";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -37,7 +38,7 @@ function Avatar({ name, index, size = 28 }: { name: string; index: number; size?
   );
 }
 
-function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
+function TripCard({ trip, onPress, onLongPress }: { trip: Trip; onPress: () => void; onLongPress?: () => void }) {
   const colors = useColors();
   const memberNames = Object.values(trip.members ?? {}).map((m) => m.name);
   const memberCount = Object.keys(trip.members ?? {}).length;
@@ -45,6 +46,7 @@ function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
   return (
     <Pressable
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onLongPress?.(); }}
       style={[styles.tripCard, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
       <View style={styles.tripCardTop}>
@@ -91,6 +93,28 @@ export default function DashboardScreen() {
       refetch();
     }, [refetch]),
   );
+
+  const handleDeleteTrip = (trip: Trip) => {
+    const isHost = trip.hostMemberId === user?.uid;
+    Alert.alert(
+      isHost ? "Delete Trip" : "Leave Trip",
+      isHost
+        ? "This will permanently delete the trip for everyone in the pack. This cannot be undone."
+        : "You'll leave this trip. You'll need a new invite to rejoin.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isHost ? "Delete" : "Leave",
+          style: "destructive",
+          onPress: async () => {
+            if (isHost) await deleteTrip(trip.id, user!.uid);
+            else await leaveTrip(trip.id, user!.uid);
+            refetch();
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -157,7 +181,11 @@ export default function DashboardScreen() {
               data={trips}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <TripCard trip={item} onPress={() => router.push(`/trip/${item.id}`)} />
+                <TripCard
+                  trip={item}
+                  onPress={() => router.push(`/trip/${item.id}`)}
+                  onLongPress={() => handleDeleteTrip(item)}
+                />
               )}
               scrollEnabled={false}
             />

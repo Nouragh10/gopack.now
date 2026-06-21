@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -15,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { signOut } from "@/lib/firebase";
-import { useTrips } from "@/hooks/useFirebase";
+import { Trip, deleteTrip, leaveTrip, useTrips } from "@/hooks/useFirebase";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -42,6 +43,28 @@ export default function ProfileScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await signOut();
     router.replace("/sign-in");
+  };
+
+  const handleDeleteTrip = (trip: Trip) => {
+    const isHost = trip.hostMemberId === user?.uid;
+    Alert.alert(
+      isHost ? "Delete Trip" : "Leave Trip",
+      isHost
+        ? "This will permanently delete the trip for everyone. Cannot be undone."
+        : "You'll leave this trip and need a new invite to rejoin.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isHost ? "Delete" : "Leave",
+          style: "destructive",
+          onPress: async () => {
+            if (isHost) await deleteTrip(trip.id, user!.uid);
+            else await leaveTrip(trip.id, user!.uid);
+            refetch();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -84,6 +107,7 @@ export default function ProfileScreen() {
               <Pressable
                 key={trip.id}
                 onPress={() => router.push(`/trip/${trip.id}`)}
+                onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleDeleteTrip(trip); }}
                 style={[styles.tripRow, { backgroundColor: colors.card, borderColor: colors.border }]}
               >
                 <View style={{ flex: 1 }}>

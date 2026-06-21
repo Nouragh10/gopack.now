@@ -33,6 +33,11 @@ const VIBES = [
 ];
 const BUDGETS = ["Budget", "Midrange", "Luxury"] as const;
 const DISTANCES = ["Nearby (< 3h)", "Mid-haul (3–8h)", "Anywhere"] as const;
+const PACES = [
+  { value: "relaxed", label: "Relaxed", desc: "3–4 acts/day" },
+  { value: "balanced", label: "Balanced", desc: "5 acts/day" },
+  { value: "packed", label: "Packed", desc: "6–7 acts/day" },
+];
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
 function toISODate(d: Date) {
@@ -80,6 +85,8 @@ export default function DestinationPreferencesScreen() {
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
+  const [startLocation, setStartLocation] = useState("");
 
   const inviteLink = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "gopacknow.com"}/join/${id}`;
 
@@ -104,8 +111,17 @@ export default function DestinationPreferencesScreen() {
       setBudget((myPref.budget.charAt(0).toUpperCase() + myPref.budget.slice(1)) as "Budget" | "Midrange" | "Luxury");
       setDays(myPref.days ?? 5);
       setStartDate(myPref.startDate ? new Date(myPref.startDate) : null);
+      if (myPref.pace) setPace(myPref.pace as "relaxed" | "balanced" | "packed");
+      if (myPref.startLocation) setStartLocation(myPref.startLocation);
     }
   }, [alreadySubmitted]);
+
+  useEffect(() => {
+    const isHost = trip?.hostMemberId === user?.uid;
+    if (!isHost && trip?.destinationSuggestions?.length && id) {
+      router.replace(`/destination-vote/${id}`);
+    }
+  }, [trip?.destinationSuggestions?.length, trip?.hostMemberId, user?.uid, id, router]);
 
   const members = Object.entries(trip?.members ?? {});
   const memberPrefs = trip?.memberPreferences ?? {};
@@ -131,6 +147,8 @@ export default function DestinationPreferencesScreen() {
         budget: budget.toLowerCase(),
         days,
         startDate: startDate ? toISODate(startDate) : null,
+        startLocation: startLocation.trim() || undefined,
+        pace,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -154,6 +172,7 @@ export default function DestinationPreferencesScreen() {
         budget: pref.budget,
         days: pref.days,
         startDate: pref.startDate,
+        startLocation: pref.startLocation,
       }));
 
       const baseUrl = Platform.OS === "web"
@@ -368,6 +387,26 @@ export default function DestinationPreferencesScreen() {
             </View>
           </View>
 
+          {/* Trip pace */}
+          <View>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Trip pace</Text>
+            <View style={styles.chipRow}>
+              {PACES.map((p) => (
+                <Pressable
+                  key={p.value}
+                  onPress={() => setPace(p.value as "relaxed" | "balanced" | "packed")}
+                  style={[
+                    styles.chip,
+                    { flex: 1, alignItems: "center", backgroundColor: pace === p.value ? "#26A69A" : colors.muted, borderColor: pace === p.value ? "#26A69A" : colors.border },
+                  ]}
+                >
+                  <Text style={[styles.chipText, { color: pace === p.value ? "#fff" : colors.foreground }]}>{p.label}</Text>
+                  <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 10, color: pace === p.value ? "#ffffffbb" : colors.mutedForeground }}>{p.desc}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
           {/* Duration */}
           <View>
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>How many days?</Text>
@@ -441,6 +480,22 @@ export default function DestinationPreferencesScreen() {
                 </Modal>
               </>
             )}
+          </View>
+
+          {/* Flying from */}
+          <View>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Flying from (optional)</Text>
+            <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="map-pin" size={16} color="#26A69A" />
+              <TextInput
+                style={[styles.input, { color: colors.foreground }]}
+                placeholder="e.g. New York, London"
+                placeholderTextColor={colors.mutedForeground}
+                value={startLocation}
+                onChangeText={setStartLocation}
+                returnKeyType="done"
+              />
+            </View>
           </View>
 
           {/* Submit */}
