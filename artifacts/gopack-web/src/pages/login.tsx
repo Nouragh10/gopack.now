@@ -135,7 +135,7 @@ export default function Login() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-8 text-center">
-            By continuing you agree to gopack&apos;s terms of service.
+            By continuing you agree to GoPackNow&apos;s terms of service.
           </p>
         </motion.div>
       </div>
