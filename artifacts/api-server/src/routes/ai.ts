@@ -227,7 +227,7 @@ function flightRangeDescription(distance: string): string {
     return "between 3 and 8 hours — MINIMUM 3 hours and MAXIMUM 8 hours. Destinations reachable in UNDER 3 hours are TOO CLOSE and must not be included. Destinations requiring MORE THAN 8 hours are TOO FAR and must not be included.";
   }
   if (d.includes("anywhere") || d.includes("long") || d.includes("any")) {
-    return "any flight duration — no restriction on distance";
+    return "ANY flight duration — absolutely no restriction on distance. Long-haul destinations (8h, 12h, 15h+) are completely valid and encouraged. Do NOT default to nearby short-haul options just because they are convenient — think globally: Southeast Asia, South America, Japan, Australia, East Africa, etc. are all fair game.";
   }
   return distance;
 }
