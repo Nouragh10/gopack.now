@@ -72,31 +72,40 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
     return vibeActivityGuide[key] ? `- ${v}: ${vibeActivityGuide[key]}` : `- ${v}: activities matching this theme`;
   }).join("\n");
 
+  const totalActivities = days * activitiesPerDay;
+  const maxWishSlots = Math.max(1, Math.min(topWishes.length, Math.floor(totalActivities * 0.25)));
+
   const prompt = `You are a world-class group travel planner. Generate a detailed ${days}-day itinerary for a group trip to ${destination}.
 
 Trip details:
 - Destination: ${destination}
-- Duration: ${days} days
-- Vibes chosen by the group: ${vibes.join(", ")}
+- Duration: ${days} days (EXACTLY — never more, never fewer)
+- Group vibes: ${vibes.join(", ")}
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
-Group wishes (voted by the group, most popular first):
-${topWishes.length > 0 ? topWishes.join("\n") : "No specific wishes provided"}
+━━━ SECTION A — WISH INCLUSION (highest priority) ━━━
+The group submitted these specific activity wishes. Include them as real named activities:
+${topWishes.length > 0 ? topWishes.join("\n") : "No wishes — skip this section."}
 
-VIBE → ACTIVITY GUIDE (only suggest activities that fall within these categories):
+Each included wish counts as exactly ONE activity slot. Mark it with "fromWish": true and the author's name as "suggester".
+LIMIT: Include AT MOST ${maxWishSlots} wish-based activit${maxWishSlots === 1 ? "y" : "ies"} across the ENTIRE itinerary. Do not repeat the same wish theme across multiple slots.
+
+━━━ SECTION B — AI PICKS (fill all remaining slots) ━━━
+ALL other activity slots (at least ${totalActivities - maxWishSlots} of the ${totalActivities} total) MUST be original AI recommendations — diverse, specific, real-world venues the group would love.
+Use the group's vibes as inspiration, not as a hard constraint. A great itinerary mixes iconic sights, local gems, meals, and experiences.
+These must have "fromWish": false and "suggester": "AI pick".
+
+Vibe inspiration guide:
 ${vibeGuide}
 
-CRITICAL RULES:
-1. Generate EXACTLY ${days} days — the "days" array MUST contain EXACTLY ${days} elements, numbered 1 through ${days}. Never generate more or fewer days.
-2. EVERY activity MUST match one of the chosen vibes: ${vibes.join(", ")}. Do NOT add transport, hotel check-ins, or generic travel activities unless the group specifically voted for them as wishes.
-3. Every activity's "tag" field MUST be one of these exact values: ${validTags.join(", ")}. No other tag values allowed.
-4. Wishes are SPECIFIC activities to slot in — not themes for the whole trip. Treat each wish as 1–2 individual activity slots spread across the itinerary. The remaining slots MUST be varied and diverse, covering different aspects of the chosen vibes. A single wish about shopping does NOT make the whole trip a shopping trip.
-5. Incorporate top-voted wishes by marking them with "fromWish": true and the author's name as "suggester". Aim for at most 30% of all activities to be wish-derived so the itinerary stays diverse.
-6. Activities NOT from wishes should have "fromWish": false and "suggester": "AI pick".
-7. Keep descriptions to ONE short sentence (max 15 words). Be concise.
-8. Generate EXACTLY ${activitiesPerDay} activities per day (group pace: ${pace}). No more, no less.
-9. Every activity "name" MUST be a specific, real-world venue with its official name (e.g. "Sagrada Família" not "Famous Cathedral", "Nishiki Market" not "Local Market"). Use the full official name so it resolves correctly on Google Maps.
+━━━ STRICT RULES ━━━
+1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
+2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
+3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
+4. Every activity "name" must be a real venue's official name (e.g. "Sagrada Família" not "Famous Cathedral").
+5. Descriptions: ONE sentence, max 15 words.
+6. Do not repeat the same venue or the same activity type more than once per day.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
