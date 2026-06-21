@@ -249,13 +249,14 @@ Group profile summary:
 - Number of members: ${prefs.length}
 
 Rules:
-1. Make the 3 destinations genuinely different — different regions or meaningfully different vibes.
-2. Pick destinations that honour the MAJORITY preferences while still working for outliers.
-3. Each pitch must be ONE punchy sentence (max 12 words) that speaks to why it works for THIS group.
-4. Each destination gets exactly 3 short tags (2-4 words each).
-5. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe". If start locations are provided, reference the most common one.
-6. bestTime: e.g. "May–Sept" or "Year-round".
-7. If members list start locations, consider realistic travel times and connections from those cities.
+1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Before including any destination, verify that the actual non-stop or typical flight time from the stated start location(s) is within the member's stated range. If a member says "<3 hours from Riyadh", the Maldives (4.5h), South East Asia (7h+), and Europe (6-7h) are all invalid — stick to genuinely close destinations like Egypt, Jordan, Turkey, Cyprus, Georgia, Ethiopia, Oman, etc.
+2. If members have DIFFERENT flight ranges, find destinations that satisfy the tightest constraint OR pick destinations that work for the majority and note the trade-off in the pitch.
+3. Make the 3 destinations genuinely different — different regions or meaningfully different vibes.
+4. Pick destinations that honour the MAJORITY preferences while still working for outliers.
+5. Each pitch must be ONE punchy sentence (max 12 words) that speaks to why it works for THIS group.
+6. Each destination gets exactly 3 short tags (2-4 words each).
+7. flightHint: one short phrase showing actual flight time FROM the stated start location(s), e.g. "~2h from Riyadh". Reference the most common start location if multiple are given.
+8. bestTime: e.g. "May–Sept" or "Year-round".
 
 Respond with ONLY valid JSON, no markdown:
 {
@@ -279,11 +280,12 @@ Trip preferences:
 - Duration: ${body.days} days${body.mustHaves ? `\n- Must have: ${body.mustHaves}` : ""}
 
 Rules:
-1. Make the 3 destinations genuinely different from each other — different continents or meaningfully different vibes.
-2. Each pitch must be ONE punchy sentence (max 12 words). No fluff.
-3. Each destination gets exactly 3 short tags (2-4 words each).
-4. flightHint: one short phrase like "~9h from NYC" or "2h from most of Europe".
-5. bestTime: e.g. "May–Sept" or "Year-round".
+1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Every destination you suggest MUST be reachable within the stated flight range. Double-check real flight times before including a destination. For example, if the range is "<3 hours", do not suggest destinations that are actually 4+ hours away.
+2. Make the 3 destinations genuinely different from each other — different regions or meaningfully different vibes.
+3. Each pitch must be ONE punchy sentence (max 12 words). No fluff.
+4. Each destination gets exactly 3 short tags (2-4 words each).
+5. flightHint: one short phrase with the realistic flight time, e.g. "~2h from London". Do not quote the user's range back — give the actual flight time.
+6. bestTime: e.g. "May–Sept" or "Year-round".
 
 Respond with ONLY valid JSON, no markdown:
 {
