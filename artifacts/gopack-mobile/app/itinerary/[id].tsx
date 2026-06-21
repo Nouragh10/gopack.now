@@ -903,13 +903,13 @@ const styles = StyleSheet.create({
   memberInitial: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff" },
   membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
   dayScrollWrap: { borderBottomWidth: 1 },
-  dayScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row", alignItems: "center" },
+  dayScroll: { paddingHorizontal: 16, paddingVertical: 6, gap: 8, flexDirection: "row", alignItems: "center" },
   dayChip: {
     paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
   dayChipText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, lineHeight: 18 },
-  dayHeader: { paddingVertical: 14 },
+  dayHeader: { paddingTop: 10, paddingBottom: 8 },
   dayCity: { fontFamily: "DmSans_600SemiBold", fontSize: 18, marginBottom: 2 },
   dayTheme: { fontFamily: "DmSans_400Regular", fontSize: 14 },
   actCard: {
@@ -947,9 +947,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: "dashed",
     borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 4,
-    marginBottom: 16,
+    paddingVertical: 12,
+    marginTop: 2,
+    marginBottom: 8,
   },
   addActText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   costCard: {
