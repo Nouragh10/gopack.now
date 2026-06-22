@@ -430,6 +430,10 @@ export async function unlockDestinationVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), null);
 }
 
+export async function startCollectingPreferences(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), { collectingPreferences: true });
+}
+
 export async function confirmDestination(tripId: string, destination: string) {
   await update(ref(db, `trips/${tripId}`), {
     destination,
