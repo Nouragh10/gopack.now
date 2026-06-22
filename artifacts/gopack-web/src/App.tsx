@@ -16,6 +16,12 @@ import Itinerary from "@/pages/itinerary";
 import Chat from "@/pages/chat";
 import Packing from "@/pages/packing";
 import Profile from "@/pages/profile";
+import DestinationPreferences from "@/pages/destination-preferences";
+import DestinationVote from "@/pages/destination-vote";
+import AccommodationPreferences from "@/pages/accommodation-preferences";
+import AccommodationVote from "@/pages/accommodation-vote";
+import Building from "@/pages/building";
+import Notifications from "@/pages/notifications";
 
 const queryClient = new QueryClient();
 
@@ -55,11 +61,17 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/create" component={Create} />
         <Route path="/join/:tripId" component={JoinTrip} />
+        <Route path="/trip/:tripId/destination-preferences" component={DestinationPreferences} />
+        <Route path="/trip/:tripId/destination-vote" component={DestinationVote} />
+        <Route path="/trip/:tripId/accommodation-preferences" component={AccommodationPreferences} />
+        <Route path="/trip/:tripId/accommodation-vote" component={AccommodationVote} />
+        <Route path="/trip/:tripId/building" component={Building} />
         <Route path="/trip/:tripId/itinerary" component={Itinerary} />
         <Route path="/trip/:tripId/chat" component={Chat} />
         <Route path="/trip/:tripId/packing" component={Packing} />
         <Route path="/trip/:tripId" component={TripHub} />
         <Route path="/profile" component={Profile} />
+        <Route path="/notifications" component={Notifications} />
         <Route component={NotFound} />
       </Switch>
     </>

@@ -391,3 +391,95 @@ export function useTrip(tripId: string) {
 
   return { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList, submitReview };
 }
+
+/* ─── Destination preference & voting ──────────────────────────── */
+
+export async function submitMemberPreference(tripId: string, uid: string, pref: any) {
+  await set(ref(db, `trips/${tripId}/memberPreferences/${uid}`), pref);
+}
+
+export async function storeDestinationSuggestions(tripId: string, suggestions: any[]) {
+  const snap = await get(ref(db, `trips/${tripId}/memberPreferences`));
+  await update(ref(db, `trips/${tripId}`), {
+    destinationSuggestions: suggestions,
+    destinationVotes: null,
+    destinationLockedBy: null,
+    memberPreferences: snap.val() ?? null,
+  });
+}
+
+export async function storeRedoSuggestions(tripId: string, suggestions: any[]) {
+  await update(ref(db, `trips/${tripId}`), {
+    destinationSuggestions: suggestions,
+    destinationVotes: null,
+    destinationLockedBy: null,
+  });
+}
+
+export async function voteDestination(tripId: string, idx: number, uid: string, dir: "up" | "down") {
+  const r = ref(db, `trips/${tripId}/destinationVotes/${idx}/${uid}`);
+  const snap = await get(r);
+  await set(r, snap.val() === dir ? null : dir);
+}
+
+export async function lockDestinationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), true);
+}
+
+export async function unlockDestinationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), null);
+}
+
+export async function confirmDestination(tripId: string, destination: string) {
+  await update(ref(db, `trips/${tripId}`), {
+    destination,
+    collectingPreferences: null,
+  });
+}
+
+/* ─── Accommodation preference & voting ────────────────────────── */
+
+export async function submitAccommodationPreference(tripId: string, uid: string, pref: any) {
+  await set(ref(db, `trips/${tripId}/accommodationPreferences/${uid}`), pref);
+}
+
+export async function storeAccommodationSuggestions(tripId: string, suggestions: any[]) {
+  await update(ref(db, `trips/${tripId}`), {
+    accommodationSuggestions: suggestions,
+    accommodationStatus: "voting",
+    accommodationVotes: null,
+    accommodationLockedBy: null,
+  });
+}
+
+export async function voteAccommodation(tripId: string, idx: number, uid: string, dir: "up" | "down") {
+  const r = ref(db, `trips/${tripId}/accommodationVotes/${idx}/${uid}`);
+  const snap = await get(r);
+  await set(r, snap.val() === dir ? null : dir);
+}
+
+export async function lockAccommodationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/accommodationLockedBy/${uid}`), true);
+}
+
+export async function unlockAccommodationVotes(tripId: string, uid: string) {
+  await set(ref(db, `trips/${tripId}/accommodationLockedBy/${uid}`), null);
+}
+
+export async function confirmAccommodation(tripId: string, accom: any) {
+  await update(ref(db, `trips/${tripId}`), {
+    confirmedAccommodation: accom,
+    accommodationStatus: "confirmed",
+  });
+}
+
+export async function addMemberAccommodationLink(tripId: string, suggestion: any) {
+  const snap = await get(ref(db, `trips/${tripId}/accommodationSuggestions`));
+  const existing: any[] = snap.val() ?? [];
+  existing.push(suggestion);
+  await set(ref(db, `trips/${tripId}/accommodationSuggestions`), existing);
+}
+
+export async function saveItinerary(tripId: string, itinerary: any) {
+  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+}
