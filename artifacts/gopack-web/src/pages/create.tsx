@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrips } from "@/hooks/useFirebase";
-import { Loader2, ArrowLeft, Check } from "lucide-react";
+import { Loader2, ArrowLeft, Check, Users } from "lucide-react";
 
 const VIBES = [
   { id: "culture", label: "Culture" },
@@ -25,6 +25,7 @@ export default function Create() {
   const { createTrip } = useTrips();
   const [, setLocation] = useLocation();
 
+  const [decideWithGroup, setDecideWithGroup] = useState(false);
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(5);
   const [vibes, setVibes] = useState<string[]>(["culture"]);
@@ -47,12 +48,24 @@ export default function Create() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!destination.trim()) { setError("Please enter a destination"); return; }
+    if (!decideWithGroup && !destination.trim()) {
+      setError("Enter a destination or choose to decide with the group");
+      return;
+    }
     if (vibes.length === 0) { setError("Pick at least one vibe"); return; }
     setError("");
     setLoading(true);
     try {
-      const tripId = await createTrip({ destination, days, vibes, budget, startDate, visibility: "private" });
+      const tripData: Record<string, unknown> = {
+        destination: decideWithGroup ? "" : destination.trim(),
+        days,
+        vibes,
+        budget,
+        startDate,
+        visibility: "private",
+      };
+      if (decideWithGroup) tripData.collectingPreferences = true;
+      const tripId = await createTrip(tripData);
       if (tripId) setLocation(`/trip/${tripId}`);
     } catch {
       setError("Failed to create trip. Please try again.");
@@ -87,13 +100,45 @@ export default function Create() {
               <label className="block text-xs font-medium text-muted-foreground tracking-widest uppercase mb-3">
                 Destination
               </label>
-              <input
-                value={destination}
-                onChange={e => setDestination(e.target.value)}
-                placeholder="Paris, Tokyo, Bali..."
-                className="w-full border border-border rounded-xl px-5 py-3.5 text-base bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                data-testid="input-destination"
-              />
+
+              {/* Decide with group toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDecideWithGroup(d => !d);
+                  if (!decideWithGroup) setDestination("");
+                }}
+                className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl border text-left transition-all mb-3 ${
+                  decideWithGroup
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                  decideWithGroup ? "border-primary bg-primary" : "border-muted-foreground/40"
+                }`}>
+                  {decideWithGroup && <Check size={11} className="text-white" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-medium text-sm">
+                    <Users size={14} className="text-primary" />
+                    Decide with the group
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Everyone submits preferences, AI suggests destinations, group votes
+                  </div>
+                </div>
+              </button>
+
+              {!decideWithGroup && (
+                <input
+                  value={destination}
+                  onChange={e => setDestination(e.target.value)}
+                  placeholder="Paris, Tokyo, Bali..."
+                  className="w-full border border-border rounded-xl px-5 py-3.5 text-base bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  data-testid="input-destination"
+                />
+              )}
             </div>
 
             {/* Days */}
