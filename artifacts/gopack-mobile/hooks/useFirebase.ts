@@ -698,7 +698,7 @@ export async function addActivity(
     description: activity.description ?? "",
     tag: activity.tag ?? "culture",
     fromWish: false,
-    suggester: activity.suggester ?? "You",
+    suggester: activity.suggester ?? "Member",
     estimatedCost: activity.estimatedCost ?? 0,
     labels: [],
     nearPrevious: false,

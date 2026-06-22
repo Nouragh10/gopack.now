@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import {
   Activity,
@@ -403,6 +404,7 @@ export default function ItineraryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
@@ -460,6 +462,7 @@ export default function ItineraryScreen() {
         time: editModal.time.trim(),
         description: editModal.description.trim(),
         estimatedCost: parseFloat(editModal.estimatedCost) || 0,
+        suggester: user?.displayName ?? user?.email ?? "Member",
       };
       if (editModal.actIndex === null) {
         await addActivity(id, editModal.dayNumber, partial);
