@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm install && pnpm --filter @workspace/gopack-web run build",
+  "buildCommand": "pnpm --filter @workspace/gopack-web run build",
   "outputDirectory": "artifacts/gopack-web/dist/public",
   "installCommand": "pnpm install",
   "framework": null,
