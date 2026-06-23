@@ -45,7 +45,7 @@ const HOW_IT_WORKS = [
     icon: "map" as const,
     step: "3",
     title: "Go",
-    desc: "Hit Generate — Claude reads your top wishes and builds a perfect day-by-day itinerary.",
+    desc: "Hit Generate — our AI reads your top wishes and builds a perfect day-by-day itinerary.",
     color: "#E85D3A",
     bg: "#FEE8E2",
   },
@@ -177,7 +177,7 @@ export default function DashboardScreen() {
               { n: "1", color: "#F59E0B", title: "Create or join a trip", body: "Start a trip with a destination (or let the group decide), then share the invite link with your travel pack." },
               { n: "2", color: "#7E57C2", title: "Everyone adds wishes", body: "Each person drops activities they want — \"cooking class\", \"sunrise hike\", \"rooftop bar\". No limits." },
               { n: "3", color: "#E85D3A", title: "Vote on favourites", body: "Thumbs-up the activities you love. The top-voted wishes shape the final plan." },
-              { n: "4", color: "#26A69A", title: "AI builds your itinerary", body: "Hit \"Generate itinerary\" — Claude turns your top wishes into a detailed day-by-day plan plus a smart packing list." },
+              { n: "4", color: "#26A69A", title: "AI builds your itinerary", body: "Hit \"Generate itinerary\" — our AI turns your top wishes into a detailed day-by-day plan plus a smart packing list." },
               { n: "5", color: "#4CAF50", title: "Decide together (optional)", body: "No destination yet? Choose \"Decide with the group\" — everyone submits preferences, AI suggests destinations, the group votes." },
             ].map((s) => (
               <View key={s.n} style={styles.helpStep}>
