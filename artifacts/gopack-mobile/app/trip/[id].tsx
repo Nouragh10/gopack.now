@@ -495,7 +495,7 @@ export default function TripHubScreen() {
             <Pressable
               onPress={async () => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                await confirmPack(tripId as string);
+                await confirmPack(id as string);
               }}
               style={[styles.gateBtn, { backgroundColor: colors.primary, marginTop: 0 }]}
             >

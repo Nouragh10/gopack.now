@@ -177,6 +177,13 @@ export default function DestinationVoteScreen() {
   const router = useRouter();
 
   const { trip, loading } = useTrip(id);
+
+  useEffect(() => {
+    if (trip && !trip.packConfirmed && id) {
+      router.replace(`/trip/${id}`);
+    }
+  }, [trip?.packConfirmed, id]);
+
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [redoing, setRedoing] = useState(false);
@@ -339,11 +346,6 @@ export default function DestinationVoteScreen() {
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
-  }
-
-  if (trip && !trip.packConfirmed) {
-    router.replace(`/trip/${id}`);
-    return null;
   }
 
   if (!trip || suggestions.length === 0) {

@@ -123,6 +123,12 @@ export default function DestinationPreferencesScreen() {
     }
   }, [trip?.destinationSuggestions?.length, trip?.hostMemberId, user?.uid, id, router]);
 
+  useEffect(() => {
+    if (trip && !trip.packConfirmed && id) {
+      router.replace(`/trip/${id}`);
+    }
+  }, [trip?.packConfirmed, id]);
+
   const members = Object.entries(trip?.members ?? {});
   const memberPrefs = trip?.memberPreferences ?? {};
   const submittedUids = Object.keys(memberPrefs);
@@ -208,11 +214,6 @@ export default function DestinationPreferencesScreen() {
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
-  }
-
-  if (trip && !trip.packConfirmed) {
-    router.replace(`/trip/${id}`);
-    return null;
   }
 
   const minDate = new Date();
