@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { MapPin, Star, Users, ArrowLeft, Sparkles, Loader2, MessageSquare, CalendarDays } from "lucide-react";
+import {
+  MapPin, Star, Users, ArrowLeft, Sparkles, Loader2,
+  MessageSquare, CalendarDays, Camera,
+} from "lucide-react";
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const VIBE_COLORS: Record<string, string> = {
@@ -16,12 +20,41 @@ const VIBE_COLORS: Record<string, string> = {
   Relaxation:  "bg-blue-100 text-blue-700 border-blue-200",
   adventure:   "bg-green-100 text-green-700 border-green-200",
   Adventure:   "bg-green-100 text-green-700 border-green-200",
+  beach:       "bg-cyan-100 text-cyan-700 border-cyan-200",
+  Beach:       "bg-cyan-100 text-cyan-700 border-cyan-200",
+  nature:      "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Nature:      "bg-emerald-100 text-emerald-700 border-emerald-200",
+  city:        "bg-indigo-100 text-indigo-700 border-indigo-200",
+  City:        "bg-indigo-100 text-indigo-700 border-indigo-200",
+  history:     "bg-stone-100 text-stone-700 border-stone-200",
+  History:     "bg-stone-100 text-stone-700 border-stone-200",
+  art:         "bg-purple-100 text-purple-700 border-purple-200",
+  Art:         "bg-purple-100 text-purple-700 border-purple-200",
+  wellness:    "bg-teal-100 text-teal-700 border-teal-200",
+  Wellness:    "bg-teal-100 text-teal-700 border-teal-200",
 };
 
 const VIBE_LABELS: Record<string, string> = {
   culture: "Culture", food: "Foodie", adventure: "Adventure",
   relaxation: "Relaxation", nightlife: "Nightlife", shopping: "Shopping",
+  beach: "Beach", nature: "Nature", city: "City",
+  history: "History", art: "Art", wellness: "Wellness",
 };
+
+const VIBE_FILTER_ITEMS = [
+  { key: "beach", label: "Beach" },
+  { key: "nature", label: "Nature" },
+  { key: "culture", label: "Culture" },
+  { key: "food", label: "Foodie" },
+  { key: "adventure", label: "Adventure" },
+  { key: "relaxation", label: "Relaxation" },
+  { key: "nightlife", label: "Nightlife" },
+  { key: "shopping", label: "Shopping" },
+  { key: "city", label: "City" },
+  { key: "history", label: "History" },
+  { key: "art", label: "Art" },
+  { key: "wellness", label: "Wellness" },
+];
 
 const CATEGORY_BORDER: Record<string, string> = {
   culture: "border-l-violet-400", Culture: "border-l-violet-400",
@@ -45,12 +78,10 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
 function ItineraryPreview({ days, tripDays }: { days: any[]; tripDays: number }) {
   return (
     <div className="mt-4 rounded-xl overflow-hidden border border-border/70 text-[11px]">
-      {/* Doc header */}
       <div className="bg-foreground text-background px-3 py-2 flex items-center gap-1.5 font-semibold">
         <CalendarDays size={11} />
         <span>{tripDays}-day itinerary</span>
       </div>
-      {/* Days */}
       <div className="divide-y divide-border/40 bg-background max-h-40 overflow-y-auto">
         {days.map((d: any, di: number) => (
           <div key={d.day ?? di} className="px-3 py-2">
@@ -80,12 +111,20 @@ function ItineraryPreview({ days, tripDays }: { days: any[]; tripDays: number })
 export default function Explore() {
   const { reviews, loading: reviewsLoading } = usePublicReviews();
   const { stats, loading: statsLoading } = useGlobalStats();
+  const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
 
   const loading = reviewsLoading || statsLoading;
 
   const tripCount = stats.tripCount || reviews.length;
   const memberCount = stats.memberCount;
   const destinationCount = stats.destinationCount;
+
+  const toggleVibeFilter = (key: string) =>
+    setSelectedVibes(prev => prev.includes(key) ? prev.filter(v => v !== key) : [...prev, key]);
+
+  const filteredReviews = selectedVibes.length === 0
+    ? reviews
+    : reviews.filter(r => r.vibes?.some((v: string) => selectedVibes.includes(v.toLowerCase())));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -122,7 +161,7 @@ export default function Explore() {
         </div>
       </div>
 
-      {/* Stats bar — real numbers from Firebase */}
+      {/* Stats bar */}
       {(tripCount > 0 || memberCount > 0 || destinationCount > 0) && (
         <div className="border-b border-border px-8 py-4 bg-background">
           <div className="max-w-5xl mx-auto flex items-center gap-8 text-sm text-muted-foreground">
@@ -148,6 +187,41 @@ export default function Explore() {
         </div>
       )}
 
+      {/* Vibe filter bar */}
+      {!loading && reviews.length > 0 && (
+        <div className="border-b border-border px-8 py-4 bg-background/50">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground font-medium shrink-0">Filter:</span>
+              {VIBE_FILTER_ITEMS.map(({ key, label }) => {
+                const active = selectedVibes.includes(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleVibeFilter(key)}
+                    className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
+                      active
+                        ? "bg-primary text-white border-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {selectedVibes.length > 0 && (
+                <button
+                  onClick={() => setSelectedVibes([])}
+                  className="text-xs px-2 py-1.5 rounded-full text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reviews grid */}
       <div className="max-w-5xl mx-auto px-8 py-12">
         {loading ? (
@@ -165,79 +239,132 @@ export default function Explore() {
               Plan a trip
             </Link>
           </motion.div>
+        ) : filteredReviews.length === 0 ? (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
+            <p className="text-muted-foreground mb-4">No reviews match the selected vibes.</p>
+            <button
+              onClick={() => setSelectedVibes([])}
+              className="text-sm text-primary hover:underline"
+            >
+              Clear filters
+            </button>
+          </motion.div>
         ) : (
           <>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {reviews.map((review, i) => (
+              {filteredReviews.map((review, i) => (
                 <motion.div
                   key={review.id}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="border border-border rounded-2xl p-5 bg-background hover:border-primary/30 hover:shadow-sm transition-all flex flex-col"
+                  className="border border-border rounded-2xl overflow-hidden bg-background hover:border-primary/30 hover:shadow-sm transition-all flex flex-col"
                 >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-base leading-tight">{review.destination}</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">{review.days} day{review.days !== 1 ? "s" : ""}</p>
-                    </div>
-                    {review.memberCount > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                        <Users size={11} />
-                        <span>{review.memberCount}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Stars */}
-                  {review.rating > 0 && <StarRating rating={review.rating} />}
-
-                  {/* Vibes */}
-                  {review.vibes?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {review.vibes.map((v: string) => (
-                        <span key={v} className={`text-xs px-2 py-0.5 rounded-full border font-medium ${VIBE_COLORS[v] || "bg-muted text-muted-foreground border-border"}`}>
-                          {VIBE_LABELS[v] || v}
-                        </span>
+                  {/* Photo strip */}
+                  {review.photos?.length > 0 && (
+                    <div className="flex gap-0.5 h-28">
+                      {review.photos.slice(0, 3).map((url: string, pi: number) => (
+                        <div
+                          key={pi}
+                          className={`flex-1 overflow-hidden ${pi === 0 ? "" : ""} relative`}
+                        >
+                          <img
+                            src={url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                          {pi === 2 && review.photos.length > 3 && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <span className="text-white text-sm font-bold">
+                                +{review.photos.length - 3}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Review quote — shown prominently if non-empty */}
-                  {review.text?.trim() && (
-                    <blockquote className="mt-4 pl-3 border-l-2 border-primary/40">
-                      <p className="text-sm text-foreground leading-relaxed italic">
-                        &ldquo;{review.text}&rdquo;
+                  <div className="p-5 flex flex-col flex-1">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold text-base leading-tight">{review.destination}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {review.days} day{review.days !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {review.photos?.length > 0 && (
+                          <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                            <Camera size={10} />
+                            {review.photos.length}
+                          </span>
+                        )}
+                        {review.memberCount > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Users size={11} />
+                            <span>{review.memberCount}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stars */}
+                    {review.rating > 0 && <StarRating rating={review.rating} />}
+
+                    {/* Vibes */}
+                    {review.vibes?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {review.vibes.map((v: string) => (
+                          <span
+                            key={v}
+                            className={`text-xs px-2 py-0.5 rounded-full border font-medium ${VIBE_COLORS[v] || "bg-muted text-muted-foreground border-border"}`}
+                          >
+                            {VIBE_LABELS[v.toLowerCase()] || v}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Review quote */}
+                    {review.text?.trim() && (
+                      <blockquote className="mt-4 pl-3 border-l-2 border-primary/40">
+                        <p className="text-sm text-foreground leading-relaxed italic">
+                          &ldquo;{review.text}&rdquo;
+                        </p>
+                        {review.memberNames?.length > 0 && (
+                          <cite className="not-italic text-xs text-muted-foreground/60 mt-1 block">
+                            — {review.memberNames.slice(0, 2).join(" & ")}
+                            {review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
+                          </cite>
+                        )}
+                      </blockquote>
+                    )}
+
+                    {/* Highlight */}
+                    {review.highlight?.trim() && (
+                      <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 mt-3">
+                        ✨ {review.highlight}
                       </p>
-                      {review.memberNames?.length > 0 && (
-                        <cite className="not-italic text-xs text-muted-foreground/60 mt-1 block">
-                          — {review.memberNames.slice(0, 2).join(" & ")}{review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
-                        </cite>
-                      )}
-                    </blockquote>
-                  )}
+                    )}
 
-                  {/* Highlight */}
-                  {review.highlight?.trim() && (
-                    <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 mt-3">
-                      ✨ {review.highlight}
-                    </p>
-                  )}
+                    {/* Mini itinerary preview */}
+                    {review.itineraryDays?.length > 0 && (
+                      <ItineraryPreview days={review.itineraryDays} tripDays={review.days} />
+                    )}
 
-                  {/* Mini itinerary preview — shown if itinerary was snapshotted at review time */}
-                  {review.itineraryDays?.length > 0 && (
-                    <ItineraryPreview days={review.itineraryDays} tripDays={review.days} />
-                  )}
+                    <div className="flex-1" />
 
-                  <div className="flex-1" />
-
-                  {/* Byline fallback (when no quote) */}
-                  {!review.text?.trim() && review.memberNames?.length > 0 && (
-                    <p className="text-xs text-muted-foreground/60 mt-3">
-                      — {review.memberNames.slice(0, 2).join(" & ")}{review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
-                    </p>
-                  )}
+                    {/* Byline fallback */}
+                    {!review.text?.trim() && review.memberNames?.length > 0 && (
+                      <p className="text-xs text-muted-foreground/60 mt-3">
+                        — {review.memberNames.slice(0, 2).join(" & ")}
+                        {review.memberNames.length > 2 ? ` +${review.memberNames.length - 2} more` : ""}
+                      </p>
+                    )}
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -254,7 +381,10 @@ export default function Explore() {
               <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                 Start a trip, invite your crew, and let the wishlist decide where you go.
               </p>
-              <Link href="/login" className="inline-flex items-center gap-2 bg-primary text-white font-medium px-8 py-3.5 rounded-full hover:bg-primary/90 transition-colors">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 bg-primary text-white font-medium px-8 py-3.5 rounded-full hover:bg-primary/90 transition-colors"
+              >
                 Plan your trip <MapPin size={15} />
               </Link>
             </motion.div>

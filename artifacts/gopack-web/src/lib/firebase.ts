@@ -9,6 +9,7 @@ import {
   browserPopupRedirectResolver,
 } from "firebase/auth";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDtdq065PaOR3xlML_fekm53h2XcPz3NAo',
@@ -23,6 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
+export const storage = getStorage(app);
 
 const googleProvider = new GoogleAuthProvider();
 

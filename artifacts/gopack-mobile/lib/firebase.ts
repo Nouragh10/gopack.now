@@ -24,6 +24,7 @@ import {
   set,
   update,
 } from "firebase/database";
+import { getStorage } from "firebase/storage";
 import { Platform } from "react-native";
 
 const firebaseConfig = {
@@ -53,6 +54,7 @@ export { auth, onAuthStateChanged };
 export type { User };
 
 export const db = getDatabase(app);
+export const storage = getStorage(app);
 
 export const signInWithEmail = (email: string, password: string) =>
   signInWithEmailAndPassword(auth, email, password);

@@ -12,6 +12,7 @@ import Explore from "@/pages/explore";
 import Create from "@/pages/create";
 import JoinTrip from "@/pages/join";
 import TripHub from "@/pages/trip-hub";
+import Review from "@/pages/review";
 import Itinerary from "@/pages/itinerary";
 import Chat from "@/pages/chat";
 import Packing from "@/pages/packing";
@@ -69,6 +70,7 @@ function Router() {
         <Route path="/trip/:tripId/itinerary" component={Itinerary} />
         <Route path="/trip/:tripId/chat" component={Chat} />
         <Route path="/trip/:tripId/packing" component={Packing} />
+        <Route path="/trip/:tripId/review" component={Review} />
         <Route path="/trip/:tripId" component={TripHub} />
         <Route path="/profile" component={Profile} />
         <Route path="/notifications" component={Notifications} />

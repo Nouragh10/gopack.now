@@ -239,6 +239,16 @@ export default function TripHubScreen() {
   const memberNames = members.map(([, m]) => m.name);
   const isHost = user?.uid === trip?.hostMemberId;
 
+  const tripEnded = (() => {
+    if (!trip?.startDate) return false;
+    const start = new Date(trip.startDate);
+    const end = new Date(start.getTime() + (trip.days || 1) * 24 * 60 * 60 * 1000);
+    return end < new Date();
+  })();
+  const isMember = !!trip?.members?.[user?.uid ?? ""];
+  const hasReview = !!trip?.review;
+  const showReviewBanner = tripEnded && isMember && !hasReview;
+
   const lockedBy = trip?.votesLockedBy ?? {};
   const lockedCount = Object.keys(lockedBy).length;
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
@@ -428,6 +438,18 @@ export default function TripHubScreen() {
             <Text style={styles.accomBannerSub}>Your pack is voting — add your voice</Text>
           </View>
           <Feather name="chevron-right" size={18} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* Review banner — shown when trip has ended and no review yet */}
+      {showReviewBanner && (
+        <Pressable
+          onPress={() => router.push(`/review/${id}` as any)}
+          style={[styles.reviewBanner, { backgroundColor: "#F59E0B" }]}
+        >
+          <Feather name="star" size={15} color="#fff" />
+          <Text style={styles.reviewBannerText}>Your trip ended — leave a review for the pack!</Text>
+          <Feather name="arrow-right" size={15} color="#fff" />
         </Pressable>
       )}
 
@@ -983,6 +1005,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 11,
   },
   destBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
+  reviewBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 16, paddingVertical: 12,
+  },
+  reviewBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
   accomBanner: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 16, marginBottom: 10, borderRadius: 16,

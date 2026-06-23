@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { ref, onValue, push, set, update, get, runTransaction } from "firebase/database";
-import { db } from "../lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../lib/firebase";
 import { useAuth } from "./useAuth";
 
 /* ─── usePublicReviews ──────────────────────────────────────────
@@ -91,6 +92,7 @@ function normalizeReview(id: string, v: any) {
     rating: v.rating || 0,
     highlight: v.highlight?.trim() || "",
     memberCount: v.memberCount || memberNames.length,
+    photos: Array.isArray(v.photos) ? v.photos : [],
   };
 }
 
@@ -358,6 +360,8 @@ export function useTrip(tripId: string) {
     text: string;
     vibes: string[];
     highlight: string;
+    isPublic?: boolean;
+    photos?: string[];
   }) => {
     if (!user || !tripId || !trip) return;
     const memberEntries = Object.values(trip.members || {}) as any[];
@@ -386,13 +390,23 @@ export function useTrip(tripId: string) {
       ...(itineraryDays ? { itineraryDays } : {}),
     };
     await set(ref(db, `trips/${tripId}/review`), review);
-    await set(ref(db, `reviews/${tripId}`), review);
+    if (reviewData.isPublic !== false) {
+      await set(ref(db, `reviews/${tripId}`), review);
+    }
   };
 
   return { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList, submitReview };
 }
 
 /* ─── Destination preference & voting ──────────────────────────── */
+
+export async function uploadTripPhoto(tripId: string, file: File): Promise<string> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `tripPhotos/${tripId}/${Date.now()}_${safeName}`;
+  const fileRef = storageRef(storage, path);
+  await uploadBytes(fileRef, file);
+  return getDownloadURL(fileRef);
+}
 
 export async function submitMemberPreference(tripId: string, uid: string, pref: any) {
   await set(ref(db, `trips/${tripId}/memberPreferences/${uid}`), pref);

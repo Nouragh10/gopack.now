@@ -5,7 +5,7 @@ import {
   Send, Copy, Check, Loader2, MapPin, Calendar,
   ChevronUp, Sparkles, Package, ArrowLeft,
   AlertCircle, ChevronRight, Users, ArrowRight, MessageSquare, UserCircle,
-  Star, X, Bell, Home, Compass
+  Star, Bell, Home, Compass
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrip, startCollectingPreferences, confirmPack } from "@/hooks/useFirebase";
@@ -36,7 +36,7 @@ export default function TripHub() {
   const [, params] = useRoute("/trip/:tripId");
   const tripId = params?.tripId || "";
   const { user } = useAuth();
-  const { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList, submitReview } = useTrip(tripId);
+  const { trip, wishes, loading, addWish, toggleVote, updateItinerary, updatePackingList } = useTrip(tripId);
   const [, setLocation] = useLocation();
 
   const [activeTab, setActiveTab] = useState<Tab>("wish");
@@ -54,14 +54,6 @@ export default function TripHub() {
   const [packingError, setPackingError] = useState("");
   const [votingId, setVotingId] = useState<string | null>(null);
 
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewHover, setReviewHover] = useState(0);
-  const [reviewText, setReviewText] = useState("");
-  const [reviewHighlight, setReviewHighlight] = useState("");
-  const [reviewVibes, setReviewVibes] = useState<string[]>([]);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewDone, setReviewDone] = useState(false);
 
   const generateItinerary = useGenerateItinerary();
   const generatePacking = useGeneratePackingList();
@@ -119,29 +111,9 @@ export default function TripHub() {
 
   const isMember = !!trip?.members?.[user?.uid || ""];
   const hasReview = !!trip?.review;
-  const showReviewBanner = tripEnded && isMember && !hasReview && !reviewDone;
+  const showReviewBanner = tripEnded && isMember && !hasReview;
 
-  const handleOpenReview = () => {
-    setReviewVibes(trip?.vibes || []);
-    setReviewOpen(true);
-  };
-
-  const handleSubmitReview = async () => {
-    if (!reviewRating || !reviewText.trim()) return;
-    setReviewSubmitting(true);
-    try {
-      await submitReview({
-        rating: reviewRating,
-        text: reviewText.trim(),
-        vibes: reviewVibes,
-        highlight: reviewHighlight.trim(),
-      });
-      setReviewDone(true);
-      setReviewOpen(false);
-    } finally {
-      setReviewSubmitting(false);
-    }
-  };
+  const handleOpenReview = () => setLocation(`/trip/${tripId}/review`);
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -258,7 +230,7 @@ export default function TripHub() {
                 </button>
               </motion.div>
             )}
-            {(hasReview || reviewDone) && (
+            {hasReview && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -769,126 +741,6 @@ export default function TripHub() {
         </div>
       </div>
 
-      {/* ── Review modal ── */}
-      <AnimatePresence>
-        {reviewOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
-            onClick={e => { if (e.target === e.currentTarget) setReviewOpen(false); }}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 40 }}
-              className="bg-background rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-            >
-              {/* Modal header */}
-              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-                <div>
-                  <h2 className="font-serif text-xl font-bold">Review your trip</h2>
-                  <p className="text-sm text-muted-foreground">{trip.destination}</p>
-                </div>
-                <button onClick={() => setReviewOpen(false)} className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted/50 transition-colors">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="px-6 py-5 flex flex-col gap-6">
-                {/* Star rating */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Rating</p>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setReviewRating(n)}
-                        onMouseEnter={() => setReviewHover(n)}
-                        onMouseLeave={() => setReviewHover(0)}
-                        className="p-0.5 transition-transform hover:scale-110"
-                        data-testid={`star-${n}`}
-                      >
-                        <Star
-                          size={28}
-                          className={n <= (reviewHover || reviewRating) ? "fill-amber-400 text-amber-400" : "text-border fill-muted"}
-                        />
-                      </button>
-                    ))}
-                    {reviewRating > 0 && (
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        {["", "Disappointing", "It was OK", "Pretty good", "Really good", "Incredible!"][reviewRating]}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Review text */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Your review <span className="normal-case font-normal">(required)</span></p>
-                  <textarea
-                    value={reviewText}
-                    onChange={e => setReviewText(e.target.value)}
-                    placeholder="How did it go? What worked, what surprised you, what would you tell another group planning the same trip?"
-                    rows={4}
-                    className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                    data-testid="input-review-text"
-                  />
-                </div>
-
-                {/* Highlight */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Top highlight <span className="normal-case font-normal">(optional)</span></p>
-                  <input
-                    value={reviewHighlight}
-                    onChange={e => setReviewHighlight(e.target.value)}
-                    placeholder="e.g. Sunset hike, rooftop dinner, that hidden beach"
-                    className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    data-testid="input-review-highlight"
-                  />
-                </div>
-
-                {/* Vibes */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Trip vibes</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["culture", "food", "adventure", "relaxation", "nightlife", "shopping"].map(v => {
-                      const label = { culture: "Culture", food: "Foodie", adventure: "Adventure", relaxation: "Relaxation", nightlife: "Nightlife", shopping: "Shopping" }[v];
-                      const active = reviewVibes.includes(v);
-                      return (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setReviewVibes(prev => active ? prev.filter(x => x !== v) : [...prev, v])}
-                          className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${active ? "bg-primary text-white border-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Submit */}
-                <button
-                  onClick={handleSubmitReview}
-                  disabled={reviewSubmitting || !reviewRating || !reviewText.trim()}
-                  className="w-full bg-primary text-white font-medium py-3.5 rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  data-testid="button-submit-review"
-                >
-                  {reviewSubmitting && <Loader2 size={16} className="animate-spin" />}
-                  {reviewSubmitting ? "Submitting…" : "Share review"}
-                </button>
-                <p className="text-xs text-center text-muted-foreground -mt-3">
-                  Your review will appear publicly on the Explore page.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

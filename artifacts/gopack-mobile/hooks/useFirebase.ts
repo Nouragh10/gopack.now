@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
-import { db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
 
 /* ── Interfaces ───────────────────────────────────────────────────── */
 
@@ -320,6 +321,67 @@ export function usePublicReviews(limit = 6) {
   }, [limit]);
 
   return reviews;
+}
+
+/* ── submitTripReview ─────────────────────────────────────────────── */
+
+export async function submitTripReview(
+  tripId: string,
+  trip: any,
+  uid: string,
+  reviewData: {
+    rating: number;
+    text: string;
+    vibes: string[];
+    highlight: string;
+    isPublic: boolean;
+    photoUris: string[];
+  },
+): Promise<void> {
+  // Upload photos to Firebase Storage
+  const photoUrls = await Promise.all(
+    reviewData.photoUris.map(async (uri) => {
+      const blob = await fetch(uri).then((r) => r.blob());
+      const path = `tripPhotos/${tripId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, blob);
+      return getDownloadURL(fileRef);
+    }),
+  );
+
+  const memberEntries = Object.values(trip.members || {}) as any[];
+  const itineraryDays = trip.itinerary?.days
+    ? (trip.itinerary.days as any[]).map((d: any, di: number) => ({
+        day: d.day ?? di + 1,
+        theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+        activities: (d.activities || []).slice(0, 4).map((a: any) => ({
+          time: a.time || "",
+          name: a.name || "",
+          category: a.category || "",
+        })),
+      }))
+    : null;
+
+  const review = {
+    rating: reviewData.rating,
+    text: reviewData.text,
+    vibes: reviewData.vibes,
+    highlight: reviewData.highlight,
+    isPublic: reviewData.isPublic,
+    photos: photoUrls,
+    destination: trip.destination,
+    days: trip.days,
+    memberCount: memberEntries.length,
+    memberNames: memberEntries.map((m: any) => m.name).filter(Boolean),
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: uid,
+    ...(itineraryDays ? { itineraryDays } : {}),
+  };
+
+  await set(ref(db, `trips/${tripId}/review`), review);
+  if (reviewData.isPublic) {
+    await set(ref(db, `reviews/${tripId}`), review);
+  }
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
