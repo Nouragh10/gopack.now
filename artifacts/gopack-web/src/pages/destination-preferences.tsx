@@ -38,6 +38,10 @@ export default function DestinationPreferences() {
   const { trip, loading } = useTrip(tripId);
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (trip && !trip.packConfirmed) setLocation(`/trip/${tripId}`);
+  }, [trip?.packConfirmed, tripId]);
+
   const myPref = trip?.memberPreferences?.[user?.uid ?? ""];
   const alreadySubmitted = !!myPref;
 
@@ -152,11 +156,6 @@ export default function DestinationPreferences() {
     </div>
   );
 
-  if (trip && !trip.packConfirmed) {
-    setLocation(`/trip/${tripId}`);
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
@@ -216,8 +215,8 @@ export default function DestinationPreferences() {
           <div className="mx-4 mt-3">
             <button
               onClick={handleGenerate}
-              disabled={generating}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-500 text-white font-semibold text-sm hover:bg-violet-600 disabled:opacity-60 transition-colors"
+              disabled={generating || !trip?.packConfirmed}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-500 text-white font-semibold text-sm hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {generating ? (
                 <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />AI is finding destinations…</>

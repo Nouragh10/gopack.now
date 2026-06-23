@@ -51,12 +51,13 @@ interface SuggestionCardProps {
   isWinning: boolean;
   allLocked: boolean;
   isCreator: boolean;
+  packConfirmed: boolean;
   colors: any;
   onConfirm: () => void;
 }
 
 function SuggestionCard({
-  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
+  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, packConfirmed, colors, onConfirm,
 }: SuggestionCardProps) {
   const myVote = votes[uid] ?? null;
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
@@ -67,6 +68,7 @@ function SuggestionCard({
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
 
   const handleVote = (dir: "up" | "down") => {
+    if (!packConfirmed) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     voteDestination(tripId, idx, uid, dir);
   };
@@ -474,6 +476,7 @@ export default function DestinationVoteScreen() {
             isWinning={idx === winnerIdx}
             allLocked={allLocked}
             isCreator={isCreator}
+            packConfirmed={!!trip?.packConfirmed}
             colors={colors}
             onConfirm={handleConfirm}
           />

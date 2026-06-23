@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { ArrowLeft, Lock, Check, RefreshCw, Navigation, Sun, ArrowUp, ArrowDown, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,10 +35,11 @@ interface SuggestionCardProps {
   isWinning: boolean;
   allLocked: boolean;
   isCreator: boolean;
+  packConfirmed: boolean;
   onConfirm: () => void;
 }
 
-function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, onConfirm }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, packConfirmed, onConfirm }: SuggestionCardProps) {
   const myVote = votes[uid] ?? null;
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
   const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
@@ -47,7 +48,10 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const winner = isWinning && allLocked;
 
-  const handleVote = (dir: "up" | "down") => voteDestination(tripId, idx, uid, dir);
+  const handleVote = (dir: "up" | "down") => {
+    if (!packConfirmed) return;
+    voteDestination(tripId, idx, uid, dir);
+  };
 
   return (
     <div
@@ -74,9 +78,10 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
         </div>
 
         {/* Vote arrows */}
-        <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <div className={`flex flex-col items-center gap-0.5 shrink-0 ${!packConfirmed ? "opacity-30 pointer-events-none" : ""}`}>
           <button
             onClick={() => handleVote("up")}
+            disabled={!packConfirmed}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "up" ? "bg-primary/20" : "hover:bg-muted"}`}
           >
             <ArrowUp size={18} color={myVote === "up" ? "var(--primary)" : "var(--muted-foreground)"} />
@@ -86,6 +91,7 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
           </span>
           <button
             onClick={() => handleVote("down")}
+            disabled={!packConfirmed}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "down" ? "bg-muted" : "hover:bg-muted"}`}
           >
             <ArrowDown size={18} color={myVote === "down" ? "var(--foreground)" : "var(--muted-foreground)"} />
@@ -152,6 +158,10 @@ export default function DestinationVote() {
   const { user } = useAuth();
   const { trip, loading } = useTrip(tripId);
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (trip && !trip.packConfirmed) setLocation(`/trip/${tripId}`);
+  }, [trip?.packConfirmed, tripId]);
 
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -343,6 +353,7 @@ export default function DestinationVote() {
               isWinning={idx === winnerIdx}
               allLocked={allLocked}
               isCreator={isCreator}
+              packConfirmed={!!trip?.packConfirmed}
               onConfirm={handleConfirm}
             />
           ))}
