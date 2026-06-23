@@ -3,7 +3,8 @@ import { useRoute, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
-  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye, EyeOff
+  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye, EyeOff,
+  RotateCcw, Trash2
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
@@ -40,6 +41,21 @@ const TAG_BG: Record<string, string> = {
 };
 
 const TAG_OPTIONS = ["food","culture","adventure","relaxation","nightlife","shopping","travel"];
+
+function getRedoOptions(tag: string): Array<{ label: string; redoType: "same_type" | "whole" }> {
+  const sameLabels: Record<string, string> = {
+    food: "Change restaurant",
+    relaxation: "Change location",
+    adventure: "Change location",
+    culture: "Change venue",
+    nightlife: "Change bar/club",
+    shopping: "Change market/shop",
+  };
+  const opts: Array<{ label: string; redoType: "same_type" | "whole" }> = [];
+  if (sameLabels[tag]) opts.push({ label: sameLabels[tag], redoType: "same_type" });
+  opts.push({ label: "Redo whole activity", redoType: "whole" });
+  return opts;
+}
 
 /* ─── helpers ────────────────────────────────────────────────── */
 function parseActivityTime(baseDate: Date, dayOffset: number, timeStr: string) {
@@ -205,6 +221,8 @@ export default function Itinerary() {
   const [addingToDayIndex, setAddingToDayIndex] = useState<number | null>(null);
   const [printPreview, setPrintPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const [redoPanel, setRedoPanel] = useState<{ di: number; ai: number; act: any } | null>(null);
+  const [redoLoading, setRedoLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tripId) return;
@@ -269,6 +287,44 @@ export default function Itinerary() {
   const handleOpenAllMaps = () => {
     if (!localItinerary) return;
     window.open(buildAllMapsUrl(localItinerary, trip), "_blank", "noopener,noreferrer");
+  };
+
+  const handleDeleteActivity = (di: number, ai: number, name: string) => {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    setRedoPanel(null);
+    const next = JSON.parse(JSON.stringify(localItinerary));
+    next.days[di].activities.splice(ai, 1);
+    setLocalItinerary(next);
+  };
+
+  const handleRedo = async (di: number, ai: number, act: any, redoType: "same_type" | "whole") => {
+    const key = `${di}-${ai}`;
+    setRedoPanel(null);
+    setRedoLoading(key);
+    const day = localItinerary.days[di];
+    const otherActivities = day.activities.filter((_: any, i: number) => i !== ai).map((a: any) => a.name);
+    try {
+      const resp = await fetch("/api/redo-activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activity: act,
+          city: day.city,
+          theme: day.theme,
+          destination: trip?.destination,
+          redoType,
+          otherActivities,
+        }),
+      });
+      if (resp.ok) {
+        const { activity: newAct } = await resp.json();
+        const next = JSON.parse(JSON.stringify(localItinerary));
+        next.days[di].activities[ai] = { ...newAct, time: act.time };
+        setLocalItinerary(next);
+      }
+    } finally {
+      setRedoLoading(null);
+    }
   };
 
   if (loading) return (
@@ -544,13 +600,37 @@ export default function Itinerary() {
                                   <div className="no-print group relative bg-background border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200"
                                     style={{borderLeft:`4px solid ${borderColor}`}}>
 
-                                    {/* edit button */}
-                                    <button
-                                      onClick={()=>{setAddingToDayIndex(null);setEditingKey(key);}}
-                                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-muted/60 transition-all text-muted-foreground z-10"
-                                      title="Edit activity" data-testid={`button-edit-activity-${di+1}-${ai+1}`}>
-                                      <Edit2 size={14}/>
-                                    </button>
+                                    {/* action buttons */}
+                                    <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all z-10">
+                                      <button
+                                        onClick={()=>{setAddingToDayIndex(null);setEditingKey(key);setRedoPanel(null);}}
+                                        className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground"
+                                        title="Edit activity" data-testid={`button-edit-activity-${di+1}-${ai+1}`}>
+                                        <Edit2 size={14}/>
+                                      </button>
+                                      <button
+                                        onClick={()=>setRedoPanel(redoPanel?.di===di&&redoPanel?.ai===ai?null:{di,ai,act})}
+                                        className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground"
+                                        title="Redo activity">
+                                        <RotateCcw size={14}/>
+                                      </button>
+                                      <button
+                                        onClick={()=>handleDeleteActivity(di,ai,act.name)}
+                                        className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-400 transition-colors text-muted-foreground"
+                                        title="Delete activity">
+                                        <Trash2 size={14}/>
+                                      </button>
+                                    </div>
+
+                                    {/* redo loading overlay */}
+                                    {redoLoading===key&&(
+                                      <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] rounded-2xl flex items-center justify-center z-20">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                          <Loader2 size={16} className="animate-spin text-primary"/>
+                                          <span>Finding a new activity…</span>
+                                        </div>
+                                      </div>
+                                    )}
 
                                     <div className="p-5">
                                       {/* time row */}
@@ -603,6 +683,25 @@ export default function Itinerary() {
                                       </div>
                                     </div>
                                   </div>
+
+                                  {/* redo panel */}
+                                  {redoPanel?.di===di&&redoPanel?.ai===ai&&(
+                                    <motion.div initial={{opacity:0,y:-4}} animate={{opacity:1,y:0}} className="no-print mt-1.5 border border-primary/20 rounded-xl p-3 bg-primary/5">
+                                      <p className="text-xs font-medium text-muted-foreground mb-2">What would you like to change?</p>
+                                      <div className="flex gap-2 flex-wrap">
+                                        {getRedoOptions(act.tag).map(({label,redoType:rt},oi)=>(
+                                          <button key={oi} onClick={()=>handleRedo(di,ai,act,rt)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
+                                            <RotateCcw size={11}/>{label}
+                                          </button>
+                                        ))}
+                                        <button onClick={()=>setRedoPanel(null)}
+                                          className="px-3 py-1.5 text-xs text-muted-foreground rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </motion.div>
+                                  )}
 
                                   {/* print card */}
                                   <div className="print-only print-activity" style={{borderLeftColor:borderColor}}>

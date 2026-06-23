@@ -695,4 +695,96 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
   }
 });
 
+router.post("/redo-activity", async (req: Request, res: Response): Promise<void> => {
+  const { activity, city, theme, destination, redoType, otherActivities } = req.body as {
+    activity: { name: string; description: string; tag: string; time: string; estimatedCost: number };
+    city: string;
+    theme: string;
+    destination: string;
+    redoType: "same_type" | "whole";
+    otherActivities: string[];
+  };
+
+  if (!activity || !city || !destination || !redoType) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const others = (otherActivities ?? []).length > 0
+    ? `\nActivities already on this day — do NOT repeat these:\n${(otherActivities ?? []).map((a: string) => `- ${a}`).join("\n")}`
+    : "";
+
+  const sameTypeHint: Record<string, string> = {
+    food: "different restaurant or eatery",
+    nightlife: "different bar, club, or venue",
+    shopping: "different market or shop",
+    relaxation: "different spot or viewpoint for this experience",
+    adventure: "different location or route for this activity type",
+    culture: "different museum, gallery, or historic site",
+    travel: "different travel stop or transit experience",
+  };
+
+  const task = redoType === "same_type"
+    ? `TASK: Keep the same category (${activity.tag}) but suggest a DIFFERENT specific ${sameTypeHint[activity.tag] ?? "venue or location"} in ${city}. Same vibe, completely new place. The name must be a different real venue.`
+    : `TASK: Replace this with a COMPLETELY DIFFERENT activity of a different type that fits the day theme "${theme}" in ${city}. Pick any of these tags: food, culture, adventure, relaxation, nightlife, shopping, travel.`;
+
+  const prompt = `You are a travel planner replacing one activity in an itinerary.
+
+Current activity being replaced:
+- Name: ${activity.name}
+- Type: ${activity.tag}
+- Time: ${activity.time}
+- Description: ${activity.description}
+
+Destination: ${destination}
+City: ${city}
+Day theme: ${theme}
+${others}
+
+${task}
+
+Keep the same time slot (${activity.time}).
+Name: must be a real, specific venue or place — NOT generic like "a nice restaurant".
+Description: ONE sentence, max 15 words.
+Cost: realistic USD per person estimate.
+
+Respond with ONLY valid JSON (no markdown):
+{
+  "time": "${activity.time}",
+  "name": "Specific real venue name",
+  "description": "One sentence max 15 words.",
+  "tag": "${redoType === "same_type" ? activity.tag : "culture"}",
+  "fromWish": false,
+  "suggester": "AI pick",
+  "estimatedCost": 25,
+  "labels": [],
+  "nearPrevious": false
+}`;
+
+  try {
+    const body = {
+      model: "claude-haiku-4-5",
+      max_tokens: 400,
+      messages: [{ role: "user", content: prompt }],
+    };
+    const response = await callAnthropic(body);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+    };
+    if (!(response as unknown as globalThis.Response).ok) {
+      req.log.error({ data }, "Anthropic API error (redo-activity)");
+      res.status((response as unknown as globalThis.Response).status).json(data);
+      return;
+    }
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const cleanJson = extractJson(allText);
+    const newActivity = JSON.parse(cleanJson);
+    res.json({ activity: newActivity });
+  } catch (err) {
+    req.log.error({ err }, "Failed to redo activity");
+    res.status(500).json({ error: (err as Error).message || "Failed to redo activity" });
+  }
+});
+
 export default router;

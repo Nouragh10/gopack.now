@@ -708,6 +708,16 @@ export async function addActivity(
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
 
+export async function deleteActivity(tripId: string, dayNumber: number, actIndex: number) {
+  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
+  if (!snap.exists()) return;
+  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
+  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
+  if (dayIdx === -1) return;
+  itinerary.days[dayIdx].activities.splice(actIndex, 1);
+  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+}
+
 export async function deleteTrip(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}`), null);
   try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}

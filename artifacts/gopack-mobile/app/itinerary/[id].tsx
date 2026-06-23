@@ -30,6 +30,7 @@ import {
   TripMember,
   addActivity,
   updateActivity,
+  deleteActivity,
   useTrip,
 } from "@/hooks/useFirebase";
 
@@ -301,6 +302,21 @@ ${
 
 /* ── Activity card ───────────────────────────────────────────────────── */
 
+function getRedoOptions(tag: string): Array<{ label: string; redoType: "same_type" | "whole" }> {
+  const sameLabels: Record<string, string> = {
+    food: "Change restaurant",
+    relaxation: "Change location",
+    adventure: "Change location",
+    culture: "Change venue",
+    nightlife: "Change bar/club",
+    shopping: "Change market/shop",
+  };
+  const opts: Array<{ label: string; redoType: "same_type" | "whole" }> = [];
+  if (sameLabels[tag]) opts.push({ label: sameLabels[tag], redoType: "same_type" });
+  opts.push({ label: "Redo whole activity", redoType: "whole" });
+  return opts;
+}
+
 interface ActivityCardProps {
   activity: Activity;
   actIndex: number;
@@ -309,6 +325,8 @@ interface ActivityCardProps {
   startDate?: string | null;
   colors: any;
   onEdit: (act: Activity, idx: number, day: number) => void;
+  onRedo: (act: Activity, idx: number, day: number) => void;
+  onDelete: (idx: number, day: number) => void;
 }
 
 function ActivityCard({
@@ -319,6 +337,8 @@ function ActivityCard({
   startDate,
   colors,
   onEdit,
+  onRedo,
+  onDelete,
 }: ActivityCardProps) {
   const tagColor = getTagColor(activity.tag);
 
@@ -353,9 +373,17 @@ function ActivityCard({
         <View style={styles.actTop}>
           <Text style={[styles.actTime, { color: colors.mutedForeground }]}>{activity.time}</Text>
           {activity.fromWish && <Feather name="star" size={12} color="#FFA726" />}
-          <Pressable onPress={() => onEdit(activity, actIndex, dayNumber)} style={styles.editBtn}>
-            <Feather name="edit-2" size={13} color={colors.mutedForeground} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginLeft: "auto" }}>
+            <Pressable onPress={() => onEdit(activity, actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
+              <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable onPress={() => onRedo(activity, actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
+              <Feather name="rotate-ccw" size={13} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable onPress={() => onDelete(actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
+              <Feather name="trash-2" size={13} color="#ef4444" />
+            </Pressable>
+          </View>
         </View>
         <Text style={[styles.actName, { color: colors.foreground }]}>{activity.name}</Text>
         {activity.suggester ? (
@@ -411,6 +439,7 @@ export default function ItineraryScreen() {
   const [editModal, setEditModal] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [redoLoading, setRedoLoading] = useState<string | null>(null);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -436,6 +465,49 @@ export default function ItineraryScreen() {
       description: act.description,
       estimatedCost: act.estimatedCost > 0 ? String(act.estimatedCost) : "",
     });
+  };
+
+  const handleRedo = (act: Activity, idx: number, dayNum: number) => {
+    const options = getRedoOptions(act.tag);
+    const day = days.find((d) => d.dayNumber === dayNum);
+    const buttons = options.map(({ label, redoType }) => ({
+      text: label,
+      onPress: async () => {
+        const key = `${dayNum}-${idx}`;
+        setRedoLoading(key);
+        try {
+          const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+          const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
+          const resp = await fetch(`${baseUrl}/api/redo-activity`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              activity: act,
+              city: day?.city ?? "",
+              theme: day?.theme ?? "",
+              destination: trip?.destination ?? "",
+              redoType,
+              otherActivities,
+            }),
+          });
+          if (resp.ok) {
+            const { activity: newAct } = await resp.json();
+            await updateActivity(id!, dayNum, idx, { ...newAct, time: act.time });
+          }
+        } finally {
+          setRedoLoading(null);
+        }
+      },
+    }));
+    buttons.push({ text: "Cancel", onPress: () => {} } as any);
+    Alert.alert("Change activity", "What would you like to do?", buttons as any);
+  };
+
+  const handleDelete = (idx: number, dayNum: number) => {
+    Alert.alert("Delete activity", "Remove this activity from the itinerary?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteActivity(id!, dayNum, idx) },
+    ]);
   };
 
   const handleAddActivity = () => {
@@ -652,16 +724,25 @@ export default function ItineraryScreen() {
               <Text style={[styles.dayTheme, { color: colors.mutedForeground }]}>{currentDay.theme}</Text>
             </View>
             {currentDay.activities.map((act, i) => (
-              <ActivityCard
-                key={i}
-                activity={act}
-                actIndex={i}
-                dayNumber={currentDay.dayNumber}
-                destination={trip.destination}
-                startDate={trip.startDate}
-                colors={colors}
-                onEdit={handleEdit}
-              />
+              <View key={i}>
+                <ActivityCard
+                  activity={act}
+                  actIndex={i}
+                  dayNumber={currentDay.dayNumber}
+                  destination={trip.destination}
+                  startDate={trip.startDate}
+                  colors={colors}
+                  onEdit={handleEdit}
+                  onRedo={handleRedo}
+                  onDelete={handleDelete}
+                />
+                {redoLoading === `${currentDay.dayNumber}-${i}` && (
+                  <View style={{ alignItems: "center", padding: 8 }}>
+                    <ActivityIndicator color={colors.primary} size="small" />
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>Finding a new activity…</Text>
+                  </View>
+                )}
+              </View>
             ))}
             <Pressable
               onPress={handleAddActivity}
