@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { motion } from "framer-motion";
-import { ArrowLeft, LogOut, User, Mail, Edit2, Check, X, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, LogOut, User, Mail, Edit2, Check, X, Loader2, MapPin, Users, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTrips } from "@/hooks/useFirebase";
 import { updateProfile } from "firebase/auth";
 import { ref, update } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
 
 const AVATAR_COLORS = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517", "#C4448A"];
+const VIBE_LABELS: Record<string, string> = {
+  culture: "Culture", food: "Foodie", adventure: "Adventure",
+  relaxation: "Relaxation", nightlife: "Nightlife", shopping: "Shopping",
+};
 
 function getAvatarColor(uid: string): string {
   let hash = 0;
@@ -18,10 +23,12 @@ function getAvatarColor(uid: string): string {
 export default function Profile() {
   const { user, signOut } = useAuth();
   const [, setLocation] = useLocation();
+  const { trips, loading: tripsLoading } = useTrips();
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.displayName || "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [tripsExpanded, setTripsExpanded] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -35,8 +42,6 @@ export default function Profile() {
     try {
       const newName = nameInput.trim();
       await updateProfile(user, { displayName: newName });
-
-      // Sync name to all trip member records in RTDB
       try {
         const storageKey = `gopack_trips_${user.uid}`;
         const raw = localStorage.getItem(storageKey);
@@ -47,9 +52,8 @@ export default function Profile() {
           )
         );
       } catch {
-        // Non-critical — member name sync failed silently
+        // Non-critical
       }
-
       setEditingName(false);
     } catch {
       setSaveError("Could not update name. Try again.");
@@ -89,7 +93,7 @@ export default function Profile() {
       </nav>
 
       <div className="max-w-lg mx-auto px-8 py-16">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-8">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
 
           {/* Avatar + name */}
           <div className="flex flex-col items-center gap-4">
@@ -139,7 +143,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Details */}
+          {/* Account details */}
           <div className="border border-border rounded-2xl divide-y divide-border bg-background">
             {user.email && (
               <div className="flex items-center gap-3 px-5 py-4">
@@ -157,6 +161,76 @@ export default function Profile() {
                 <p className="text-sm">{isAnonymous ? "Guest (anonymous)" : "Google account"}</p>
               </div>
             </div>
+          </div>
+
+          {/* My Trips — expandable card */}
+          <div className="border border-border rounded-2xl overflow-hidden bg-background">
+            <button
+              onClick={() => setTripsExpanded(e => !e)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors text-left"
+              data-testid="button-expand-trips"
+            >
+              <div className="flex items-center gap-3">
+                <MapPin size={16} className="text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">My trips</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tripsLoading ? "Loading..." : `${trips.length} trip${trips.length !== 1 ? "s" : ""}`}
+                  </p>
+                </div>
+              </div>
+              <motion.div animate={{ rotate: tripsExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={16} className="text-muted-foreground" />
+              </motion.div>
+            </button>
+
+            <AnimatePresence>
+              {tripsExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden border-t border-border"
+                >
+                  {tripsLoading ? (
+                    <div className="px-5 py-4 flex flex-col gap-2">
+                      {[1, 2].map(i => <div key={i} className="h-14 rounded-xl bg-muted/40 animate-pulse" />)}
+                    </div>
+                  ) : trips.length === 0 ? (
+                    <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+                      <MapPin size={24} className="mx-auto mb-2 opacity-30" />
+                      No trips yet
+                    </div>
+                  ) : (
+                    <div className="px-5 py-3 flex flex-col gap-2">
+                      {trips.map(trip => {
+                        const memberCount = trip.members ? Object.keys(trip.members).length : 0;
+                        return (
+                          <Link
+                            key={trip.id}
+                            href={`/trip/${trip.id}`}
+                            className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-muted/40 transition-colors border border-border"
+                            data-testid={`link-trip-${trip.id}`}
+                          >
+                            <div>
+                              <p className="text-sm font-medium">{trip.destination || "Deciding destination…"}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {trip.days} days · {(trip.vibes || []).map((v: string) => VIBE_LABELS[v] || v).join(", ")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 ml-3">
+                              <Users size={11} />
+                              {memberCount}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {isAnonymous && (

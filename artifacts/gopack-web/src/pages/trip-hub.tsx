@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -17,6 +17,19 @@ const VIBE_LABELS: Record<string, string> = {
 };
 const AVATAR_COLORS = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517", "#C4448A"];
 
+const WISH_PLACEHOLDERS = [
+  "Sunset rooftop dinner…",
+  "Morning hike to a viewpoint…",
+  "Cooking class at a local farm…",
+  "Street food tour downtown…",
+  "Kayaking at dawn…",
+  "Hidden speakeasy bar night…",
+  "Visit the old town market…",
+  "Guided museum tour…",
+  "Beachside yoga session…",
+  "Boat trip along the coast…",
+];
+
 type Tab = "wish" | "vote" | "go";
 
 export default function TripHub() {
@@ -28,7 +41,15 @@ export default function TripHub() {
 
   const [activeTab, setActiveTab] = useState<Tab>("wish");
   const [wishText, setWishText] = useState("");
+  const [wishPlaceholderIdx, setWishPlaceholderIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setWishPlaceholderIdx(i => (i + 1) % WISH_PLACEHOLDERS.length);
+    }, 2800);
+    return () => clearInterval(t);
+  }, []);
   const [itineraryError, setItineraryError] = useState("");
   const [packingError, setPackingError] = useState("");
   const [votingId, setVotingId] = useState<string | null>(null);
@@ -264,8 +285,8 @@ export default function TripHub() {
                   <input
                     value={wishText}
                     onChange={e => setWishText(e.target.value)}
-                    placeholder="Add a wish — e.g. 'Sunset rooftop dinner'"
-                    className="flex-1 border border-border rounded-full px-5 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    placeholder={WISH_PLACEHOLDERS[wishPlaceholderIdx]}
+                    className="flex-1 border border-border rounded-full px-5 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                     data-testid="input-wish"
                   />
                   <button type="submit" className="bg-primary text-white rounded-full px-5 py-3 hover:bg-primary/90 transition-colors" data-testid="button-add-wish">
@@ -609,16 +630,28 @@ export default function TripHub() {
                   )}
                   {(trip.accommodationPreferences || trip.accommodationSuggestions?.length) && (
                     <Link href={`/trip/${tripId}/accommodation-preferences`}
-                      className="flex items-center justify-between px-4 py-2.5 border border-teal-300/40 bg-teal-500/5 rounded-xl text-sm text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 transition-colors">
-                      <span className="flex items-center gap-2"><Home size={13} />Accommodation prefs</span>
-                      <ChevronRight size={13} />
+                      className="flex items-center gap-3 px-4 py-3 border-2 border-teal-400/60 bg-teal-500/10 rounded-xl text-sm text-teal-700 hover:bg-teal-500/20 hover:border-teal-500 transition-all font-medium shadow-sm">
+                      <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
+                        <Home size={13} className="text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div>Accommodation</div>
+                        <div className="text-xs font-normal text-teal-600/80">Pick where you'll stay</div>
+                      </div>
+                      <ChevronRight size={14} />
                     </Link>
                   )}
                   {trip.accommodationSuggestions?.length > 0 && (
                     <Link href={`/trip/${tripId}/accommodation-vote`}
-                      className="flex items-center justify-between px-4 py-2.5 border border-teal-300/40 bg-teal-500/5 rounded-xl text-sm text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 transition-colors">
-                      <span className="flex items-center gap-2"><Home size={13} />Vote on accommodation</span>
-                      <ChevronRight size={13} />
+                      className="flex items-center gap-3 px-4 py-3 border-2 border-teal-400/60 bg-teal-500/10 rounded-xl text-sm text-teal-700 hover:bg-teal-500/20 hover:border-teal-500 transition-all font-medium shadow-sm">
+                      <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
+                        <Home size={13} className="text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div>Vote on accommodation</div>
+                        <div className="text-xs font-normal text-teal-600/80">{trip.accommodationSuggestions.length} options to vote on</div>
+                      </div>
+                      <ChevronRight size={14} />
                     </Link>
                   )}
                   {trip.confirmedAccommodation && (
