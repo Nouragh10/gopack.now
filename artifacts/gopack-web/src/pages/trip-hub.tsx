@@ -8,7 +8,7 @@ import {
   Star, X, Bell, Home, Compass
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrip, startCollectingPreferences } from "@/hooks/useFirebase";
+import { useTrip, startCollectingPreferences, confirmPack } from "@/hooks/useFirebase";
 import { useGenerateItinerary, useGeneratePackingList } from "@workspace/api-client-react";
 
 const VIBE_LABELS: Record<string, string> = {
@@ -157,6 +157,9 @@ export default function TripHub() {
 
   const members = trip.members ? Object.entries(trip.members) as [string, any][] : [];
   const memberCount = members.length;
+  const isHost = user?.uid === trip.hostMemberId;
+  const hostName = trip.hostMemberId && trip.members?.[trip.hostMemberId]?.name;
+  const memberNames = members.map(([, m]: [string, any]) => m.name as string);
 
   /* who has voted on at least one wish */
   const voterUids = new Set<string>();
@@ -269,9 +272,9 @@ export default function TripHub() {
 
           <AnimatePresence mode="wait">
 
-            {/* ── PACK GATE — solo blocked until 2+ members ── */}
-            {memberCount < 2 && (
-              <motion.div key="gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-24 gap-6 text-center">
+            {/* ── PACK GATE — host must confirm pack before wishlist unlocks ── */}
+            {!trip.packConfirmed && (
+              <motion.div key="gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-6 text-center">
                 <div className="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                   <svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M19 13V10.5A2.5 2.5 0 0 1 21.5 8h5A2.5 2.5 0 0 1 29 10.5V13" stroke="#FAF8F5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -282,28 +285,50 @@ export default function TripHub() {
                   </svg>
                 </div>
                 <div className="max-w-sm">
-                  <h2 className="font-serif text-2xl font-bold mb-2">GoPackNow is for groups</h2>
+                  <h2 className="font-serif text-2xl font-bold mb-2">
+                    {isHost ? "Is the pack complete?" : "Waiting for the host…"}
+                  </h2>
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    You need at least one friend in this trip before you can add wishes, vote, or generate an itinerary. Invite your pack first.
+                    {isHost
+                      ? "Once everyone has joined, confirm the pack to unlock the wishlist and start planning together."
+                      : `${hostName || "The host"} will confirm the pack when everyone is in. You'll be notified automatically.`}
                   </p>
                 </div>
+
+                {/* Current members */}
                 <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-muted border border-border text-sm text-muted-foreground">
                   <Users size={14} />
-                  <span>1 member · waiting for the pack…</span>
+                  <span>{memberCount} {memberCount === 1 ? "member" : "members"} · {memberNames.join(", ")}</span>
                 </div>
+
+                {/* Invite link — always visible */}
                 <button
                   onClick={copyInviteLink}
-                  className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-secondary border border-border text-foreground rounded-full text-sm font-medium hover:bg-muted transition-colors"
                 >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
                   {copied ? "Link copied!" : "Copy invite link"}
                 </button>
-                <p className="text-xs text-muted-foreground">The wishlist unlocks the moment someone joins</p>
+
+                {/* Confirm button — host only */}
+                {isHost && (
+                  <button
+                    onClick={() => confirmPack(tripId!)}
+                    className="flex items-center gap-2 px-8 py-3.5 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 transition-colors text-base"
+                  >
+                    <Check size={18} />
+                    Pack is complete — let's go!
+                  </button>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  {isHost ? "You can still invite more people after confirming" : "You'll get in as soon as the host confirms"}
+                </p>
               </motion.div>
             )}
 
             {/* ── TAB 1: WISH ── */}
-            {memberCount >= 2 && activeTab === "wish" && (
+            {trip.packConfirmed && activeTab === "wish" && (
               <motion.div key="wish" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="flex items-end justify-between mb-6">
                   <div>
@@ -397,7 +422,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 2: VOTE ── */}
-            {memberCount >= 2 && activeTab === "vote" && (
+            {trip.packConfirmed && activeTab === "vote" && (
               <motion.div key="vote" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="mb-6">
                   <h1 className="font-serif text-3xl font-bold">Top wishes rising</h1>
@@ -479,7 +504,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 3: GO ── */}
-            {memberCount >= 2 && activeTab === "go" && (
+            {trip.packConfirmed && activeTab === "go" && (
               <motion.div key="go" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
                 <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>

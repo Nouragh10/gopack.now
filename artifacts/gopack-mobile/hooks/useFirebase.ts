@@ -84,6 +84,7 @@ export interface Trip {
   accommodationVotes?: Record<string, Record<string, "up" | "down">>;
   accommodationLockedBy?: Record<string, boolean>;
   confirmedAccommodation?: AccommodationSuggestion;
+  packConfirmed?: boolean;
 }
 
 export interface Wish {
@@ -715,4 +716,8 @@ export async function deleteTrip(tripId: string, uid: string) {
 export async function leaveTrip(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/members/${uid}`), null);
   try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
+}
+
+export async function confirmPack(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
 }

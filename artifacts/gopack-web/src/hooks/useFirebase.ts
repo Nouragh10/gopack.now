@@ -487,3 +487,7 @@ export async function addMemberAccommodationLink(tripId: string, suggestion: any
 export async function saveItinerary(tripId: string, itinerary: any) {
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
+
+export async function confirmPack(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
+}

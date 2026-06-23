@@ -25,6 +25,7 @@ import { GoPackIcon } from "@/components/GoPackLogo";
 import {
   addWish,
   lockVotes,
+  confirmPack,
   setAccommodationStatus,
   unlockVotes,
   useTrip,
@@ -236,6 +237,7 @@ export default function TripHubScreen() {
   const members = Object.entries(trip?.members ?? {});
   const memberCount = members.length;
   const memberNames = members.map(([, m]) => m.name);
+  const isHost = user?.uid === trip?.hostMemberId;
 
   const lockedBy = trip?.votesLockedBy ?? {};
   const lockedCount = Object.keys(lockedBy).length;
@@ -458,37 +460,58 @@ export default function TripHubScreen() {
         ))}
       </View>
 
-      {/* ── PACK GATE — solo traveler blocked until 2+ members ── */}
-      {memberCount < 2 && (
+      {/* ── PACK GATE — host must confirm pack before wishlist unlocks ── */}
+      {!trip?.packConfirmed && (
         <View style={styles.packGate}>
           <GoPackIcon size={64} />
           <Text style={[styles.gateTitle, { color: colors.foreground }]}>
-            GoPackNow is for groups
+            {isHost ? "Is the pack complete?" : "Waiting for the host…"}
           </Text>
           <Text style={[styles.gateSub, { color: colors.mutedForeground }]}>
-            You need at least one friend in the trip before you can add wishes, vote, or generate an itinerary.
+            {isHost
+              ? "Once everyone has joined, confirm the pack to unlock the wishlist and start planning."
+              : `${trip?.members?.[trip?.hostMemberId ?? ""]?.name ?? "The host"} will confirm the pack when everyone is in.`}
           </Text>
-          <View style={[styles.gateBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+
+          {/* Member list */}
+          <View style={[styles.gateBadge, { backgroundColor: colors.muted, borderColor: colors.border, gap: 6 }]}>
             <Feather name="users" size={14} color={colors.mutedForeground} />
             <Text style={[styles.gateBadgeText, { color: colors.mutedForeground }]}>
-              1 member · waiting for the pack…
+              {memberCount} {memberCount === 1 ? "member" : "members"} · {memberNames.join(", ")}
             </Text>
           </View>
+
+          {/* Invite button (always visible) */}
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowInvite(true); }}
-            style={[styles.gateBtn, { backgroundColor: colors.primary }]}
+            style={[styles.gateBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
           >
-            <Feather name="user-plus" size={18} color="#fff" />
-            <Text style={styles.gateBtnText}>Invite your pack</Text>
+            <Feather name="user-plus" size={16} color={colors.foreground} />
+            <Text style={[styles.gateBtnText, { color: colors.foreground }]}>Invite someone</Text>
           </Pressable>
+
+          {/* Confirm button — host only */}
+          {isHost && (
+            <Pressable
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                await confirmPack(tripId as string);
+              }}
+              style={[styles.gateBtn, { backgroundColor: colors.primary, marginTop: 0 }]}
+            >
+              <Feather name="check-circle" size={18} color="#fff" />
+              <Text style={styles.gateBtnText}>Pack is complete — let's go!</Text>
+            </Pressable>
+          )}
+
           <Text style={[styles.gateHint, { color: colors.mutedForeground }]}>
-            The wishlist unlocks the moment someone joins
+            {isHost ? "You can always invite more people later" : "You'll get in as soon as the host confirms"}
           </Text>
         </View>
       )}
 
       {/* ── WISH TAB ── */}
-      {memberCount >= 2 && activeTab === "wish" && (
+      {trip?.packConfirmed && activeTab === "wish" && (
         <View style={{ flex: 1 }}>
           {memberCount < 3 && (
             <View style={[styles.inviteCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
@@ -547,7 +570,7 @@ export default function TripHubScreen() {
       )}
 
       {/* ── VOTE TAB ── */}
-      {memberCount >= 2 && activeTab === "vote" && (
+      {trip?.packConfirmed && activeTab === "vote" && (
         <View style={{ flex: 1 }}>
           {/* Lock-in progress bar */}
           <View style={[styles.lockBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
@@ -610,7 +633,7 @@ export default function TripHubScreen() {
       )}
 
       {/* ── GO TAB ── */}
-      {memberCount >= 2 && activeTab === "go" && (
+      {trip?.packConfirmed && activeTab === "go" && (
         <ScrollView
           contentContainerStyle={[styles.goTab, { paddingBottom: bottomInset + 24 }]}
           showsVerticalScrollIndicator={false}
