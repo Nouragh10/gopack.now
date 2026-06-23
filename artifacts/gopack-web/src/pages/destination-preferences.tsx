@@ -215,8 +215,8 @@ export default function DestinationPreferences() {
           <div className="mx-4 mt-3">
             <button
               onClick={handleGenerate}
-              disabled={generating || !trip?.packConfirmed}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-500 text-white font-semibold text-sm hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              disabled={generating}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-500 text-white font-semibold text-sm hover:bg-violet-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {generating ? (
                 <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />AI is finding destinations…</>

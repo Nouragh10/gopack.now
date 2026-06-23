@@ -288,8 +288,8 @@ export default function DestinationPreferencesScreen() {
           <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
             <Pressable
               onPress={handleGenerate}
-              disabled={generating || !trip?.packConfirmed}
-              style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: (generating || !trip?.packConfirmed) ? 0.4 : 1 }]}
+              disabled={generating}
+              style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: generating ? 0.7 : 1 }]}
             >
               {generating ? (
                 <View style={styles.btnRow}>
