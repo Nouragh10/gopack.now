@@ -152,6 +152,11 @@ export default function DestinationPreferences() {
     </div>
   );
 
+  if (trip && !trip.packConfirmed) {
+    setLocation(`/trip/${tripId}`);
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}

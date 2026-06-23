@@ -256,6 +256,11 @@ export default function DestinationVote() {
     </div>
   );
 
+  if (trip && !trip.packConfirmed) {
+    setLocation(`/trip/${tripId}`);
+    return null;
+  }
+
   if (!trip || suggestions.length === 0) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
       <div className="text-muted-foreground">No suggestions yet.</div>

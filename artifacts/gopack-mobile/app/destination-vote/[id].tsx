@@ -341,6 +341,11 @@ export default function DestinationVoteScreen() {
     );
   }
 
+  if (trip && !trip.packConfirmed) {
+    router.replace(`/trip/${id}`);
+    return null;
+  }
+
   if (!trip || suggestions.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>

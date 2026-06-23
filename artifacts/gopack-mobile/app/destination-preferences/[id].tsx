@@ -210,6 +210,11 @@ export default function DestinationPreferencesScreen() {
     );
   }
 
+  if (trip && !trip.packConfirmed) {
+    router.replace(`/trip/${id}`);
+    return null;
+  }
+
   const minDate = new Date();
 
   return (
