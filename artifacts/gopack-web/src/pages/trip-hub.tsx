@@ -269,8 +269,41 @@ export default function TripHub() {
 
           <AnimatePresence mode="wait">
 
+            {/* ── PACK GATE — solo blocked until 2+ members ── */}
+            {memberCount < 2 && (
+              <motion.div key="gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-24 gap-6 text-center">
+                <div className="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 13V10.5A2.5 2.5 0 0 1 21.5 8h5A2.5 2.5 0 0 1 29 10.5V13" stroke="#FAF8F5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                    <rect x="9" y="13" width="30" height="27" rx="5" fill="#E85D3A"/>
+                    <circle cx="24" cy="22.5" r="4.4" fill="#FAF8F5"/>
+                    <circle cx="18.2" cy="30" r="4.4" fill="#FAF8F5"/>
+                    <circle cx="29.8" cy="30" r="4.4" fill="#FAF8F5"/>
+                  </svg>
+                </div>
+                <div className="max-w-sm">
+                  <h2 className="font-serif text-2xl font-bold mb-2">GoPackNow is for groups</h2>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    You need at least one friend in this trip before you can add wishes, vote, or generate an itinerary. Invite your pack first.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-muted border border-border text-sm text-muted-foreground">
+                  <Users size={14} />
+                  <span>1 member · waiting for the pack…</span>
+                </div>
+                <button
+                  onClick={copyInviteLink}
+                  className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors"
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? "Link copied!" : "Copy invite link"}
+                </button>
+                <p className="text-xs text-muted-foreground">The wishlist unlocks the moment someone joins</p>
+              </motion.div>
+            )}
+
             {/* ── TAB 1: WISH ── */}
-            {activeTab === "wish" && (
+            {memberCount >= 2 && activeTab === "wish" && (
               <motion.div key="wish" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="flex items-end justify-between mb-6">
                   <div>
@@ -364,7 +397,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 2: VOTE ── */}
-            {activeTab === "vote" && (
+            {memberCount >= 2 && activeTab === "vote" && (
               <motion.div key="vote" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="mb-6">
                   <h1 className="font-serif text-3xl font-bold">Top wishes rising</h1>
@@ -446,7 +479,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 3: GO ── */}
-            {activeTab === "go" && (
+            {memberCount >= 2 && activeTab === "go" && (
               <motion.div key="go" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
                 <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>

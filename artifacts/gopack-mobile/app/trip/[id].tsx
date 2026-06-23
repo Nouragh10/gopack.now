@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { GoPackIcon } from "@/components/GoPackLogo";
 import {
   addWish,
   lockVotes,
@@ -457,8 +458,37 @@ export default function TripHubScreen() {
         ))}
       </View>
 
+      {/* ── PACK GATE — solo traveler blocked until 2+ members ── */}
+      {memberCount < 2 && (
+        <View style={styles.packGate}>
+          <GoPackIcon size={64} />
+          <Text style={[styles.gateTitle, { color: colors.foreground }]}>
+            GoPackNow is for groups
+          </Text>
+          <Text style={[styles.gateSub, { color: colors.mutedForeground }]}>
+            You need at least one friend in the trip before you can add wishes, vote, or generate an itinerary.
+          </Text>
+          <View style={[styles.gateBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="users" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.gateBadgeText, { color: colors.mutedForeground }]}>
+              1 member · waiting for the pack…
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowInvite(true); }}
+            style={[styles.gateBtn, { backgroundColor: colors.primary }]}
+          >
+            <Feather name="user-plus" size={18} color="#fff" />
+            <Text style={styles.gateBtnText}>Invite your pack</Text>
+          </Pressable>
+          <Text style={[styles.gateHint, { color: colors.mutedForeground }]}>
+            The wishlist unlocks the moment someone joins
+          </Text>
+        </View>
+      )}
+
       {/* ── WISH TAB ── */}
-      {activeTab === "wish" && (
+      {memberCount >= 2 && activeTab === "wish" && (
         <View style={{ flex: 1 }}>
           {memberCount < 3 && (
             <View style={[styles.inviteCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
@@ -517,7 +547,7 @@ export default function TripHubScreen() {
       )}
 
       {/* ── VOTE TAB ── */}
-      {activeTab === "vote" && (
+      {memberCount >= 2 && activeTab === "vote" && (
         <View style={{ flex: 1 }}>
           {/* Lock-in progress bar */}
           <View style={[styles.lockBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
@@ -580,7 +610,7 @@ export default function TripHubScreen() {
       )}
 
       {/* ── GO TAB ── */}
-      {activeTab === "go" && (
+      {memberCount >= 2 && activeTab === "go" && (
         <ScrollView
           contentContainerStyle={[styles.goTab, { paddingBottom: bottomInset + 24 }]}
           showsVerticalScrollIndicator={false}
@@ -944,6 +974,52 @@ const styles = StyleSheet.create({
   },
   accomBannerTitle: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff", marginBottom: 2 },
   accomBannerSub: { fontFamily: "DmSans_400Regular", fontSize: 12, color: "rgba(255,255,255,0.85)" },
+
+  packGate: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 36,
+    gap: 16,
+  },
+  gateTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 24,
+    textAlign: "center" as const,
+    marginTop: 8,
+  },
+  gateSub: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+    textAlign: "center" as const,
+    lineHeight: 22,
+  },
+  gateBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  gateBadgeText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  gateBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  gateBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
+  gateHint: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 12,
+    textAlign: "center" as const,
+    marginTop: 4,
+  },
 
   accomCard: {
     width: "100%", borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 2,
