@@ -68,7 +68,6 @@ function SuggestionCard({
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
 
   const handleVote = (dir: "up" | "down") => {
-    if (!packConfirmed) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     voteDestination(tripId, idx, uid, dir);
   };

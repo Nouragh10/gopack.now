@@ -49,7 +49,6 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
   const winner = isWinning && allLocked;
 
   const handleVote = (dir: "up" | "down") => {
-    if (!packConfirmed) return;
     voteDestination(tripId, idx, uid, dir);
   };
 
@@ -78,10 +77,9 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
         </div>
 
         {/* Vote arrows */}
-        <div className={`flex flex-col items-center gap-0.5 shrink-0 ${!packConfirmed ? "opacity-30 pointer-events-none" : ""}`}>
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
           <button
             onClick={() => handleVote("up")}
-            disabled={!packConfirmed}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "up" ? "bg-primary/20" : "hover:bg-muted"}`}
           >
             <ArrowUp size={18} color={myVote === "up" ? "var(--primary)" : "var(--muted-foreground)"} />
@@ -91,7 +89,6 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
           </span>
           <button
             onClick={() => handleVote("down")}
-            disabled={!packConfirmed}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "down" ? "bg-muted" : "hover:bg-muted"}`}
           >
             <ArrowDown size={18} color={myVote === "down" ? "var(--foreground)" : "var(--muted-foreground)"} />
