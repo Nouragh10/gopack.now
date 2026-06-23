@@ -110,6 +110,10 @@ export default function DestinationPreferences() {
 
   const handleGenerate = async () => {
     if (!tripId || !trip) return;
+    if (totalMembers < 2) {
+      setError("You need at least 2 people in the pack before generating destinations. Invite someone first.");
+      return;
+    }
     setGenerating(true);
     setError("");
     try {
@@ -210,8 +214,16 @@ export default function DestinationPreferences() {
           </div>
         </div>
 
-        {/* Generate button — creator only */}
-        {isCreator && submittedCount >= 1 && (
+        {/* Generate button — creator only, needs ≥2 members */}
+        {isCreator && totalMembers < 2 && (
+          <div className="mx-4 mt-3 px-4 py-3 rounded-xl border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 flex items-start gap-2">
+            <UserPlus size={16} className="text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Invite at least one more person to the pack before generating destinations.
+            </p>
+          </div>
+        )}
+        {isCreator && totalMembers >= 2 && submittedCount >= 1 && (
           <div className="mx-4 mt-3">
             <button
               onClick={handleGenerate}

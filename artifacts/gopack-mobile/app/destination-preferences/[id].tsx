@@ -166,6 +166,10 @@ export default function DestinationPreferencesScreen() {
 
   const handleGenerate = async () => {
     if (!id) return;
+    if (totalMembers < 2) {
+      setError("You need at least 2 people in the pack before generating destinations. Invite someone first.");
+      return;
+    }
     setGenerating(true);
     setError("");
     try {
@@ -283,8 +287,20 @@ export default function DestinationPreferencesScreen() {
           </View>
         </View>
 
-        {/* Generate button — creator only, at least 1 submitted */}
-        {isCreator && submittedCount >= 1 && (
+        {/* Solo warning — needs ≥2 members */}
+        {isCreator && totalMembers < 2 && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF8E1", borderWidth: 1, borderColor: "#FFD54F", borderRadius: 12, padding: 12 }}>
+              <Feather name="user-plus" size={16} color="#F59E0B" style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, fontSize: 13, color: "#92400E", fontFamily: "DmSans_400Regular" }}>
+                Invite at least one more person to the pack before generating destinations.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Generate button — creator only, needs ≥2 members */}
+        {isCreator && totalMembers >= 2 && submittedCount >= 1 && (
           <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
             <Pressable
               onPress={handleGenerate}
