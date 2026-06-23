@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +33,19 @@ import {
 } from "@/hooks/useFirebase";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+
+const WISH_PLACEHOLDERS = [
+  "Visit a local market at sunrise…",
+  "Find the best street food spot…",
+  "Watch the sunset from a rooftop…",
+  "Take a cooking class together…",
+  "Explore a hidden neighbourhood…",
+  "Go on a sunrise hike…",
+  "Try a boat tour of the coast…",
+  "Find a cosy jazz bar for the evening…",
+  "Day trip to nearby ruins or nature…",
+  "Catch a live music night…",
+];
 
 type Tab = "wish" | "vote" | "go";
 
@@ -201,6 +214,15 @@ export default function TripHubScreen() {
 
   const [activeTab, setActiveTab] = useState<Tab>("wish");
   const [wishInput, setWishInput] = useState("");
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const placeholderTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    placeholderTimer.current = setInterval(() => {
+      setPlaceholderIdx((i) => (i + 1) % WISH_PLACEHOLDERS.length);
+    }, 2800);
+    return () => { if (placeholderTimer.current) clearInterval(placeholderTimer.current); };
+  }, []);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -359,11 +381,16 @@ export default function TripHubScreen() {
       {showAccomBanner && (
         <Pressable
           onPress={() => setShowAccomModal(true)}
-          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+          style={styles.accomBanner}
         >
-          <Feather name="home" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Choose accommodation for the trip</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
+          <View style={styles.accomBannerIconWrap}>
+            <Feather name="home" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.accomBannerTitle}>Book accommodation</Text>
+            <Text style={styles.accomBannerSub}>Choose where the pack is staying · tap to decide</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#fff" />
         </Pressable>
       )}
 
@@ -371,11 +398,16 @@ export default function TripHubScreen() {
       {accomCollecting && (
         <Pressable
           onPress={() => router.push(`/accommodation-vote/${id}`)}
-          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+          style={styles.accomBanner}
         >
-          <Feather name="home" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Submit your accommodation pick — join the vote</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
+          <View style={styles.accomBannerIconWrap}>
+            <Feather name="home" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.accomBannerTitle}>Submit your accommodation pick</Text>
+            <Text style={styles.accomBannerSub}>Join the group vote now</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#fff" />
         </Pressable>
       )}
 
@@ -383,11 +415,16 @@ export default function TripHubScreen() {
       {accomVoting && (
         <Pressable
           onPress={() => router.push(`/accommodation-vote/${id}`)}
-          style={[styles.destBanner, { backgroundColor: "#26A69A" }]}
+          style={styles.accomBanner}
         >
-          <Feather name="home" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Your pack is voting on accommodation — join the vote</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
+          <View style={styles.accomBannerIconWrap}>
+            <Feather name="home" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.accomBannerTitle}>Accommodation vote live</Text>
+            <Text style={styles.accomBannerSub}>Your pack is voting — add your voice</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#fff" />
         </Pressable>
       )}
 
@@ -461,7 +498,7 @@ export default function TripHubScreen() {
           <View style={[styles.addWishBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}>
             <TextInput
               style={[styles.addWishInput, { backgroundColor: colors.muted, color: colors.foreground }]}
-              placeholder="Add a wish..."
+              placeholder={WISH_PLACEHOLDERS[placeholderIdx]}
               placeholderTextColor={colors.mutedForeground}
               value={wishInput}
               onChangeText={setWishInput}
@@ -893,6 +930,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 11,
   },
   destBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
+  accomBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginBottom: 10, borderRadius: 16,
+    backgroundColor: "#26A69A", padding: 16,
+    shadowColor: "#26A69A", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
+  },
+  accomBannerIconWrap: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center", justifyContent: "center",
+  },
+  accomBannerTitle: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff", marginBottom: 2 },
+  accomBannerSub: { fontFamily: "DmSans_400Regular", fontSize: 12, color: "rgba(255,255,255,0.85)" },
 
   accomCard: {
     width: "100%", borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 2,

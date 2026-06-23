@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Platform,
@@ -24,6 +24,7 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const { trips, refetch } = useTrips(user?.uid);
   const router = useRouter();
+  const [tripsExpanded, setTripsExpanded] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -73,6 +74,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomInset }}
       >
+        {/* Avatar + name */}
         <View style={[styles.header, { paddingTop: topInset + 16 }]}>
           <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
             <Text style={styles.avatarText}>{initial}</Text>
@@ -83,6 +85,7 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
+        {/* Stats */}
         <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 20 }]}>
           <View style={styles.statItem}>
             <Text style={[styles.statNum, { color: colors.foreground }]}>{trips.length}</Text>
@@ -100,42 +103,60 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {trips.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Your trips</Text>
-            {trips.map((trip) => (
-              <Pressable
-                key={trip.id}
-                onPress={() => router.push(`/trip/${trip.id}`)}
-                onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleDeleteTrip(trip); }}
-                style={[styles.tripRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.tripName, { color: colors.foreground }]}>{trip.destination}</Text>
-                  <Text style={[styles.tripMeta, { color: colors.mutedForeground }]}>
-                    {trip.days} days · {trip.budget}
-                    {trip.startDate ? ` · ${trip.startDate}` : ""}
-                  </Text>
-                  <Text style={[styles.tripMembers, { color: colors.mutedForeground }]}>
-                    {Object.keys(trip.members ?? {}).length} member{Object.keys(trip.members ?? {}).length !== 1 ? "s" : ""}
-                  </Text>
+        {/* My Trips — collapsible card */}
+        <View style={[styles.tripsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTripsExpanded(e => !e); }}
+            style={styles.tripsCardHeader}
+          >
+            <View style={styles.tripsCardHeaderLeft}>
+              <Feather name="map-pin" size={16} color={colors.mutedForeground} />
+              <View>
+                <Text style={[styles.tripsCardTitle, { color: colors.foreground }]}>My trips</Text>
+                <Text style={[styles.tripsCardSub, { color: colors.mutedForeground }]}>
+                  {trips.length} trip{trips.length !== 1 ? "s" : ""}
+                </Text>
+              </View>
+            </View>
+            <Feather
+              name={tripsExpanded ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+
+          {tripsExpanded && (
+            <View style={[styles.tripsCardBody, { borderTopColor: colors.border }]}>
+              {trips.length === 0 ? (
+                <View style={styles.tripsEmpty}>
+                  <Feather name="map" size={28} color={colors.border} />
+                  <Text style={[styles.tripsEmptyText, { color: colors.mutedForeground }]}>No trips yet</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-              </Pressable>
-            ))}
-          </View>
-        )}
+              ) : (
+                trips.map((trip) => (
+                  <Pressable
+                    key={trip.id}
+                    onPress={() => router.push(`/trip/${trip.id}`)}
+                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleDeleteTrip(trip); }}
+                    style={[styles.tripRow, { borderBottomColor: colors.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.tripName, { color: colors.foreground }]}>
+                        {trip.destination || "Deciding destination…"}
+                      </Text>
+                      <Text style={[styles.tripMeta, { color: colors.mutedForeground }]}>
+                        {trip.days} days · {Object.keys(trip.members ?? {}).length} members
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
+        </View>
 
-        {trips.length === 0 && (
-          <View style={styles.emptyState}>
-            <Feather name="map" size={36} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No trips yet</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Create or join a trip to get started.
-            </Text>
-          </View>
-        )}
-
+        {/* Sign out */}
         <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
           <Pressable
             onPress={handleSignOut}
@@ -154,57 +175,44 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: "center", paddingBottom: 24, paddingHorizontal: 20 },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
+    width: 80, height: 80, borderRadius: 40,
+    alignItems: "center", justifyContent: "center", marginBottom: 14,
   },
   avatarText: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 34, color: "#fff" },
   name: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, marginBottom: 4 },
   email: { fontFamily: "DmSans_400Regular", fontSize: 14 },
   statsCard: {
-    flexDirection: "row",
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 20,
-    marginBottom: 28,
+    flexDirection: "row", borderRadius: 16, borderWidth: 1,
+    paddingVertical: 20, marginBottom: 20,
   },
   statItem: { flex: 1, alignItems: "center" },
   statNum: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28 },
   statLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 2 },
   statDivider: { width: 1, marginVertical: 4 },
-  section: { paddingHorizontal: 20, marginBottom: 20 },
-  sectionTitle: {
-    fontFamily: "DmSans_500Medium",
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginBottom: 10,
+  // Trips card
+  tripsCard: {
+    marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: "hidden",
   },
+  tripsCardHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 16,
+  },
+  tripsCardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  tripsCardTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  tripsCardSub: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 1 },
+  tripsCardBody: { borderTopWidth: 1 },
+  tripsEmpty: { alignItems: "center", paddingVertical: 24, gap: 8 },
+  tripsEmptyText: { fontFamily: "DmSans_400Regular", fontSize: 14 },
   tripRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   tripName: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
   tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
-  tripMembers: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 2 },
-  emptyState: { alignItems: "center", paddingHorizontal: 40, paddingTop: 32, paddingBottom: 24, gap: 10 },
-  emptyTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
-  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
   signOutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 10, borderWidth: 1, borderRadius: 14, paddingVertical: 14,
   },
   signOutText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
 });
