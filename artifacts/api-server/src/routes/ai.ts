@@ -283,91 +283,134 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
       `- ${p.name}: vibes [${p.vibes.join(", ")}], flight range: ${flightRangeDescription(p.distance)}, budget "${p.budget}", duration ${p.days} days${p.startDate ? `, preferred start ${p.startDate}` : ""}${p.startLocation ? `, flying from ${p.startLocation}` : ""}`
     ).join("\n");
 
-    // Aggregate to find common ground
+    // Aggregate vibes with counts
     const allVibes = prefs.flatMap((p) => p.vibes);
     const vibeCounts: Record<string, number> = {};
     allVibes.forEach((v) => { vibeCounts[v] = (vibeCounts[v] ?? 0) + 1; });
-    const topVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([v]) => v);
+    const sortedVibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]);
+    const topVibes = sortedVibes.slice(0, 5).map(([v]) => v);
+    const dominantVibe = sortedVibes[0]?.[0] ?? "";
+    const totalMembers = prefs.length;
 
-    prompt = `You are a world-class group travel expert. A friend group can't agree on where to go. Based on EACH member's individual preferences below, suggest exactly 3 destinations that best satisfy the group as a whole — finding common ground and making smart compromises.
+    prompt = `You are a world-class group travel expert. Suggest exactly 3 destinations that genuinely match this group's vibes.
 
 Individual member preferences:
 ${memberLines}
 
-Group profile summary:
-- Most popular vibes across the group: ${topVibes.join(", ")}
-- Number of members: ${prefs.length}
+Group vibe summary (sorted by popularity):
+${sortedVibes.map(([v, count]) => `- "${v}": ${count}/${totalMembers} members want this`).join("\n")}
+Dominant vibe: "${dominantVibe}"
 ${excluded.length > 0 ? `
 ALREADY SHOWN — DO NOT REPEAT THESE UNDER ANY CIRCUMSTANCES:
 ${excluded.map((d) => `- ${d}`).join("\n")}
-Every single one of the above must be excluded. Suggesting any of them is an error.
 ` : ""}
-Rules:
-1. FLIGHT TIME IS A HARD LIMIT — not a guideline. Each member's flight range is stated explicitly above. "Between 3 and 8 hours" means destinations under 3h are TOO CLOSE (reject them) and destinations over 8h are TOO FAR (reject them). Only suggest destinations whose actual flight time falls squarely within every member's stated range. If a member says "under 3 hours from Riyadh", Europe (6-7h), South East Asia (7h+), and the Maldives (4.5h) are all invalid.
-2. If members have DIFFERENT flight ranges, find destinations that satisfy the tightest constraint OR pick destinations that work for the majority and note the trade-off in the pitch.
-3. Make the 3 destinations genuinely different — different regions or meaningfully different vibes.
-4. Pick destinations that honour the MAJORITY preferences while still working for outliers.
-5. Each pitch must be ONE punchy sentence (max 12 words) that speaks to why it works for THIS group.
-6. Each destination gets exactly 3 short tags (2-4 words each).
-7. flightHint: one short phrase showing actual flight time FROM the stated start location(s), e.g. "~2h from Riyadh". Reference the most common start location if multiple are given.
-8. bestTime: e.g. "May–Sept" or "Year-round".
+
+━━━ HARD RULE 1: VIBES ARE NON-NEGOTIABLE ━━━
+Each vibe maps to SPECIFIC destination types. You MUST respect these mappings:
+
+"beach" → coastal/island destinations with actual beaches: tropical islands (Bali, Phuket, Maldives, Zanzibar, Mykonos, Santorini), beach resort towns (Algarve, Tulum, Cancún, Antalya coast, Hurghada, Koh Samui). Cities like Istanbul, London, Paris, Rome, Madrid, Berlin — even if near water — are NOT beach destinations. Never suggest an inland city or generic capital when beach is a top vibe.
+
+"nature" → destinations where nature IS the attraction: national parks, mountains, fjords, rainforests, volcanic landscapes (Iceland, Patagonia, New Zealand, Costa Rica, Norwegian fjords, Swiss Alps, Azores, Scottish Highlands, Canadian Rockies). Do NOT suggest major cities.
+
+"city" → vibrant urban centres with nightlife, museums, architecture: Tokyo, NYC, London, Paris, Dubai, Singapore, Barcelona, Berlin. ONLY use this type when "city" is an explicit vibe.
+
+"culture" → historically rich destinations with heritage sites, local traditions: Kyoto, Rome, Athens, Cairo, Marrakech, Petra, Havana, Tbilisi, Sarajevo.
+
+"adventure" → destinations built around outdoor thrills: Queenstown NZ, Interlaken, Moab Utah, Nepal, Madagascar, Patagonia, Iceland.
+
+"relaxation" → slow-paced resort or wellness destinations: Maldives, Seychelles, Bora Bora, Tuscany countryside, Ubud Bali, Amalfi Coast.
+
+"party" / "nightlife" → known nightlife hubs: Ibiza, Mykonos, Bangkok, Las Vegas, Cancún, Miami, Rio, Amsterdam.
+
+"foodie" → destinations world-renowned for cuisine: Tokyo, Lyon, Bologna, San Sebastián, Mexico City, Singapore, Istanbul, Osaka.
+
+SCORING RULE: For each candidate destination, count how many of the group's vibes it genuinely satisfies. Rank candidates by vibe score. Only suggest destinations with the HIGHEST scores. A destination that matches 3/4 vibes beats one that matches 1/4 even if the latter is more "famous".
+
+━━━ HARD RULE 2: FLIGHT TIME ━━━
+Each member's flight range is a strict limit — not a guideline. "Under 3 hours from Riyadh" means Europe (~6h) is INVALID. Only suggest destinations whose actual flight time falls within EVERY member's stated range. If members have different ranges, find destinations within the tightest shared window or flag the majority trade-off.
+
+━━━ FORMATTING RULES ━━━
+- Suggest 3 destinations that are genuinely different from each other (different regions or meaningfully different vibes)
+- Each pitch: ONE punchy sentence (max 12 words) explaining why it works for THIS group
+- Each destination: exactly 3 short tags (2–4 words each) reflecting the matched vibes
+- flightHint: actual flight time from the most common start location, e.g. "~2h from Riyadh"
+- bestTime: e.g. "May–Sept" or "Year-round"
 
 Respond with ONLY valid JSON, no markdown:
 {
   "suggestions": [
     {
-      "name": "Lisbon, Portugal",
-      "pitch": "Sun, pastéis, cheap wine, and Europe's best nightlife.",
-      "tags": ["Warm weather", "Food scene", "Budget-friendly"],
-      "flightHint": "~2h from London",
-      "bestTime": "April–October"
+      "name": "Bali, Indonesia",
+      "pitch": "Beaches, jungle temples, and sunsets that never disappoint.",
+      "tags": ["Beach paradise", "Spiritual vibes", "Adventure ready"],
+      "flightHint": "~9h from London",
+      "bestTime": "May–October"
     }
   ]
 }`;
   } else {
-    prompt = `You are a world-class travel expert. Suggest exactly 3 distinct destination options for a group trip.
+    // Legacy single-preference mode
+    const tripVibes = body.tripType ?? [];
+    const vibeLines = tripVibes.length > 0 ? `- Vibes requested: ${tripVibes.join(", ")}` : "";
+
+    prompt = `You are a world-class travel expert. Suggest exactly 3 distinct destinations that genuinely match the requested vibes.
 
 Trip preferences:
-- Travel style: ${body.tripType!.join(", ")}
+${vibeLines}
 - Flight range: ${flightRangeDescription(body.distance!)}
 - Budget level: ${body.budget}
 - Duration: ${body.days} days${body.mustHaves ? `\n- Must have: ${body.mustHaves}` : ""}
 ${excluded.length > 0 ? `
 ALREADY SHOWN — DO NOT REPEAT THESE UNDER ANY CIRCUMSTANCES:
 ${excluded.map((d) => `- ${d}`).join("\n")}
-Every single one of the above must be excluded. Suggesting any of them is an error.
 ` : ""}
-Rules:
-1. FLIGHT TIME IS A HARD LIMIT — not a guideline. The flight range is described explicitly above. If the range says "between 3 and 8 hours", then destinations under 3h are TOO CLOSE (do not suggest them) and destinations over 8h are TOO FAR (do not suggest them). Every suggestion must fall squarely within those bounds.
-2. Make the 3 destinations genuinely different from each other — different regions or meaningfully different vibes.
-3. Each pitch must be ONE punchy sentence (max 12 words). No fluff.
-4. Each destination gets exactly 3 short tags (2-4 words each).
-5. flightHint: one short phrase with the realistic flight time, e.g. "~2h from London". Do not quote the user's range back — give the actual flight time.
-6. bestTime: e.g. "May–Sept" or "Year-round".
+
+━━━ HARD RULE 1: VIBES ARE NON-NEGOTIABLE ━━━
+Each vibe maps to SPECIFIC destination types:
+"beach" → actual coastal/island destinations with beaches (Bali, Phuket, Mykonos, Maldives, Algarve, Tulum, Zanzibar). NEVER suggest inland cities or generic capitals for a beach vibe.
+"nature" → national parks, mountains, fjords, rainforests (Iceland, Patagonia, Costa Rica, NZ, Swiss Alps, Azores).
+"city" → major urban centres (Tokyo, NYC, London, Barcelona, Dubai). Only use when city is explicitly requested.
+"culture" → heritage-rich destinations (Rome, Athens, Kyoto, Marrakech, Cairo, Havana).
+"adventure" → outdoor thrills (Queenstown, Interlaken, Nepal, Iceland, Moab).
+"relaxation" → slow-paced resort/wellness destinations (Maldives, Seychelles, Tuscany, Ubud).
+"party" / "nightlife" → nightlife hubs (Ibiza, Mykonos, Bangkok, Las Vegas, Cancún, Amsterdam).
+"foodie" → cuisine capitals (Tokyo, Lyon, Bologna, San Sebastián, Mexico City, Singapore).
+
+Rank destinations by how many of the requested vibes they satisfy. Highest score wins.
+
+━━━ HARD RULE 2: FLIGHT TIME ━━━
+The flight range above is a strict limit. Every suggestion must fall within those bounds exactly.
+
+━━━ FORMATTING RULES ━━━
+- 3 destinations, genuinely different regions or vibes
+- Each pitch: ONE punchy sentence (max 12 words)
+- Each destination: exactly 3 short tags (2–4 words each)
+- flightHint: actual flight time e.g. "~2h from London"
+- bestTime: e.g. "May–Sept" or "Year-round"
 
 Respond with ONLY valid JSON, no markdown:
 {
   "suggestions": [
     {
-      "name": "Lisbon, Portugal",
-      "pitch": "Sun, pastéis, cheap wine, and Europe's best nightlife.",
-      "tags": ["Warm weather", "Food scene", "Budget-friendly"],
-      "flightHint": "~2h from London",
-      "bestTime": "April–October"
+      "name": "Mykonos, Greece",
+      "pitch": "Whitewashed cliffs, party beaches, and legendary Aegean sunsets.",
+      "tags": ["Beach paradise", "Nightlife", "Stunning scenery"],
+      "flightHint": "~3.5h from London",
+      "bestTime": "June–September"
     },
     {
-      "name": "Mexico City, Mexico",
-      "pitch": "World-class tacos, ancient ruins, and a buzzing art scene.",
-      "tags": ["Rich culture", "Amazing food", "City energy"],
-      "flightHint": "~5h from NYC",
-      "bestTime": "Oct–April"
+      "name": "Bali, Indonesia",
+      "pitch": "Surf, rice terraces, temples, and the world's best sunsets.",
+      "tags": ["Beach vibes", "Cultural depth", "Adventure ready"],
+      "flightHint": "~15h from London",
+      "bestTime": "May–October"
     },
     {
-      "name": "Chiang Mai, Thailand",
-      "pitch": "Temples, jungle treks, street food for pennies.",
-      "tags": ["Adventure", "Budget-friendly", "Nature"],
-      "flightHint": "~11h from London",
-      "bestTime": "Nov–Feb"
+      "name": "Algarve, Portugal",
+      "pitch": "Golden cliffs, hidden sea caves, and warm Atlantic waves.",
+      "tags": ["Beach escape", "Scenic coast", "Relaxed pace"],
+      "flightHint": "~2.5h from London",
+      "bestTime": "May–October"
     }
   ]
 }`;
@@ -376,7 +419,7 @@ Respond with ONLY valid JSON, no markdown:
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 800,
+      max_tokens: 1200,
       messages: [{ role: "user", content: prompt }],
     };
 
