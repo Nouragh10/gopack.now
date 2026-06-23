@@ -15,8 +15,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
+import { GoPackIcon } from "@/components/GoPackLogo";
 
-const DARK = "#1C1713";
+const DARK = "#1A1412";
 const CARD = "#2A221D";
 const PRIMARY = "#E85D3A";
 const MUTED = "#756C66";
@@ -88,10 +89,8 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoSection}>
-            <View style={styles.iconCircle}>
-              <Feather name="package" size={28} color={PRIMARY} />
-            </View>
-            <Text style={styles.wordmark}>gopack</Text>
+            <GoPackIcon size={72} />
+            <Text style={styles.wordmark}>GoPackNow</Text>
             <Text style={styles.tagline}>Plan trips together</Text>
           </View>
 

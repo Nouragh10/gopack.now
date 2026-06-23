@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useTrips } from "@/hooks/useFirebase";
+import { GoPackIcon } from "@/components/GoPackLogo";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -76,7 +77,10 @@ export default function DashboardScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <Text style={[styles.logoText, { color: colors.primary }]}>GoPackNow</Text>
+        <View style={styles.logoRow}>
+          <GoPackIcon size={30} />
+          <Text style={[styles.logoText, { color: colors.foreground }]}>GoPackNow</Text>
+        </View>
         <View style={styles.headerRight}>
           <Pressable
             onPress={() => setHelpVisible(true)}
@@ -212,7 +216,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  logoText: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  logoText: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   helpBtn: {
     width: 32, height: 32, borderRadius: 16,
