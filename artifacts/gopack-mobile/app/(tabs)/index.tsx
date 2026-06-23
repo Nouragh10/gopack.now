@@ -167,7 +167,7 @@ export default function DashboardScreen() {
       <Modal visible={helpVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setHelpVisible(false)}>
         <View style={[styles.modalRoot, { backgroundColor: colors.background }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>How GoPack works</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>How GoPackNow works</Text>
             <Pressable onPress={() => setHelpVisible(false)} style={[styles.modalClose, { backgroundColor: colors.muted }]}>
               <Feather name="x" size={18} color={colors.foreground} />
             </Pressable>

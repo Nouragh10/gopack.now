@@ -179,7 +179,7 @@ export default function Dashboard() {
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-background border border-border rounded-3xl shadow-2xl p-8"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="font-serif text-2xl font-bold">How GoPack works</h2>
+                <h2 className="font-serif text-2xl font-bold">How GoPackNow works</h2>
                 <button onClick={() => setHelpOpen(false)} className="p-2 text-muted-foreground hover:text-foreground rounded-lg transition-colors">
                   <X size={18} />
                 </button>

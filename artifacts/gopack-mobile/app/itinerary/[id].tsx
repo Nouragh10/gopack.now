@@ -227,7 +227,7 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
   <div class="cover-blob2"></div>
   <div class="logo-row">
     <div class="logo-dot"></div>
-    <div class="logo-text">GoPack</div>
+    <div class="logo-text">GoPackNow</div>
   </div>
   <div class="cover-eyebrow">Group Travel Itinerary</div>
   <h1 class="cover-title">${title}</h1>
