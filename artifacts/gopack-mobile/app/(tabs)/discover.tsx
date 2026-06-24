@@ -201,15 +201,18 @@ export default function DiscoverScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
+  const [activeVibe, setActiveVibe] = useState<string | null>(null);
   const [previewReview, setPreviewReview] = useState<PublicReview | null>(null);
   const reviews = usePublicReviews(4);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
 
-  const filtered = reviews.filter((r) =>
-    !query || r.destination?.toLowerCase().includes(query.toLowerCase()),
-  );
+  const filtered = reviews.filter((r) => {
+    const matchesQuery = !query || r.destination?.toLowerCase().includes(query.toLowerCase());
+    const matchesVibe = !activeVibe || r.vibes?.includes(activeVibe);
+    return matchesQuery && matchesVibe;
+  });
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -279,15 +282,26 @@ export default function DiscoverScreen() {
             Browse by vibe
           </Text>
           <View style={styles.vibeGrid}>
-            {VIBES.map((vibe) => (
-              <Pressable
-                key={vibe.label}
-                style={[styles.vibeCard, { backgroundColor: vibe.color + "22", borderColor: vibe.color + "44" }]}
-              >
-                <Feather name={vibe.icon as any} size={22} color={vibe.color} />
-                <Text style={[styles.vibeLabel, { color: vibe.color }]}>{vibe.label}</Text>
-              </Pressable>
-            ))}
+            {VIBES.map((vibe) => {
+              const isActive = activeVibe === vibe.label;
+              return (
+                <Pressable
+                  key={vibe.label}
+                  onPress={() => setActiveVibe(isActive ? null : vibe.label)}
+                  style={[
+                    styles.vibeCard,
+                    {
+                      backgroundColor: isActive ? vibe.color + "55" : vibe.color + "22",
+                      borderColor: isActive ? vibe.color : vibe.color + "44",
+                      borderWidth: isActive ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name={vibe.icon as any} size={22} color={vibe.color} />
+                  <Text style={[styles.vibeLabel, { color: vibe.color }]}>{vibe.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
