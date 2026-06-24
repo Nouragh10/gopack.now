@@ -505,3 +505,18 @@ export async function saveItinerary(tripId: string, itinerary: any) {
 export async function confirmPack(tripId: string) {
   await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
 }
+
+/* ─── Premium management ─────────────────────────────────────────── */
+
+export async function setTripPremium(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), { isPremium: true });
+}
+
+export async function incrementAiUsage(
+  tripId: string,
+  feature: "itinerary" | "packing" | "activityRedos",
+) {
+  const r = ref(db, `trips/${tripId}/aiUsage/${feature}`);
+  const snap = await get(r);
+  await set(r, (snap.val() ?? 0) + 1);
+}

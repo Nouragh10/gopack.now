@@ -8,8 +8,9 @@ import {
   Star, Bell, Home, Compass
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrip, startCollectingPreferences, confirmPack } from "@/hooks/useFirebase";
+import { useTrip, startCollectingPreferences, confirmPack, incrementAiUsage } from "@/hooks/useFirebase";
 import { useGenerateItinerary, useGeneratePackingList } from "@workspace/api-client-react";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const VIBE_LABELS: Record<string, string> = {
   culture: "Culture", food: "Foodie", adventure: "Adventure",
@@ -53,7 +54,8 @@ export default function TripHub() {
   const [itineraryError, setItineraryError] = useState("");
   const [packingError, setPackingError] = useState("");
   const [votingId, setVotingId] = useState<string | null>(null);
-
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("");
 
   const generateItinerary = useGenerateItinerary();
   const generatePacking = useGeneratePackingList();
@@ -67,12 +69,21 @@ export default function TripHub() {
 
   const handleGenerateItinerary = () => {
     if (!trip) return;
+    if (!canGenerateItinerary) {
+      setUpgradeReason("You've used your free itinerary generations");
+      setShowUpgrade(true);
+      return;
+    }
     setItineraryError("");
     const wishList = wishes.map(w => ({ text: w.text, author: w.author, votes: w.votes }));
     generateItinerary.mutate(
       { data: { destination: trip.destination, days: trip.days, vibes: trip.vibes || [], budget: trip.budget || "midrange", startDate: trip.startDate || null, wishes: wishList } },
       {
-        onSuccess: (result) => { updateItinerary(result); setLocation(`/trip/${tripId}/itinerary`); },
+        onSuccess: (result) => {
+          incrementAiUsage(tripId, "itinerary");
+          updateItinerary(result);
+          setLocation(`/trip/${tripId}/itinerary`);
+        },
         onError: (err: any) => { setItineraryError(err?.message || "Generation failed. Please try again."); },
       }
     );
@@ -80,11 +91,16 @@ export default function TripHub() {
 
   const handleGeneratePacking = () => {
     if (!trip) return;
+    if (!canGeneratePacking) {
+      setUpgradeReason("You've used your free packing list generations");
+      setShowUpgrade(true);
+      return;
+    }
     setPackingError("");
     generatePacking.mutate(
       { data: { destination: trip.destination, days: trip.days, vibes: trip.vibes || [], budget: trip.budget || "midrange" } },
       {
-        onSuccess: (result) => { updatePackingList(result.list); setLocation(`/trip/${tripId}/packing`); },
+        onSuccess: (result) => { incrementAiUsage(tripId, "packing"); updatePackingList(result.list); setLocation(`/trip/${tripId}/packing`); },
         onError: (err: any) => { setPackingError(err?.message || "Generation failed. Please try again."); },
       }
     );
@@ -132,6 +148,15 @@ export default function TripHub() {
   const isHost = user?.uid === trip.hostMemberId;
   const hostName = trip.hostMemberId && trip.members?.[trip.hostMemberId]?.name;
   const memberNames = members.map(([, m]: [string, any]) => m.name as string);
+
+  /* ── premium / tier ── */
+  const isPremium = trip.isPremium ?? false;
+  const itineraryUsage = trip.aiUsage?.itinerary ?? 0;
+  const packingUsage = trip.aiUsage?.packing ?? 0;
+  const FREE_GEN_LIMIT = 2; // 1 generation + 1 redo for free tier
+  const canGenerateItinerary = isPremium || itineraryUsage < FREE_GEN_LIMIT;
+  const canGeneratePacking = isPremium || packingUsage < FREE_GEN_LIMIT;
+  const maxMembers = isPremium ? 20 : 5;
 
   /* who has voted on at least one wish */
   const voterUids = new Set<string>();
@@ -637,6 +662,28 @@ export default function TripHub() {
             <p className="text-xs text-muted-foreground/60 mt-2 text-center truncate">/join/{tripId}</p>
           </div>
 
+          {/* Pack Plus upgrade CTA */}
+          {!isPremium && (
+            <>
+              <div className="border-t border-border" />
+              <div className="rounded-2xl border-2 border-dashed border-primary/25 bg-primary/3 p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Sparkles size={13} className="text-primary" />
+                  <p className="text-xs font-semibold text-primary">Pack Plus · $14.99</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                  Unlimited regenerations, PDF export, up to 20 members, and more.
+                </p>
+                <button
+                  onClick={() => { setUpgradeReason(""); setShowUpgrade(true); }}
+                  className="w-full py-2 text-sm font-semibold bg-primary text-white rounded-full hover:bg-primary/90 transition-colors"
+                >
+                  Upgrade this Pack
+                </button>
+              </div>
+            </>
+          )}
+
           {/* Plan the trip — destination flows */}
           {(trip.collectingPreferences || trip.memberPreferences || trip.destinationSuggestions?.length) && (
             <>
@@ -763,6 +810,12 @@ export default function TripHub() {
         </div>
       </div>
 
+      <UpgradeModal
+        open={showUpgrade}
+        reason={upgradeReason}
+        tripId={tripId}
+        onClose={() => setShowUpgrade(false)}
+      />
     </div>
   );
 }

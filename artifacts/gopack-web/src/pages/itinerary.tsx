@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
+import { incrementAiUsage } from "@/hooks/useFirebase";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 /* ─── constants ─────────────────────────────────────────────── */
 const TAG_COLORS: Record<string, string> = {
@@ -223,6 +225,8 @@ export default function Itinerary() {
   const printRef = useRef<HTMLDivElement>(null);
   const [redoPanel, setRedoPanel] = useState<{ di: number; ai: number; act: any } | null>(null);
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("");
 
   useEffect(() => {
     if (!tripId) return;
@@ -248,6 +252,13 @@ export default function Itinerary() {
   }, [tripId]);
 
   const isDirty = JSON.stringify(localItinerary) !== JSON.stringify(itinerary);
+
+  /* ── premium / tier ── */
+  const isPremium = trip?.isPremium ?? false;
+  const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
+  const FREE_REDO_LIMIT = 1;
+  const PREMIUM_REDO_LIMIT = 20;
+  const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
 
   const saveChanges = async () => {
     if (!localItinerary || !tripId) return;
@@ -298,6 +309,11 @@ export default function Itinerary() {
   };
 
   const handleRedo = async (di: number, ai: number, act: any, redoType: "same_type" | "whole") => {
+    if (!canRedo) {
+      setUpgradeReason(isPremium ? "You've reached the premium redo limit (20)" : "You've used your free activity redo");
+      setShowUpgrade(true);
+      return;
+    }
     const key = `${di}-${ai}`;
     setRedoPanel(null);
     setRedoLoading(key);
@@ -321,6 +337,7 @@ export default function Itinerary() {
         const next = JSON.parse(JSON.stringify(localItinerary));
         next.days[di].activities[ai] = { ...newAct, time: act.time };
         setLocalItinerary(next);
+        await incrementAiUsage(tripId, "activityRedos");
       }
     } finally {
       setRedoLoading(null);
@@ -474,9 +491,11 @@ export default function Itinerary() {
                   {saving ? "Saving…" : saveSuccess ? "Saved!" : "Save changes"}
                 </button>
               )}
-              <button onClick={handleExportAllCalendar}
+              <button
+                onClick={isPremium ? handleExportAllCalendar : () => { setUpgradeReason("Calendar export is a Pack Plus feature"); setShowUpgrade(true); }}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="Export all to Calendar" data-testid="button-export-calendar">
+                title={isPremium ? "Export all to Calendar" : "Pack Plus — Export to Calendar"}
+                data-testid="button-export-calendar">
                 <CalendarPlus size={15}/><span className="hidden sm:inline">Calendar</span>
               </button>
               <button onClick={handleOpenAllMaps}
@@ -484,15 +503,19 @@ export default function Itinerary() {
                 title="All stops in Google Maps" data-testid="button-open-maps">
                 <MapPin size={15}/><span className="hidden sm:inline">Maps</span>
               </button>
-              <button onClick={togglePrintPreview}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-full transition-colors ${printPreview ? "bg-primary text-white border-primary" : "border-border hover:bg-muted/50"}`}
-                title="Preview PDF layout" data-testid="button-preview-pdf">
-                {printPreview ? <EyeOff size={15}/> : <Eye size={15}/>}
-                <span className="hidden sm:inline">{printPreview ? "Close preview" : "Preview PDF"}</span>
+              <button
+                onClick={isPremium ? togglePrintPreview : () => { setUpgradeReason("PDF export is a Pack Plus feature"); setShowUpgrade(true); }}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-full transition-colors ${printPreview && isPremium ? "bg-primary text-white border-primary" : "border-border hover:bg-muted/50"}`}
+                title={isPremium ? "Preview PDF layout" : "Pack Plus — PDF Preview"}
+                data-testid="button-preview-pdf">
+                {printPreview && isPremium ? <EyeOff size={15}/> : <Eye size={15}/>}
+                <span className="hidden sm:inline">{printPreview && isPremium ? "Close preview" : "Preview PDF"}</span>
               </button>
-              <button onClick={handleExportPDF}
+              <button
+                onClick={isPremium ? handleExportPDF : () => { setUpgradeReason("PDF export is a Pack Plus feature"); setShowUpgrade(true); }}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="Export as PDF" data-testid="button-export-pdf">
+                title={isPremium ? "Export as PDF" : "Pack Plus — Export PDF"}
+                data-testid="button-export-pdf">
                 <FileDown size={15}/><span className="hidden sm:inline">PDF</span>
               </button>
             </div>
@@ -669,6 +692,12 @@ export default function Itinerary() {
                                           <span className="text-xs text-muted-foreground/70 italic ml-1">by {act.suggester}</span>
                                         )}
                                         <div className="ml-auto flex items-center gap-1.5">
+                                          <a href={`https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${act.name} ${day.city || trip?.destination || ""}`)}`}
+                                            target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors"
+                                            title="Reserve on Viator" data-testid={`button-act-viator-${di+1}-${ai+1}`}>
+                                            <Star size={11}/> Reserve
+                                          </a>
                                           <a href={buildActivityCalendarUrl(act, day, trip, di)} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                                             title="Add to Google Calendar" data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
@@ -860,6 +889,13 @@ export default function Itinerary() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <UpgradeModal
+        open={showUpgrade}
+        reason={upgradeReason}
+        tripId={tripId}
+        onClose={() => setShowUpgrade(false)}
+      />
     </>
   );
 }
