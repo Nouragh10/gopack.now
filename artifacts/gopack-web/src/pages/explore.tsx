@@ -3,9 +3,26 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import {
   MapPin, Star, Users, ArrowLeft, Sparkles, Loader2,
-  MessageSquare, CalendarDays, Camera,
+  MessageSquare, CalendarDays, Camera, Search, Sun,
 } from "lucide-react";
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
+
+const MONTHLY_PICKS = [
+  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],    photo: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"],          photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],   photo: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"],         photo: "https://images.unsplash.com/photo-1534445867742-43195f401b6c?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",      tags: ["Adventure", "Nature"],  photo: "https://images.unsplash.com/photo-1531168556467-80aace0d0144?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],        photo: "https://images.unsplash.com/photo-1555990538-bbc2c5fdaee9?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",       tags: ["Nature", "Adventure"],   photo: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80&auto=format&fit=crop" },
+  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",    tags: ["City", "Culture", "Food"],          photo: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",            tags: ["Culture", "Nature"],     photo: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"],     photo: "https://images.unsplash.com/photo-1548013146-72479768bada?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"], photo: "https://images.unsplash.com/photo-1484950763426-56b5bf172dbb?w=1200&q=80&auto=format&fit=crop" },
+];
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 const VIBE_COLORS: Record<string, string> = {
   culture:     "bg-violet-100 text-violet-700 border-violet-200",
@@ -112,6 +129,7 @@ export default function Explore() {
   const { reviews, loading: reviewsLoading } = usePublicReviews();
   const { stats, loading: statsLoading } = useGlobalStats();
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   const loading = reviewsLoading || statsLoading;
 
@@ -119,12 +137,17 @@ export default function Explore() {
   const memberCount = stats.memberCount;
   const destinationCount = stats.destinationCount;
 
+  const month = new Date().getMonth();
+  const monthlyPick = MONTHLY_PICKS[month];
+
   const toggleVibeFilter = (key: string) =>
     setSelectedVibes(prev => prev.includes(key) ? prev.filter(v => v !== key) : [...prev, key]);
 
-  const filteredReviews = selectedVibes.length === 0
-    ? reviews
-    : reviews.filter(r => r.vibes?.some((v: string) => selectedVibes.includes(v.toLowerCase())));
+  const filteredReviews = reviews.filter(r => {
+    const matchesQuery = !query || r.destination?.toLowerCase().includes(query.toLowerCase());
+    const matchesVibe = selectedVibes.length === 0 || r.vibes?.some((v: string) => selectedVibes.includes(v.toLowerCase()));
+    return matchesQuery && matchesVibe;
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -154,9 +177,19 @@ export default function Explore() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-3">Community</p>
             <h1 className="font-serif text-5xl font-bold mb-3">Real trips. Real reviews.</h1>
-            <p className="text-muted-foreground text-lg max-w-xl">
+            <p className="text-muted-foreground text-lg max-w-xl mb-8">
               See where groups like yours went — and how GoPackNow helped them get there.
             </p>
+            <div className="relative max-w-md">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search destinations…"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+              />
+            </div>
           </motion.div>
         </div>
       </div>
@@ -186,6 +219,46 @@ export default function Explore() {
           </div>
         </div>
       )}
+
+      {/* Best This Month */}
+      <div className="border-b border-border px-8 py-10 bg-background">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-5">Best This Month</p>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative rounded-2xl overflow-hidden h-64 cursor-pointer group"
+            onClick={() => window.location.href = "/create"}
+          >
+            <img
+              src={monthlyPick.photo}
+              alt={monthlyPick.name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+            <div className="absolute top-4 left-4">
+              <span className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full border border-white/30">
+                <Sun size={11} />
+                {MONTH_NAMES[month].toUpperCase()}'S PICK
+              </span>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <h3 className="text-white font-serif text-3xl font-bold mb-1">{monthlyPick.name}</h3>
+              <p className="text-white/80 text-sm mb-3 max-w-md">{monthlyPick.why}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {monthlyPick.tags.map(tag => (
+                  <span key={tag} className="bg-white/20 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full border border-white/25">
+                    {tag}
+                  </span>
+                ))}
+                <span className="ml-auto flex items-center gap-1 text-white text-sm font-semibold group-hover:gap-2 transition-all">
+                  Plan this trip <MapPin size={13} />
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
 
       {/* Vibe filter bar */}
       {!loading && reviews.length > 0 && (

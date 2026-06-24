@@ -99,18 +99,20 @@ export default function Notifications() {
         });
       }
 
-      // New member joined (for host)
-      if (trip.hostMemberId === uid && trip.members) {
-        const memberCount = Object.keys(trip.members).length;
-        if (memberCount > 1) {
+      // New members who joined recently (excluding self)
+      const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+      for (const [memberId, member] of Object.entries(trip.members ?? {})) {
+        if (memberId === uid) continue;
+        const joinedAt = new Date((member as any).joinedAt ?? 0).getTime();
+        if (joinedAt > sevenDaysAgo) {
           notes.push({
-            id: `members-${trip.id}`,
+            id: `join-${trip.id}-${memberId}`,
             icon: <UserPlus size={18} />,
             color: "#378ADD",
-            title: `${memberCount} people in your pack`,
-            subtitle: `${trip.destination} — your crew is growing!`,
+            title: `${(member as any).name} joined`,
+            subtitle: `${(member as any).name} joined your ${trip.destination} trip.`,
             href: `/trip/${trip.id}`,
-            time: createdAt + 300_000,
+            time: joinedAt,
           });
         }
       }
