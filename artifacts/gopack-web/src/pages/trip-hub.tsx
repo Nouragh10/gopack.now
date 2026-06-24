@@ -637,12 +637,12 @@ export default function TripHub() {
             <p className="text-xs text-muted-foreground/60 mt-2 text-center truncate">/join/{tripId}</p>
           </div>
 
-          {/* Destination & accommodation flows — only shown when no destination yet */}
-          {(!trip.destination || trip.collectingPreferences || trip.destinationSuggestions?.length || trip.accommodationPreferences || trip.accommodationSuggestions?.length || trip.confirmedAccommodation) && (
+          {/* Plan the trip — destination flows */}
+          {(trip.collectingPreferences || trip.memberPreferences || trip.destinationSuggestions?.length) && (
             <>
               <div className="border-t border-border" />
               <div>
-                <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Plan the trip</p>
+                <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Destination</p>
                 <div className="flex flex-col gap-2">
                   {(trip.collectingPreferences || trip.memberPreferences) && (
                     <Link href={`/trip/${tripId}/destination-preferences`}
@@ -658,37 +658,59 @@ export default function TripHub() {
                       <ChevronRight size={13} />
                     </Link>
                   )}
-                  {(trip.accommodationPreferences || trip.accommodationSuggestions?.length) && (
-                    <Link href={`/trip/${tripId}/accommodation-preferences`}
-                      className="flex items-center gap-3 px-4 py-3 border-2 border-teal-400/60 bg-teal-500/10 rounded-xl text-sm text-teal-700 hover:bg-teal-500/20 hover:border-teal-500 transition-all font-medium shadow-sm">
-                      <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
-                        <Home size={13} className="text-white" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Accommodation — always visible once destination is set */}
+          {trip.destination && (
+            <>
+              <div className="border-t border-border" />
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Accommodation</p>
+                <div className="flex flex-col gap-2">
+                  {trip.confirmedAccommodation ? (
+                    <div className="flex items-center gap-3 px-4 py-3 border border-green-300/40 bg-green-500/5 rounded-xl text-sm text-green-700">
+                      <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+                        <Check size={13} className="text-white" />
                       </div>
-                      <div className="flex-1">
-                        <div>Accommodation</div>
-                        <div className="text-xs font-normal text-teal-600/80">Pick where you'll stay</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{trip.confirmedAccommodation.name}</div>
+                        <div className="text-xs text-green-600/80">Accommodation confirmed</div>
                       </div>
-                      <ChevronRight size={14} />
-                    </Link>
-                  )}
-                  {trip.accommodationSuggestions?.length > 0 && (
+                      <Link href={`/trip/${tripId}/accommodation-vote`} className="shrink-0">
+                        <ChevronRight size={14} className="text-green-600" />
+                      </Link>
+                    </div>
+                  ) : trip.accommodationSuggestions?.length > 0 ? (
                     <Link href={`/trip/${tripId}/accommodation-vote`}
-                      className="flex items-center gap-3 px-4 py-3 border-2 border-teal-400/60 bg-teal-500/10 rounded-xl text-sm text-teal-700 hover:bg-teal-500/20 hover:border-teal-500 transition-all font-medium shadow-sm">
+                      className="flex items-center gap-3 px-4 py-3 border-2 border-teal-400/60 bg-teal-500/10 rounded-xl text-sm text-teal-700 hover:bg-teal-500/20 hover:border-teal-500 transition-all font-medium">
                       <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center shrink-0">
                         <Home size={13} className="text-white" />
                       </div>
                       <div className="flex-1">
                         <div>Vote on accommodation</div>
-                        <div className="text-xs font-normal text-teal-600/80">{trip.accommodationSuggestions.length} options to vote on</div>
+                        <div className="text-xs font-normal text-teal-600/80">{trip.accommodationSuggestions.length} options ready</div>
                       </div>
                       <ChevronRight size={14} />
                     </Link>
-                  )}
-                  {trip.confirmedAccommodation && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 border border-green-300/40 bg-green-500/5 rounded-xl text-sm text-green-600 dark:text-green-400">
-                      <Check size={13} />
-                      {trip.confirmedAccommodation.name}
-                    </div>
+                  ) : (
+                    <Link href={`/trip/${tripId}/accommodation-preferences`}
+                      className="flex items-center gap-3 px-4 py-3 border border-border bg-muted/20 rounded-xl text-sm text-foreground hover:bg-muted/50 hover:border-teal-400/40 transition-all font-medium group">
+                      <div className="w-7 h-7 rounded-full bg-teal-500/15 group-hover:bg-teal-500 flex items-center justify-center shrink-0 transition-colors">
+                        <Home size={13} className="text-teal-600 group-hover:text-white transition-colors" />
+                      </div>
+                      <div className="flex-1">
+                        <div>Book accommodation</div>
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {trip.accommodationPreferences
+                            ? `${Object.keys(trip.accommodationPreferences).length} preference${Object.keys(trip.accommodationPreferences).length !== 1 ? "s" : ""} collected`
+                            : "Add your preferences"}
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground" />
+                    </Link>
                   )}
                 </div>
               </div>
