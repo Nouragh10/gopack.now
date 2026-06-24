@@ -26,6 +26,7 @@ import {
   addWish,
   lockVotes,
   confirmPack,
+  incrementAiUsage,
   setAccommodationStatus,
   unlockVotes,
   useTrip,
@@ -33,6 +34,7 @@ import {
   voteWish,
   Wish,
 } from "@/hooks/useFirebase";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -230,6 +232,8 @@ export default function TripHubScreen() {
   const [copiedId, setCopiedId] = useState(false);
   const [lockingVotes, setLockingVotes] = useState(false);
   const [showAccomModal, setShowAccomModal] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 12;
@@ -253,6 +257,13 @@ export default function TripHubScreen() {
   const lockedCount = Object.keys(lockedBy).length;
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
   const myLocked = !!lockedBy[user?.uid ?? ""];
+
+  const isPremium = trip?.isPremium ?? false;
+  const FREE_GEN_LIMIT = 2;
+  const itineraryGenCount = trip?.aiUsage?.itinerary ?? 0;
+  const packingGenCount = trip?.aiUsage?.packing ?? 0;
+  const canGenerateItinerary = isPremium || itineraryGenCount < FREE_GEN_LIMIT;
+  const canGeneratePacking = isPremium || packingGenCount < FREE_GEN_LIMIT;
 
   const handleAddWish = async () => {
     if (!wishInput.trim() || !user || !id) return;
@@ -745,6 +756,11 @@ export default function TripHubScreen() {
           <Pressable
             onPress={() => {
               if (!allLocked) return;
+              if (!canGenerateItinerary) {
+                setUpgradeReason("You've used your free itinerary generations");
+                setShowUpgrade(true);
+                return;
+              }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push(`/building/${id}`);
             }}
@@ -759,14 +775,24 @@ export default function TripHubScreen() {
                 Waiting for: {waitingMembers.join(", ")}
               </Text>
             )}
+            {allLocked && !canGenerateItinerary && (
+              <Text style={{ color: "#fff", opacity: 0.75, fontSize: 12, fontFamily: "DmSans_400Regular", marginBottom: 4 }}>
+                Pack Plus required
+              </Text>
+            )}
             <View style={[styles.goCardBtn, { backgroundColor: allLocked ? "#E85D3A" : "#7A6E68" }]}>
-              <Feather name={allLocked ? "arrow-right" : "clock"} size={22} color="#fff" />
+              <Feather name={allLocked ? (canGenerateItinerary ? "arrow-right" : "zap") : "clock"} size={22} color="#fff" />
             </View>
           </Pressable>
 
           {/* Packing list card */}
           <Pressable
             onPress={() => {
+              if (!canGeneratePacking) {
+                setUpgradeReason("You've used your free packing list generations");
+                setShowUpgrade(true);
+                return;
+              }
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               router.push(`/packing/${id}`);
             }}
@@ -844,6 +870,13 @@ export default function TripHubScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <UpgradeModal
+        visible={showUpgrade}
+        reason={upgradeReason}
+        tripId={id ?? ""}
+        onClose={() => setShowUpgrade(false)}
+      />
 
       {/* Invite modal */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>

@@ -86,6 +86,9 @@ export interface Trip {
   accommodationLockedBy?: Record<string, boolean>;
   confirmedAccommodation?: AccommodationSuggestion;
   packConfirmed?: boolean;
+  isPremium?: boolean;
+  aiUsage?: Record<string, number>;
+  review?: unknown;
 }
 
 export interface Wish {
@@ -792,4 +795,15 @@ export async function leaveTrip(tripId: string, uid: string) {
 
 export async function confirmPack(tripId: string) {
   await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
+}
+
+export async function setTripPremium(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), { isPremium: true });
+}
+
+export async function incrementAiUsage(tripId: string, feature: string) {
+  const r = ref(db, `trips/${tripId}/aiUsage/${feature}`);
+  const snap = await get(r);
+  const current = (snap.val() as number) ?? 0;
+  await set(r, current + 1);
 }

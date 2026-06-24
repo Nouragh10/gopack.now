@@ -31,8 +31,10 @@ import {
   addActivity,
   updateActivity,
   deleteActivity,
+  incrementAiUsage,
   useTrip,
 } from "@/hooks/useFirebase";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -400,6 +402,17 @@ function ActivityCard({
           </Text>
         )}
         <View style={styles.actActions}>
+          <Pressable
+            onPress={() => {
+              const url = `https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${activity.name} ${destination}`)}`;
+              if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+              else Linking.openURL(url);
+            }}
+            style={[styles.actActionBtn, { borderColor: "#F59E0B", backgroundColor: "#FFF8EC" }]}
+          >
+            <Feather name="star" size={13} color="#D97706" />
+            <Text style={[styles.actActionText, { color: "#D97706" }]}>Reserve</Text>
+          </Pressable>
           <Pressable onPress={openMaps} style={[styles.actActionBtn, { borderColor: colors.border }]}>
             <Feather name="map-pin" size={13} color={colors.foreground} />
             <Text style={[styles.actActionText, { color: colors.foreground }]}>Maps</Text>
@@ -440,6 +453,8 @@ export default function ItineraryScreen() {
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -451,6 +466,12 @@ export default function ItineraryScreen() {
 
   const accom = trip?.confirmedAccommodation ?? null;
   const accomCost = accom?.costPerPerson ?? 0;
+
+  const isPremium = trip?.isPremium ?? false;
+  const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
+  const FREE_REDO_LIMIT = 1;
+  const PREMIUM_REDO_LIMIT = 20;
+  const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
 
   const totalCost =
     days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
@@ -468,6 +489,11 @@ export default function ItineraryScreen() {
   };
 
   const handleRedo = (act: Activity, idx: number, dayNum: number) => {
+    if (!canRedo) {
+      setUpgradeReason(isPremium ? "You've reached the premium redo limit (20)" : "You've used your free activity redo");
+      setShowUpgrade(true);
+      return;
+    }
     const options = getRedoOptions(act.tag);
     const day = days.find((d) => d.dayNumber === dayNum);
     const buttons = options.map(({ label, redoType }) => ({
@@ -493,6 +519,7 @@ export default function ItineraryScreen() {
           if (resp.ok) {
             const { activity: newAct } = await resp.json();
             await updateActivity(id!, dayNum, idx, { ...newAct, time: act.time });
+            await incrementAiUsage(id!, "activityRedos");
           }
         } finally {
           setRedoLoading(null);
@@ -569,6 +596,11 @@ export default function ItineraryScreen() {
 
   const handleExportPDF = async () => {
     if (!trip || !itinerary) return;
+    if (!isPremium) {
+      setUpgradeReason("PDF export is a Pack Plus feature");
+      setShowUpgrade(true);
+      return;
+    }
     setExportingPDF(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -949,6 +981,13 @@ export default function ItineraryScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      <UpgradeModal
+        visible={showUpgrade}
+        reason={upgradeReason}
+        tripId={id ?? ""}
+        onClose={() => setShowUpgrade(false)}
+      />
     </View>
   );
 }
