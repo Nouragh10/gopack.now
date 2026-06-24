@@ -356,16 +356,15 @@ function ActivityCard({
 
   const openMaps = () => {
     const query = encodeURIComponent(`${activity.name}, ${destination}`);
-    if (Platform.OS === "ios") {
-      Linking.openURL(`maps://maps.apple.com/?q=${query}`).catch(() =>
-        Linking.openURL(`https://maps.apple.com/?q=${query}`)
-      );
-    } else if (Platform.OS === "android") {
-      Linking.openURL(`geo:0,0?q=${query}`).catch(() =>
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`)
-      );
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    if (Platform.OS === "web") {
+      window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
+    } else if (Platform.OS === "ios") {
+      Linking.openURL(`maps://?q=${query}`).catch(() => {
+        Linking.openURL(googleMapsUrl).catch(() => {});
+      });
     } else {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank", "noopener,noreferrer");
+      Linking.openURL(googleMapsUrl).catch(() => {});
     }
   };
 
@@ -674,7 +673,14 @@ export default function ItineraryScreen() {
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.headerTitles}>
-            <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACKNOW ITINERARY</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACKNOW ITINERARY</Text>
+              {isPremium && (
+                <View style={{ backgroundColor: "#E85D3A", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 9, color: "#fff", letterSpacing: 1 }}>PLUS</Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
               {trip.destination}
             </Text>
