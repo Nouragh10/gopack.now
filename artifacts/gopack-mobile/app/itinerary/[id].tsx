@@ -329,6 +329,7 @@ interface ActivityCardProps {
   onEdit: (act: Activity, idx: number, day: number) => void;
   onRedo: (act: Activity, idx: number, day: number) => void;
   onDelete: (idx: number, day: number) => void;
+  onCalendar: () => void;
 }
 
 function ActivityCard({
@@ -341,6 +342,7 @@ function ActivityCard({
   onEdit,
   onRedo,
   onDelete,
+  onCalendar,
 }: ActivityCardProps) {
   const tagColor = getTagColor(activity.tag);
 
@@ -354,7 +356,17 @@ function ActivityCard({
 
   const openMaps = () => {
     const query = encodeURIComponent(`${activity.name}, ${destination}`);
-    openURL(`https://maps.google.com/maps?q=${query}`);
+    if (Platform.OS === "ios") {
+      Linking.openURL(`maps://maps.apple.com/?q=${query}`).catch(() =>
+        Linking.openURL(`https://maps.apple.com/?q=${query}`)
+      );
+    } else if (Platform.OS === "android") {
+      Linking.openURL(`geo:0,0?q=${query}`).catch(() =>
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`)
+      );
+    } else {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank", "noopener,noreferrer");
+    }
   };
 
   const openCalendar = () => {
@@ -417,7 +429,7 @@ function ActivityCard({
             <Feather name="map-pin" size={13} color={colors.foreground} />
             <Text style={[styles.actActionText, { color: colors.foreground }]}>Maps</Text>
           </Pressable>
-          <Pressable onPress={openCalendar} style={[styles.actActionBtn, { borderColor: colors.border }]}>
+          <Pressable onPress={onCalendar} style={[styles.actActionBtn, { borderColor: colors.border }]}>
             <Feather name="calendar" size={13} color={colors.foreground} />
             <Text style={[styles.actActionText, { color: colors.foreground }]}>Calendar</Text>
           </Pressable>
@@ -767,6 +779,22 @@ export default function ItineraryScreen() {
                   onEdit={handleEdit}
                   onRedo={handleRedo}
                   onDelete={handleDelete}
+                  onCalendar={() => {
+                    if (!isPremium) {
+                      setUpgradeReason("Calendar export is a Pack Plus feature");
+                      setShowUpgrade(true);
+                      return;
+                    }
+                    const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
+                    const t = encodeURIComponent(act.name);
+                    const d = encodeURIComponent(act.description);
+                    const l = encodeURIComponent(`${act.name}, ${trip.destination}`);
+                    const url = dateStr
+                      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
+                      : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
+                    if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+                    else Linking.openURL(url);
+                  }}
                 />
                 {redoLoading === `${currentDay.dayNumber}-${i}` && (
                   <View style={{ alignItems: "center", padding: 8 }}>

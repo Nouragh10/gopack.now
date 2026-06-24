@@ -698,11 +698,16 @@ export default function Itinerary() {
                                             title="Reserve on Viator" data-testid={`button-act-viator-${di+1}-${ai+1}`}>
                                             <Star size={11}/> Reserve
                                           </a>
-                                          <a href={buildActivityCalendarUrl(act, day, trip, di)} target="_blank" rel="noopener noreferrer"
+                                          <button
+                                            onClick={() => {
+                                              if (!isPremium) { setUpgradeReason("Calendar export is a Pack Plus feature"); setShowUpgrade(true); return; }
+                                              window.open(buildActivityCalendarUrl(act, day, trip, di), "_blank", "noopener,noreferrer");
+                                            }}
                                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                                            title="Add to Google Calendar" data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
+                                            title={isPremium ? "Add to Google Calendar" : "Pack Plus — Calendar export"}
+                                            data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
                                             <CalendarPlus size={11}/> Calendar
-                                          </a>
+                                          </button>
                                           <a href={buildActivityMapsUrl(act, day, trip)} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                                             title="Open in Google Maps" data-testid={`button-act-maps-${di+1}-${ai+1}`}>
