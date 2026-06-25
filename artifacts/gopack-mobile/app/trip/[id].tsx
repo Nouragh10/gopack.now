@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -208,27 +208,40 @@ function SwipeWishStack({
   wishes: Wish[]; uid: string; userName: string; tripId: string; colors: any;
   onComplete?: () => void;
 }) {
-  const [topIndex, setTopIndex] = useState(0);
+  // Snapshot the order at mount — prevents Firebase re-sorts from shuffling cards mid-session
+  const [swipeOrder] = useState<string[]>(() => wishes.map((w) => w.id));
+  // Live wish data by ID (score, upvoters, etc. stay current)
+  const wishMap = useMemo(() => new Map(wishes.map((w) => [w.id, w])), [wishes]);
 
+  const [topIndex, setTopIndex] = useState(0);
+  // Refs so runOnJS worklets always read the latest values without stale closures
+  const topIndexRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  topIndexRef.current = topIndex;
+  onCompleteRef.current = onComplete;
+
+  // Stable callbacks — no state/prop deps that could go stale inside Reanimated worklets
   const onSwipeRight = useCallback(() => {
-    const wish = wishes[topIndex];
-    if (!wish) return;
+    const i = topIndexRef.current;
+    const wishId = swipeOrder[i];
+    if (!wishId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    voteWish(tripId, wish.id, uid, userName, "up");
-    const next = topIndex + 1;
-    setTopIndex(next);
-    if (next >= wishes.length) onComplete?.();
-  }, [topIndex, wishes, tripId, uid, userName, onComplete]);
+    voteWish(tripId, wishId, uid, userName, "up");
+    topIndexRef.current = i + 1;
+    setTopIndex(i + 1);
+    if (i + 1 >= swipeOrder.length) onCompleteRef.current?.();
+  }, [tripId, uid, userName, swipeOrder]);
 
   const onSwipeLeft = useCallback(() => {
-    const wish = wishes[topIndex];
-    if (!wish) return;
+    const i = topIndexRef.current;
+    const wishId = swipeOrder[i];
+    if (!wishId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    voteWish(tripId, wish.id, uid, userName, "down");
-    const next = topIndex + 1;
-    setTopIndex(next);
-    if (next >= wishes.length) onComplete?.();
-  }, [topIndex, wishes, tripId, uid, userName, onComplete]);
+    voteWish(tripId, wishId, uid, userName, "down");
+    topIndexRef.current = i + 1;
+    setTopIndex(i + 1);
+    if (i + 1 >= swipeOrder.length) onCompleteRef.current?.();
+  }, [tripId, uid, userName, swipeOrder]);
 
   if (wishes.length === 0) {
     return (
@@ -239,35 +252,29 @@ function SwipeWishStack({
     );
   }
 
-  if (topIndex >= wishes.length) {
+  if (topIndex >= swipeOrder.length) {
     return (
       <View style={styles.allDoneWrap}>
         <View style={[styles.allDoneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="check-circle" size={44} color={colors.primary} />
           <Text style={[styles.allDoneTitle, { color: colors.foreground }]}>All caught up!</Text>
           <Text style={[styles.allDoneSub, { color: colors.mutedForeground }]}>
-            You've voted on all {wishes.length} {wishes.length === 1 ? "wish" : "wishes"}.{"\n"}Check the Vote tab for rankings.
+            You've voted on all {swipeOrder.length} {swipeOrder.length === 1 ? "wish" : "wishes"}.
           </Text>
-          <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTopIndex(0); }}
-            style={[styles.reviewBtn, { borderColor: colors.border }]}
-          >
-            <Feather name="refresh-cw" size={13} color={colors.foreground} />
-            <Text style={[styles.reviewBtnText, { color: colors.foreground }]}>Review again</Text>
-          </Pressable>
         </View>
       </View>
     );
   }
 
-  const topWish = wishes[topIndex];
-  const nextWish = wishes[topIndex + 1];
-  const thirdWish = wishes[topIndex + 2];
+  const topWish = wishMap.get(swipeOrder[topIndex]);
+  const nextWish = wishMap.get(swipeOrder[topIndex + 1]);
+  const thirdWish = wishMap.get(swipeOrder[topIndex + 2]);
+  if (!topWish) return null;
 
   return (
     <View style={styles.swipeStackWrap}>
       <Text style={[styles.swipeCounter, { color: colors.mutedForeground }]}>
-        {topIndex + 1} / {wishes.length}
+        {topIndex + 1} / {swipeOrder.length}
       </Text>
 
       <View style={styles.swipeStack}>
