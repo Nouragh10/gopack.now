@@ -258,7 +258,7 @@ export default function TripHubScreen() {
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
   const myLocked = !!lockedBy[user?.uid ?? ""];
 
-  const isPremium = trip?.isPremium ?? false;
+  const isPremium = true; // TEST MODE: all features unlocked
   const FREE_GEN_LIMIT = 2;
   const itineraryGenCount = trip?.aiUsage?.itinerary ?? 0;
   const packingGenCount = trip?.aiUsage?.packing ?? 0;

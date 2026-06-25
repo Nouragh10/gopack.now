@@ -254,7 +254,7 @@ export default function Itinerary() {
   const isDirty = JSON.stringify(localItinerary) !== JSON.stringify(itinerary);
 
   /* ── premium / tier ── */
-  const isPremium = trip?.isPremium ?? false;
+  const isPremium = true; // TEST MODE: all features unlocked
   const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
   const FREE_REDO_LIMIT = 1;
   const PREMIUM_REDO_LIMIT = 20;
