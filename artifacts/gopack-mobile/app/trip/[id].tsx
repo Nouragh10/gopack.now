@@ -2,10 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Linking,
   Modal,
@@ -17,6 +18,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
@@ -70,50 +81,204 @@ function Avatar({ name, index, size = 32 }: { name: string; index: number; size?
   );
 }
 
-/* ── WishItem (Wish tab) ─────────────────────────────────────────── */
+/* ── Swipe card constants ────────────────────────────────────────── */
 
-function WishItem({
-  wish, uid, userName, tripId, colors,
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 420);
+
+/* ── TopSwipeCard ────────────────────────────────────────────────── */
+
+function TopSwipeCard({
+  wish, uid, onSwipeLeft, onSwipeRight, colors,
 }: {
-  wish: Wish; uid: string; userName: string; tripId: string; colors: any;
+  wish: Wish; uid: string;
+  onSwipeLeft: () => void; onSwipeRight: () => void; colors: any;
 }) {
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      tx.value = e.translationX;
+      ty.value = e.translationY * 0.2;
+    })
+    .onEnd((e) => {
+      if (e.translationX > SWIPE_THRESHOLD) {
+        tx.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeRight)();
+        });
+      } else if (e.translationX < -SWIPE_THRESHOLD) {
+        tx.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeLeft)();
+        });
+      } else {
+        tx.value = withSpring(0, { damping: 14, stiffness: 130 });
+        ty.value = withSpring(0, { damping: 14, stiffness: 130 });
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { translateY: ty.value },
+      { rotate: `${interpolate(tx.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-14, 0, 14])}deg` },
+    ],
+  }));
+
+  const likeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [20, SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  const nopeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-SWIPE_THRESHOLD * 0.8, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+
   const upvoted = !!wish.upvoters?.[uid];
   const downvoted = !!wish.downvoters?.[uid];
   const score = wish.score ?? 0;
-  const scoreColor = score > 0 ? colors.primary : score < 0 ? "#9E9E9E" : colors.mutedForeground;
-  const idx = (wish.authorName ?? "?").charCodeAt(0) % MEMBER_COLORS.length;
-
-  const handleVote = (dir: "up" | "down") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    voteWish(tripId, wish.id, uid, userName, dir);
-  };
+  const authorIdx = (wish.authorName ?? "?").charCodeAt(0) % MEMBER_COLORS.length;
 
   return (
-    <View style={[styles.wishRow, { borderBottomColor: colors.border }]}>
-      <Avatar name={wish.authorName} index={idx} />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.wishText, { color: colors.foreground }]} numberOfLines={3}>
-          {wish.text}
-        </Text>
-        <Text style={[styles.wishAuthor, { color: colors.mutedForeground }]}>
-          {wish.authorName}
-        </Text>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.swipeCard, { backgroundColor: colors.card, borderColor: colors.border }, cardStyle]}>
+        {/* Like label */}
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelRight, likeStyle]}>
+          <Feather name="heart" size={22} color="#4CAF50" />
+          <Text style={[styles.swipeLabelText, { color: "#4CAF50" }]}>LOVE IT</Text>
+        </Animated.View>
+        {/* Skip label */}
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelLeft, nopeStyle]}>
+          <Feather name="x" size={22} color="#ef4444" />
+          <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
+        </Animated.View>
+
+        {/* Author row */}
+        <View style={styles.swipeCardAuthorRow}>
+          <Avatar name={wish.authorName} index={authorIdx} size={28} />
+          <Text style={[styles.swipeCardAuthor, { color: colors.mutedForeground }]}>{wish.authorName}</Text>
+          {(upvoted || downvoted) && (
+            <View style={[styles.prevVotePill, { backgroundColor: upvoted ? "#4CAF5018" : "#9E9E9E18" }]}>
+              <Feather name={upvoted ? "heart" : "x"} size={11} color={upvoted ? "#4CAF50" : "#9E9E9E"} />
+              <Text style={[styles.prevVoteText, { color: upvoted ? "#4CAF50" : "#9E9E9E" }]}>
+                {upvoted ? "You loved this" : "You skipped"}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Wish text */}
+        <Text style={[styles.swipeCardWishText, { color: colors.foreground }]}>{wish.text}</Text>
+
+        {/* Score + hint */}
+        <View style={styles.swipeCardBottom}>
+          <View style={[styles.swipeScorePill, { backgroundColor: score > 0 ? "#4CAF5018" : colors.muted }]}>
+            <Feather name="arrow-up" size={12} color={score > 0 ? "#4CAF50" : colors.mutedForeground} />
+            <Text style={[styles.swipeScoreText, { color: score > 0 ? "#4CAF50" : colors.mutedForeground }]}>
+              {score > 0 ? `+${score}` : score}
+            </Text>
+          </View>
+          <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← skip · love it →</Text>
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+/* ── SwipeWishStack ──────────────────────────────────────────────── */
+
+function SwipeWishStack({
+  wishes, uid, userName, tripId, colors,
+}: {
+  wishes: Wish[]; uid: string; userName: string; tripId: string; colors: any;
+}) {
+  const [topIndex, setTopIndex] = useState(0);
+
+  const onSwipeRight = useCallback(() => {
+    const wish = wishes[topIndex];
+    if (!wish) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    voteWish(tripId, wish.id, uid, userName, "up");
+    setTopIndex((i) => i + 1);
+  }, [topIndex, wishes, tripId, uid, userName]);
+
+  const onSwipeLeft = useCallback(() => {
+    const wish = wishes[topIndex];
+    if (!wish) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    voteWish(tripId, wish.id, uid, userName, "down");
+    setTopIndex((i) => i + 1);
+  }, [topIndex, wishes, tripId, uid, userName]);
+
+  if (wishes.length === 0) {
+    return (
+      <View style={styles.emptyWish}>
+        <Feather name="star" size={32} color="#ccc" />
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes yet — add the first one below!</Text>
       </View>
-      <View style={styles.arrowStack}>
+    );
+  }
+
+  if (topIndex >= wishes.length) {
+    return (
+      <View style={styles.allDoneWrap}>
+        <View style={[styles.allDoneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="check-circle" size={44} color={colors.primary} />
+          <Text style={[styles.allDoneTitle, { color: colors.foreground }]}>All caught up!</Text>
+          <Text style={[styles.allDoneSub, { color: colors.mutedForeground }]}>
+            You've voted on all {wishes.length} {wishes.length === 1 ? "wish" : "wishes"}.{"\n"}Check the Vote tab for rankings.
+          </Text>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTopIndex(0); }}
+            style={[styles.reviewBtn, { borderColor: colors.border }]}
+          >
+            <Feather name="refresh-cw" size={13} color={colors.foreground} />
+            <Text style={[styles.reviewBtnText, { color: colors.foreground }]}>Review again</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const topWish = wishes[topIndex];
+  const nextWish = wishes[topIndex + 1];
+  const thirdWish = wishes[topIndex + 2];
+
+  return (
+    <View style={styles.swipeStackWrap}>
+      <Text style={[styles.swipeCounter, { color: colors.mutedForeground }]}>
+        {topIndex + 1} / {wishes.length}
+      </Text>
+
+      <View style={styles.swipeStack}>
+        {thirdWish && (
+          <View style={[styles.swipeCard, styles.swipeBgCard3, { backgroundColor: colors.card, borderColor: colors.border }]} />
+        )}
+        {nextWish && (
+          <View style={[styles.swipeCard, styles.swipeBgCard2, { backgroundColor: colors.card, borderColor: colors.border }]} />
+        )}
+        <TopSwipeCard
+          key={`card-${topIndex}`}
+          wish={topWish}
+          uid={uid}
+          onSwipeLeft={onSwipeLeft}
+          onSwipeRight={onSwipeRight}
+          colors={colors}
+        />
+      </View>
+
+      <View style={styles.swipeTapRow}>
         <Pressable
-          onPress={() => handleVote("up")}
-          style={[styles.arrowBtn, { backgroundColor: upvoted ? colors.primary + "22" : "transparent" }]}
+          onPress={onSwipeLeft}
+          style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}
         >
-          <Feather name="arrow-up" size={18} color={upvoted ? colors.primary : colors.mutedForeground} />
+          <Feather name="x" size={28} color="#ef4444" />
         </Pressable>
-        <Text style={[styles.scoreText, { color: scoreColor }]}>
-          {score > 0 ? `+${score}` : score}
-        </Text>
         <Pressable
-          onPress={() => handleVote("down")}
-          style={[styles.arrowBtn, { backgroundColor: downvoted ? "#9E9E9E22" : "transparent" }]}
+          onPress={onSwipeRight}
+          style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}
         >
-          <Feather name="arrow-down" size={18} color={downvoted ? colors.foreground : colors.mutedForeground} />
+          <Feather name="heart" size={26} color="#4CAF50" />
         </Pressable>
       </View>
     </View>
@@ -560,26 +725,12 @@ export default function TripHubScreen() {
               </Pressable>
             </View>
           )}
-          <FlatList
-            data={wishes}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <WishItem
-                wish={item}
-                uid={user?.uid ?? ""}
-                userName={user?.displayName ?? "Traveler"}
-                tripId={id!}
-                colors={colors}
-              />
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyWish}>
-                <Feather name="star" size={32} color={colors.border} />
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes yet. Add the first one!</Text>
-              </View>
-            }
-            contentContainerStyle={{ flexGrow: 1 }}
-            scrollEnabled={!!wishes.length}
+          <SwipeWishStack
+            wishes={wishes}
+            uid={user?.uid ?? ""}
+            userName={user?.displayName ?? "Traveler"}
+            tripId={id!}
+            colors={colors}
           />
           <View style={[styles.addWishBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}>
             <TextInput
@@ -1141,4 +1292,176 @@ const styles = StyleSheet.create({
   sheetLinkText: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 13 },
   copyBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   inviteCode: { fontFamily: "DmSans_700Bold", fontSize: 22, letterSpacing: 3, textAlign: "center", paddingVertical: 8 },
+
+  /* ── Swipe card stack ── */
+  swipeStackWrap: {
+    flex: 1,
+    alignItems: "center" as const,
+    paddingTop: 8,
+  },
+  swipeCounter: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  swipeStack: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  swipeCard: {
+    position: "absolute" as const,
+    width: CARD_WIDTH,
+    minHeight: 240,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 22,
+    justifyContent: "space-between" as const,
+    shadowColor: "#000",
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  swipeBgCard2: {
+    top: 14,
+    transform: [{ scale: 0.96 }],
+    opacity: 0.85,
+  },
+  swipeBgCard3: {
+    top: 28,
+    transform: [{ scale: 0.92 }],
+    opacity: 0.6,
+  },
+  swipeLabel: {
+    position: "absolute" as const,
+    top: 18,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 2.5,
+  },
+  swipeLabelRight: {
+    right: 18,
+    borderColor: "#4CAF50",
+    transform: [{ rotate: "10deg" }],
+  },
+  swipeLabelLeft: {
+    left: 18,
+    borderColor: "#ef4444",
+    transform: [{ rotate: "-10deg" }],
+  },
+  swipeLabelText: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 14,
+    letterSpacing: 0.8,
+  },
+  swipeCardAuthorRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 18,
+    marginTop: 8,
+  },
+  swipeCardAuthor: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 13,
+    flex: 1,
+  },
+  prevVotePill: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  prevVoteText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 11,
+  },
+  swipeCardWishText: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 22,
+    lineHeight: 30,
+    flex: 1,
+    marginBottom: 18,
+  },
+  swipeCardBottom: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+  },
+  swipeScorePill: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  swipeScoreText: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 13,
+  },
+  swipeHint: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 12,
+  },
+  swipeTapRow: {
+    flexDirection: "row" as const,
+    justifyContent: "center" as const,
+    gap: 28,
+    paddingVertical: 18,
+  },
+  swipeTapBtn: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    borderWidth: 1.5,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  allDoneWrap: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    padding: 24,
+  },
+  allDoneCard: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    padding: 32,
+    alignItems: "center" as const,
+    gap: 12,
+    width: "100%",
+  },
+  allDoneTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 26,
+  },
+  allDoneSub: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 15,
+    textAlign: "center" as const,
+    lineHeight: 22,
+  },
+  reviewBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  reviewBtnText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+  },
 });
