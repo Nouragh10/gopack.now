@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  Image,
   Linking,
   Modal,
   Platform,
@@ -15,6 +17,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
@@ -31,22 +43,14 @@ import {
 
 const TEAL = "#26A69A";
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 420);
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
 
-function Avatar({ name, index, size = 28 }: { name: string; index: number; size?: number }) {
-  const bg = MEMBER_COLORS[index % MEMBER_COLORS.length];
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#fff" }}>
-      <Text style={{ color: "#fff", fontSize: size * 0.38, fontFamily: "DmSans_700Bold" }}>
-        {(name ?? "?")[0].toUpperCase()}
-      </Text>
-    </View>
-  );
-}
+/* ── Helpers ───────────────────────────────────────────────────── */
 
 function StarRating({ rating }: { rating: number }) {
   if (!rating || rating <= 0) return null;
-
-  // Ratings > 5 are on a /10 scale — show numeric only
   if (rating > 5) {
     return (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
@@ -57,19 +61,12 @@ function StarRating({ rating }: { rating: number }) {
       </View>
     );
   }
-
-  // Ratings 1–5: show filled/empty stars + number
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <Feather
-          key={i}
-          name="star"
-          size={11}
-          color={i < full || (half && i === full) ? "#FFA726" : "#D0C9C0"}
-        />
+        <Feather key={i} name="star" size={11} color={i < full || (half && i === full) ? "#FFA726" : "#D0C9C0"} />
       ))}
       <Text style={{ fontFamily: "DmSans_600SemiBold", fontSize: 12, color: "#FFA726", marginLeft: 3 }}>
         {rating.toFixed(1)}
@@ -89,6 +86,247 @@ function TypeBadge({ type, colors }: { type: string; colors: any }) {
   );
 }
 
+/* ── Swipe card ────────────────────────────────────────────────── */
+
+function TopAccommodationCard({
+  suggestion, uid, myVote, onSwipeLeft, onSwipeRight, colors,
+}: {
+  suggestion: AccommodationSuggestion;
+  uid: string;
+  myVote: "up" | "down" | null;
+  onSwipeLeft: () => void;
+  onSwipeRight: () => void;
+  colors: any;
+}) {
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { tx.value = e.translationX; ty.value = e.translationY * 0.2; })
+    .onEnd((e) => {
+      if (e.translationX > SWIPE_THRESHOLD) {
+        tx.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeRight)();
+        });
+      } else if (e.translationX < -SWIPE_THRESHOLD) {
+        tx.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeLeft)();
+        });
+      } else {
+        tx.value = withSpring(0, { damping: 14, stiffness: 130 });
+        ty.value = withSpring(0, { damping: 14, stiffness: 130 });
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { translateY: ty.value },
+      { rotate: `${interpolate(tx.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-12, 0, 12])}deg` },
+    ],
+  }));
+  const likeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [20, SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolation.CLAMP),
+  }));
+  const nopeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-SWIPE_THRESHOLD * 0.8, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  const firstPhoto = (suggestion.photos ?? [])[0];
+
+  return (
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.swipeCard, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }, cardStyle]}>
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelRight, likeStyle]}>
+          <Feather name="heart" size={20} color="#4CAF50" />
+          <Text style={[styles.swipeLabelText, { color: "#4CAF50" }]}>LOVE IT</Text>
+        </Animated.View>
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelLeft, nopeStyle]}>
+          <Feather name="x" size={20} color="#ef4444" />
+          <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
+        </Animated.View>
+
+        {firstPhoto ? (
+          <Image source={{ uri: firstPhoto }} style={styles.photoHero as any} resizeMode="cover" />
+        ) : null}
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <TypeBadge type={suggestion.type} colors={colors} />
+          <StarRating rating={suggestion.rating} />
+          {myVote ? (
+            <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: myVote === "up" ? "#4CAF5018" : "#9E9E9E18", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+              <Feather name={myVote === "up" ? "heart" : "x"} size={11} color={myVote === "up" ? "#4CAF50" : "#9E9E9E"} />
+              <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: myVote === "up" ? "#4CAF50" : "#9E9E9E" }}>
+                {myVote === "up" ? "You loved this" : "You skipped"}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={[styles.swipeCardName, { color: colors.foreground }]}>{suggestion.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+          <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }} numberOfLines={1}>
+            {suggestion.location}
+          </Text>
+        </View>
+
+        <View style={[styles.whyBox, { backgroundColor: colors.muted }]}>
+          <Feather name="zap" size={12} color={TEAL} />
+          <Text style={[styles.whyText, { color: colors.foreground }]}>{suggestion.whyItFits}</Text>
+        </View>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
+          <View>
+            <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>Per person</Text>
+            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: TEAL }}>${suggestion.costPerPerson.toLocaleString()}</Text>
+          </View>
+          <View style={{ width: 1, height: 32, backgroundColor: colors.border }} />
+          <View>
+            <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>Total</Text>
+            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: colors.foreground }}>${suggestion.totalCost.toLocaleString()}</Text>
+          </View>
+        </View>
+
+        {suggestion.amenities.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
+            {suggestion.amenities.slice(0, 4).map((a) => (
+              <View key={a} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.muted, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                <Feather name="check" size={10} color={TEAL} />
+                <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>{a}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {suggestion.link ? (
+          <Pressable
+            onPress={() => {
+              const raw = suggestion.link!;
+              const lurl = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+              if (Platform.OS === "web") window.open(lurl, "_blank", "noopener,noreferrer");
+              else Linking.openURL(lurl).catch(() => {});
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Feather name="external-link" size={12} color={TEAL} />
+            <Text style={{ fontFamily: "DmSans_500Medium", fontSize: 12, color: TEAL, textDecorationLine: "underline" }}>
+              View listing
+            </Text>
+          </Pressable>
+        ) : null}
+
+        <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← skip · love it →</Text>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+/* ── Swipe stack ───────────────────────────────────────────────── */
+
+function AccommodationSwipeStack({
+  suggestions, uid, allVotes, tripId, colors, onComplete,
+}: {
+  suggestions: AccommodationSuggestion[];
+  uid: string;
+  allVotes: Record<number, Record<string, "up" | "down">>;
+  tripId: string;
+  colors: any;
+  onComplete: () => void;
+}) {
+  const [swipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
+  const [pos, setPos] = useState(0);
+  const posRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  posRef.current = pos;
+  onCompleteRef.current = onComplete;
+
+  const doVote = useCallback((dir: "up" | "down") => {
+    const i = posRef.current;
+    const actualIdx = swipeOrder[i];
+    if (actualIdx === undefined) return;
+    voteAccommodation(tripId, actualIdx, uid, dir);
+    posRef.current = i + 1;
+    setPos(i + 1);
+    if (i + 1 >= swipeOrder.length) onCompleteRef.current();
+  }, [tripId, uid, swipeOrder]);
+
+  const onSwipeRight = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    doVote("up");
+  }, [doVote]);
+  const onSwipeLeft = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    doVote("down");
+  }, [doVote]);
+
+  if (suggestions.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Feather name="home" size={44} color={colors.border} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No picks yet</Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          Add a listing link so the pack can vote.
+        </Text>
+      </View>
+    );
+  }
+
+  if (pos >= swipeOrder.length) {
+    return (
+      <View style={styles.allDoneWrap}>
+        <View style={[styles.allDoneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="check-circle" size={44} color={TEAL} />
+          <Text style={[styles.allDoneTitle, { color: colors.foreground }]}>All voted!</Text>
+          <Text style={[styles.allDoneSub, { color: colors.mutedForeground }]}>
+            You've rated all {swipeOrder.length} options. Locking in your vote…
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const topIdx = swipeOrder[pos];
+  const nextIdx = swipeOrder[pos + 1];
+  const thirdIdx = swipeOrder[pos + 2];
+  const topSuggestion = suggestions[topIdx];
+  if (!topSuggestion) return null;
+  const myVote = ((allVotes[topIdx] ?? {}) as Record<string, "up" | "down">)[uid] ?? null;
+
+  return (
+    <View style={styles.swipeStackWrap}>
+      <Text style={[styles.swipeCounter, { color: colors.mutedForeground }]}>{pos + 1} / {swipeOrder.length}</Text>
+      <View style={styles.swipeStack}>
+        {thirdIdx !== undefined && suggestions[thirdIdx] ? (
+          <View style={[styles.swipeCard, styles.swipeBgCard3, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]} />
+        ) : null}
+        {nextIdx !== undefined && suggestions[nextIdx] ? (
+          <View style={[styles.swipeCard, styles.swipeBgCard2, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]} />
+        ) : null}
+        <TopAccommodationCard
+          key={`ac-${pos}`}
+          suggestion={topSuggestion}
+          uid={uid}
+          myVote={myVote}
+          onSwipeLeft={onSwipeLeft}
+          onSwipeRight={onSwipeRight}
+          colors={colors}
+        />
+      </View>
+      <View style={styles.swipeTapRow}>
+        <Pressable onPress={onSwipeLeft} style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}>
+          <Feather name="x" size={28} color="#ef4444" />
+        </Pressable>
+        <Pressable onPress={onSwipeRight} style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}>
+          <Feather name="heart" size={26} color="#4CAF50" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/* ── Ranked card (post-lock view) ──────────────────────────────── */
+
 interface CardProps {
   suggestion: AccommodationSuggestion;
   idx: number;
@@ -103,19 +341,15 @@ interface CardProps {
   onConfirm: () => void;
 }
 
-function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm }: CardProps) {
-  const myVote = votes[uid] ?? null;
+function AccommodationCard({
+  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
+}: CardProps) {
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
   const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
   const score = upVoters.length - downVoters.length;
   const upNames = upVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const winner = isWinning && allLocked;
-
-  const handleVote = (dir: "up" | "down") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    voteAccommodation(tripId, idx, uid, dir);
-  };
 
   return (
     <View style={[
@@ -127,95 +361,67 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
           <Text style={styles.winBadgeText}>⭐ WINNER</Text>
         </View>
       )}
-
       {suggestion.submittedBy !== "AI" && (
         <View style={styles.memberBadge}>
           <Feather name="user" size={10} color="#FFA726" />
           <Text style={styles.memberBadgeText}>Added by {suggestion.submittedBy}</Text>
         </View>
       )}
-
-      {/* Top row: name + vote */}
       <View style={styles.cardTop}>
         <View style={{ flex: 1, gap: 5 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <TypeBadge type={suggestion.type} colors={colors} />
             <StarRating rating={suggestion.rating} />
           </View>
-          <Text style={[styles.cardName, { color: winner ? "#FFFDF9" : colors.foreground }]}>
-            {suggestion.name}
-          </Text>
+          <Text style={[styles.cardName, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Feather name="map-pin" size={11} color={winner ? "#BDB0A0" : colors.mutedForeground} />
-            <Text style={[styles.cardLocation, { color: winner ? "#BDB0A0" : colors.mutedForeground }]}>
-              {suggestion.location}
-            </Text>
+            <Text style={[styles.cardLocation, { color: winner ? "#BDB0A0" : colors.mutedForeground }]}>{suggestion.location}</Text>
           </View>
         </View>
-
-        <View style={styles.arrowStack}>
-          <Pressable onPress={() => handleVote("up")} style={[styles.arrowBtn, { backgroundColor: myVote === "up" ? TEAL + "22" : "transparent" }]}>
-            <Feather name="arrow-up" size={20} color={myVote === "up" ? TEAL : colors.mutedForeground} />
-          </Pressable>
-          <Text style={[styles.scoreText, { color: score > 0 ? TEAL : colors.mutedForeground }]}>
+        <View style={{ alignItems: "center", gap: 4 }}>
+          <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 18, color: score > 0 ? TEAL : colors.mutedForeground }}>
             {score > 0 ? `+${score}` : score}
           </Text>
-          <Pressable onPress={() => handleVote("down")} style={[styles.arrowBtn, { backgroundColor: myVote === "down" ? "#9E9E9E22" : "transparent" }]}>
-            <Feather name="arrow-down" size={20} color={myVote === "down" ? colors.foreground : colors.mutedForeground} />
-          </Pressable>
+          <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 10, color: colors.mutedForeground }}>score</Text>
         </View>
       </View>
-
-      {/* Why it fits */}
       <View style={[styles.whyBox, { backgroundColor: winner ? "#3A3330" : colors.muted }]}>
         <Feather name="zap" size={12} color={TEAL} />
-        <Text style={[styles.whyText, { color: winner ? "#FFFDF9" : colors.foreground }]}>
-          {suggestion.whyItFits}
-        </Text>
+        <Text style={[styles.whyText, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.whyItFits}</Text>
       </View>
-
-      {/* Cost breakdown */}
       <View style={styles.costRow}>
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Total</Text>
-          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>
-            ${suggestion.totalCost.toLocaleString()}
-          </Text>
+          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>${suggestion.totalCost.toLocaleString()}</Text>
         </View>
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Per person</Text>
-          <Text style={[styles.costValue, { color: TEAL }]}>
-            ${suggestion.costPerPerson.toLocaleString()}
-          </Text>
+          <Text style={[styles.costValue, { color: TEAL }]}>${suggestion.costPerPerson.toLocaleString()}</Text>
         </View>
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Rooms</Text>
-          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>
-            {suggestion.rooms} × {suggestion.beds} beds
-          </Text>
+          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.rooms} × {suggestion.beds} beds</Text>
         </View>
       </View>
-
-      {/* Tags + distance */}
-      <View style={styles.tagsRow}>
-        {(suggestion.tags ?? []).map((tag) => (
-          <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.tagText, { color: colors.foreground }]}>{tag}</Text>
-          </View>
-        ))}
-      </View>
-
+      {(suggestion.tags ?? []).length > 0 && (
+        <View style={styles.tagsRow}>
+          {suggestion.tags.map((tag) => (
+            <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
+              <Text style={[styles.tagText, { color: colors.foreground }]}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
         <Feather name="navigation" size={11} color={colors.mutedForeground} />
         <Text style={[styles.distanceText, { color: colors.mutedForeground }]}>{suggestion.distanceNote}</Text>
       </View>
-
-      {/* Amenities */}
       {(suggestion.amenities ?? []).length > 0 && (
         <View style={styles.amenitiesRow}>
-          {(suggestion.amenities ?? []).slice(0, 5).map((a) => (
+          {suggestion.amenities.slice(0, 5).map((a) => (
             <View key={a} style={styles.amenityItem}>
               <Feather name="check" size={10} color={TEAL} />
               <Text style={[styles.amenityText, { color: colors.mutedForeground }]}>{a}</Text>
@@ -223,14 +429,10 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
           ))}
         </View>
       )}
-
-      {/* Cancellation */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
         <Feather name="shield" size={11} color={colors.mutedForeground} />
         <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>{suggestion.cancellation}</Text>
       </View>
-
-      {/* Member link */}
       {suggestion.link && (
         <Pressable
           style={[styles.linkBtn, { borderColor: TEAL }]}
@@ -245,22 +447,18 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
           <Text style={[styles.linkBtnText, { color: TEAL }]}>View listing</Text>
         </Pressable>
       )}
-
-      {/* Voter names */}
       {upNames.length > 0 && (
         <View style={styles.voterRow}>
-          <Feather name="arrow-up" size={11} color={TEAL} />
-          <Text style={[styles.voterNames, { color: TEAL }]} numberOfLines={1}>{upNames.join(", ")}</Text>
+          <Feather name="heart" size={11} color="#4CAF50" />
+          <Text style={[styles.voterNames, { color: "#4CAF50" }]} numberOfLines={1}>{upNames.join(", ")}</Text>
         </View>
       )}
       {downNames.length > 0 && (
         <View style={styles.voterRow}>
-          <Feather name="arrow-down" size={11} color={colors.mutedForeground} />
+          <Feather name="x" size={11} color={colors.mutedForeground} />
           <Text style={[styles.voterNames, { color: colors.mutedForeground }]} numberOfLines={1}>{downNames.join(", ")}</Text>
         </View>
       )}
-
-      {/* Confirm button */}
       {isCreator && winner && (
         <Pressable onPress={onConfirm} style={[styles.confirmBtn, { backgroundColor: TEAL }]}>
           <Feather name="check" size={16} color="#fff" />
@@ -270,6 +468,8 @@ function AccommodationCard({ suggestion, idx, tripId, uid, votes, members, isWin
     </View>
   );
 }
+
+/* ── Main screen ───────────────────────────────────────────────── */
 
 export default function AccommodationVoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -314,20 +514,23 @@ export default function AccommodationVoteScreen() {
   const winnerIdx = suggestions.reduce((best, _, idx) =>
     getScore(idx) > getScore(best) ? idx : best, 0);
 
-  const handleToggleLock = async () => {
+  const handleAutoLock = async () => {
     if (!user || !id) return;
-    if (!myLocked) {
-      const unvoted = suggestions.filter((_, idx) => !getVotesForIdx(idx)[user.uid]);
-      if (unvoted.length > 0) {
-        Alert.alert("Vote on all options first", `Vote on ${unvoted.length} more option${unvoted.length > 1 ? "s" : ""} before locking in.`, [{ text: "OK" }]);
-        return;
-      }
-    }
     setLocking(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (myLocked) await unlockAccommodationVotes(id, user.uid);
-      else await lockAccommodationVotes(id, user.uid);
+      await lockAccommodationVotes(id, user.uid);
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (!user || !id) return;
+    setLocking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await unlockAccommodationVotes(id, user.uid);
     } finally {
       setLocking(false);
     }
@@ -360,11 +563,8 @@ export default function AccommodationVoteScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           suggestions: tiedOptions.map((s) => ({
-            name: s.name,
-            type: s.type,
-            location: s.location,
-            costPerPerson: s.costPerPerson,
-            whyItFits: s.whyItFits,
+            name: s.name, type: s.type, location: s.location,
+            costPerPerson: s.costPerPerson, whyItFits: s.whyItFits,
           })),
           destination: trip.destination,
           memberCount,
@@ -400,13 +600,10 @@ export default function AccommodationVoteScreen() {
     const rawUrl = linkUrl.trim();
     if (!rawUrl || !id) return;
     setAddingLink(true);
-
-    const memberCount = Object.keys(members).length || 1;
+    const mCount = Object.keys(members).length || 1;
     const total = parseFloat(linkCost) || 0;
     const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
-
     try {
-      // Step 1: Ask AI to parse the listing
       setParseStatus("fetching");
       const apiBase = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
       const parseRes = await fetch(`${apiBase}/api/parse-accommodation`, {
@@ -414,13 +611,9 @@ export default function AccommodationVoteScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, destination: trip?.destination ?? "" }),
       });
-
       let parsed: Partial<AccommodationSuggestion> = {};
-      if (parseRes.ok) {
-        parsed = await parseRes.json();
-      }
+      if (parseRes.ok) parsed = await parseRes.json();
 
-      // Step 2: Save to Firebase with AI-extracted + user-provided fields merged
       setParseStatus("saving");
       const newSuggestion: AccommodationSuggestion = {
         id: `member-${Date.now()}`,
@@ -428,20 +621,20 @@ export default function AccommodationVoteScreen() {
         type: (parsed.type as AccommodationSuggestion["type"]) || "other",
         location: (parsed.location as string) || trip?.destination || "",
         totalCost: total,
-        costPerPerson: total ? Math.round(total / memberCount) : 0,
+        costPerPerson: total ? Math.round(total / mCount) : 0,
         nights: trip?.days ?? 1,
         rating: (parsed.rating as number) || 0,
         amenities: (parsed.amenities as string[]) || [],
         rooms: 1,
-        beds: memberCount,
+        beds: mCount,
         cancellation: (parsed.cancellation as string) || "Check listing",
         whyItFits: (parsed.whyItFits as string) || "Added by a pack member",
         tags: (parsed.tags as string[]) || ["Member pick"],
         distanceNote: (parsed.distanceNote as string) || "See listing for details",
         link: url,
+        photos: (parsed.photos as string[]) || [],
         submittedBy: user?.displayName ?? "Member",
       };
-
       await addMemberAccommodationLink(id, newSuggestion);
       setShowAddLink(false);
       setLinkUrl("");
@@ -456,15 +649,7 @@ export default function AccommodationVoteScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={TEAL} size="large" />
-      </View>
-    );
-  }
-
-  if (!trip) {
+  if (loading || !trip) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={TEAL} size="large" />
@@ -473,7 +658,8 @@ export default function AccommodationVoteScreen() {
   }
 
   const topScore = getScore(winnerIdx);
-  const isTied = allLocked && suggestions.length > 1 && suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
+  const isTied = allLocked && suggestions.length > 1 &&
+    suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -496,95 +682,106 @@ export default function AccommodationVoteScreen() {
       <View style={[styles.lockBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-            {allLocked ? "All votes locked in ✓" : `${lockedCount} of ${memberCount} locked in`}
+            {allLocked
+              ? "All votes locked in ✓"
+              : myLocked
+              ? "Your vote is locked ✓"
+              : `${lockedCount} of ${memberCount} locked in`}
           </Text>
           <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
-            <View style={[styles.lockProgressFill, { backgroundColor: allLocked ? "#4CAF50" : TEAL, width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%" }]} />
+            <View style={[styles.lockProgressFill, {
+              backgroundColor: allLocked ? "#4CAF50" : TEAL,
+              width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
+            }]} />
           </View>
         </View>
-        <Pressable onPress={handleToggleLock} disabled={locking} style={[styles.lockBtn, { backgroundColor: myLocked ? "#4CAF50" : TEAL }]}>
-          {locking ? <ActivityIndicator color="#fff" size="small" /> : (
-            <>
-              <Feather name={myLocked ? "check" : "lock"} size={14} color="#fff" />
-              <Text style={styles.lockBtnText}>{myLocked ? "Locked" : "Lock in"}</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-
-      {/* AI note */}
-      <View style={[styles.aiNote, { backgroundColor: colors.muted }]}>
-        <Feather name="info" size={12} color={colors.mutedForeground} />
-        <Text style={[styles.aiNoteText, { color: colors.mutedForeground }]}>
-          AI suggestions — research and verify before booking. Members can add their own links.
-        </Text>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}>
-        {suggestions.length === 0 && (
-          <View style={styles.emptyState}>
-            <Feather name="link" size={44} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No picks yet</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Be first! Add your preferred accommodation link so the pack can vote.
-            </Text>
-            <Pressable onPress={() => setShowAddLink(true)} style={[styles.addFirstBtn, { backgroundColor: TEAL }]}>
-              <Feather name="plus" size={16} color="#fff" />
-              <Text style={styles.addFirstBtnText}>Add your pick</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {isTied && (
+        {myLocked && (
           <Pressable
-            onPress={handleAiTiebreak}
-            disabled={breaking}
-            style={[styles.aiTieBtn, { backgroundColor: "#7E57C218", borderColor: "#7E57C2" }]}
+            onPress={handleUnlock}
+            disabled={locking}
+            style={[styles.lockBtn, { backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border }]}
           >
-            {breaking ? (
-              <ActivityIndicator color="#7E57C2" size="small" />
-            ) : (
-              <>
-                <Feather name="zap" size={16} color="#7E57C2" />
-                <Text style={[styles.aiTieBtnText, { color: "#7E57C2" }]}>Too close to call — let AI break the tie</Text>
-              </>
-            )}
+            {locking
+              ? <ActivityIndicator color={colors.mutedForeground} size="small" />
+              : (
+                <>
+                  <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.lockBtnText, { color: colors.mutedForeground }]}>Re-vote</Text>
+                </>
+              )}
           </Pressable>
         )}
+      </View>
 
-        {allLocked && !isCreator && !isTied && (
-          <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Feather name="clock" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
-              Waiting for the trip creator to confirm the accommodation…
-            </Text>
-          </View>
-        )}
+      {/* Main content — swipe deck when not locked, ranked list when locked */}
+      {!myLocked ? (
+        <AccommodationSwipeStack
+          suggestions={suggestions}
+          uid={user?.uid ?? ""}
+          allVotes={allVotes as Record<number, Record<string, "up" | "down">>}
+          tripId={id!}
+          colors={colors}
+          onComplete={handleAutoLock}
+        />
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
+        >
+          {isTied && (
+            <Pressable
+              onPress={handleAiTiebreak}
+              disabled={breaking}
+              style={[styles.aiTieBtn, { backgroundColor: "#7E57C218", borderColor: "#7E57C2" }]}
+            >
+              {breaking ? (
+                <ActivityIndicator color="#7E57C2" size="small" />
+              ) : (
+                <>
+                  <Feather name="zap" size={16} color="#7E57C2" />
+                  <Text style={[styles.aiTieBtnText, { color: "#7E57C2" }]}>Too close to call — let AI break the tie</Text>
+                </>
+              )}
+            </Pressable>
+          )}
 
-        {confirming && (
-          <View style={[styles.confirmingBanner, { backgroundColor: TEAL + "18" }]}>
-            <ActivityIndicator color={TEAL} size="small" />
-            <Text style={[styles.waitingText, { color: TEAL }]}>Confirming accommodation…</Text>
-          </View>
-        )}
+          {allLocked && !isCreator && !isTied && (
+            <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="clock" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
+                Waiting for the trip creator to confirm the accommodation…
+              </Text>
+            </View>
+          )}
 
-        {suggestions.map((s, idx) => (
-          <AccommodationCard
-            key={s.id ?? idx}
-            suggestion={s}
-            idx={idx}
-            tripId={id!}
-            uid={user?.uid ?? ""}
-            votes={getVotesForIdx(idx)}
-            members={members}
-            isWinning={idx === winnerIdx}
-            allLocked={allLocked}
-            isCreator={isCreator}
-            colors={colors}
-            onConfirm={handleConfirm}
-          />
-        ))}
-      </ScrollView>
+          {confirming && (
+            <View style={[styles.confirmingBanner, { backgroundColor: TEAL + "18" }]}>
+              <ActivityIndicator color={TEAL} size="small" />
+              <Text style={[styles.waitingText, { color: TEAL }]}>Confirming accommodation…</Text>
+            </View>
+          )}
+
+          {[...suggestions]
+            .map((s, i) => ({ s, i, score: getScore(i) }))
+            .sort((a, b) => b.score - a.score)
+            .map(({ s, i }) => (
+              <AccommodationCard
+                key={s.id}
+                suggestion={s}
+                idx={i}
+                tripId={id!}
+                uid={user?.uid ?? ""}
+                votes={getVotesForIdx(i)}
+                members={members}
+                isWinning={i === winnerIdx}
+                allLocked={allLocked}
+                isCreator={isCreator}
+                colors={colors}
+                onConfirm={handleConfirm}
+              />
+            ))}
+        </ScrollView>
+      )}
 
       {/* Add member link modal */}
       <Modal visible={showAddLink} transparent animationType="slide" onRequestClose={() => setShowAddLink(false)}>
@@ -637,9 +834,10 @@ export default function AccommodationVoteScreen() {
               disabled={addingLink || !linkUrl.trim()}
               style={[styles.submitBtn, { backgroundColor: TEAL, opacity: addingLink || !linkUrl.trim() ? 0.6 : 1 }]}
             >
-              {addingLink ? <ActivityIndicator color="#fff" size="small" /> : (
-                <Text style={styles.submitBtnText}>Add to vote</Text>
-              )}
+              {addingLink
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.submitBtnText}>Add to vote</Text>
+              }
             </Pressable>
           </Pressable>
         </Pressable>
@@ -651,16 +849,6 @@ export default function AccommodationVoteScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
-  backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
-  backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
-  emptyState: { alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 60, paddingHorizontal: 32 },
-  emptyTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, letterSpacing: -0.3 },
-  addFirstBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 4 },
-  addFirstBtnText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
-  aiTieBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderRadius: 16, padding: 14 },
-  aiTieBtnText: { fontFamily: "DmSans_700Bold", fontSize: 14 },
-  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
 
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, gap: 12 },
   backBtn: { padding: 4 },
@@ -674,55 +862,69 @@ const styles = StyleSheet.create({
   lockProgress: { height: 4, borderRadius: 2, overflow: "hidden" },
   lockProgressFill: { height: 4, borderRadius: 2 },
   lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
-  lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+  lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
-  aiNote: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  aiNoteText: { fontFamily: "DmSans_400Regular", fontSize: 11, flex: 1, lineHeight: 15 },
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 16, paddingBottom: 12 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 8 },
+  swipeStack: { position: "relative", alignItems: "center", justifyContent: "center", height: 490 },
+  swipeCard: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12, overflow: "hidden" },
+  swipeBgCard2: { position: "absolute", transform: [{ scale: 0.96 }, { translateY: 10 }], zIndex: 1, height: 470 },
+  swipeBgCard3: { position: "absolute", transform: [{ scale: 0.92 }, { translateY: 20 }], zIndex: 0, height: 470 },
+  swipeLabel: {
+    position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
+    gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    borderWidth: 2, zIndex: 10, backgroundColor: "rgba(255,255,255,0.92)",
+  },
+  swipeLabelRight: { right: 16, borderColor: "#4CAF50" },
+  swipeLabelLeft: { left: 16, borderColor: "#ef4444" },
+  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
+  swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
+  swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  photoHero: { width: "100%", height: 150, borderRadius: 12 },
+  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
+  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
+
+  allDoneWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  allDoneCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center", gap: 12, width: "100%" },
+  allDoneTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26 },
+  allDoneSub: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
+
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 },
+  emptyTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, letterSpacing: -0.3 },
+  emptyText: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
 
   card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   winBadge: { alignSelf: "flex-start", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   winBadgeText: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff", letterSpacing: 1 },
   memberBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: "#FFA72620", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   memberBadgeText: { fontFamily: "DmSans_600SemiBold", fontSize: 11, color: "#FFA726" },
-
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   cardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, lineHeight: 26 },
   cardLocation: { fontFamily: "DmSans_400Regular", fontSize: 12 },
-
-  arrowStack: { alignItems: "center", gap: 2 },
-  arrowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  scoreText: { fontFamily: "DmSans_700Bold", fontSize: 14, minWidth: 24, textAlign: "center" },
-
   whyBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, borderRadius: 10, padding: 10 },
   whyText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1, lineHeight: 18 },
-
   costRow: { flexDirection: "row", alignItems: "center" },
   costItem: { flex: 1, alignItems: "center", gap: 2 },
   costLabel: { fontFamily: "DmSans_400Regular", fontSize: 11 },
   costValue: { fontFamily: "DmSans_700Bold", fontSize: 15 },
   costDivider: { width: 1, height: 30, marginHorizontal: 4 },
-
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   tagText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
-
   distanceText: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
-
   amenitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   amenityItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   amenityText: { fontFamily: "DmSans_400Regular", fontSize: 12 },
-
   cancelText: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
-
   linkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingVertical: 8 },
   linkBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
-
   voterRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
-
   confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 13, marginTop: 4 },
   confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
-
+  aiTieBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderRadius: 16, padding: 14 },
+  aiTieBtnText: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
 
@@ -734,8 +936,6 @@ const styles = StyleSheet.create({
   fieldLabel: { fontFamily: "DmSans_500Medium", fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" },
   inputWrap: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11 },
   input: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 14 },
-  typeChip: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 16, borderWidth: 1 },
-  chipText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
   submitBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   submitBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
 });

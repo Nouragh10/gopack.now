@@ -58,6 +58,7 @@ export interface AccommodationSuggestion {
   tags: string[];
   distanceNote: string;
   link?: string;
+  photos?: string[];
   submittedBy: string;
 }
 

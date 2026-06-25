@@ -613,6 +613,7 @@ router.post("/parse-accommodation", async (req: Request, res: Response): Promise
 
   // ── Try fetching page content (best-effort; many sites block bots) ─────────
   let pageContent = "";
+  const extractedPhotos: string[] = [];
   try {
     const pageRes = await fetch(url, {
       headers: {
@@ -625,6 +626,27 @@ router.post("/parse-accommodation", async (req: Request, res: Response): Promise
     });
     if (pageRes.ok) {
       const html = await pageRes.text();
+
+      // Extract photos from meta tags before stripping HTML.
+      // og:image and twitter:image often survive bot-protection since they're
+      // in the initial HTML payload (not JS-rendered).
+      const photoPatterns = [
+        /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["'][^>]*/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["'][^>]*/gi,
+        /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*/gi,
+      ];
+      for (const pattern of photoPatterns) {
+        for (const m of html.matchAll(pattern)) {
+          const src = m[1];
+          if (src && src.startsWith("http") && !extractedPhotos.includes(src)) {
+            extractedPhotos.push(src);
+          }
+          if (extractedPhotos.length >= 5) break;
+        }
+        if (extractedPhotos.length >= 5) break;
+      }
+
       pageContent = html
         .replace(/<script[\s\S]*?<\/script>/gi, "")
         .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -683,7 +705,7 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
     const result = JSON.parse(extractJson(allText));
-    res.json(result);
+    res.json({ ...result, photos: extractedPhotos });
   } catch (err) {
     req.log.error({ err }, "Failed to parse accommodation");
     res.status(500).json({ error: "Could not parse listing. Please try again." });

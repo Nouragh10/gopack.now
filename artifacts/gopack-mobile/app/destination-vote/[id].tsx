@@ -2,10 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +15,16 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
@@ -29,6 +40,11 @@ import {
 } from "@/hooks/useFirebase";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 420);
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
+
+/* ── Helpers ───────────────────────────────────────────────────── */
 
 function Avatar({ name, index, size = 28 }: { name: string; index: number; size?: number }) {
   const bg = MEMBER_COLORS[index % MEMBER_COLORS.length];
@@ -40,6 +56,194 @@ function Avatar({ name, index, size = 28 }: { name: string; index: number; size?
     </View>
   );
 }
+
+/* ── Swipe card ────────────────────────────────────────────────── */
+
+function TopDestinationCard({
+  suggestion, myVote, onSwipeLeft, onSwipeRight, colors,
+}: {
+  suggestion: DestinationSuggestion;
+  myVote: "up" | "down" | null;
+  onSwipeLeft: () => void;
+  onSwipeRight: () => void;
+  colors: any;
+}) {
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { tx.value = e.translationX; ty.value = e.translationY * 0.2; })
+    .onEnd((e) => {
+      if (e.translationX > SWIPE_THRESHOLD) {
+        tx.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeRight)();
+        });
+      } else if (e.translationX < -SWIPE_THRESHOLD) {
+        tx.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 280 }, (done) => {
+          if (done) runOnJS(onSwipeLeft)();
+        });
+      } else {
+        tx.value = withSpring(0, { damping: 14, stiffness: 130 });
+        ty.value = withSpring(0, { damping: 14, stiffness: 130 });
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { translateY: ty.value },
+      { rotate: `${interpolate(tx.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-12, 0, 12])}deg` },
+    ],
+  }));
+  const likeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [20, SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolation.CLAMP),
+  }));
+  const nopeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-SWIPE_THRESHOLD * 0.8, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.swipeCard, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }, cardStyle]}>
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelRight, likeStyle]}>
+          <Feather name="heart" size={20} color="#4CAF50" />
+          <Text style={[styles.swipeLabelText, { color: "#4CAF50" }]}>LOVE IT</Text>
+        </Animated.View>
+        <Animated.View style={[styles.swipeLabel, styles.swipeLabelLeft, nopeStyle]}>
+          <Feather name="x" size={20} color="#ef4444" />
+          <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
+        </Animated.View>
+
+        {myVote ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: myVote === "up" ? "#4CAF5018" : "#9E9E9E18", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+            <Feather name={myVote === "up" ? "heart" : "x"} size={12} color={myVote === "up" ? "#4CAF50" : "#9E9E9E"} />
+            <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 12, color: myVote === "up" ? "#4CAF50" : "#9E9E9E" }}>
+              {myVote === "up" ? "You loved this" : "You skipped"}
+            </Text>
+          </View>
+        ) : null}
+
+        <Text style={[styles.swipeCardName, { color: colors.foreground }]}>{suggestion.name}</Text>
+        <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 15, color: colors.mutedForeground, lineHeight: 22 }}>
+          {suggestion.pitch}
+        </Text>
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+          {suggestion.tags.map((tag) => (
+            <View key={tag} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: colors.primary + "18" }}>
+              <Text style={{ fontFamily: "DmSans_500Medium", fontSize: 13, color: colors.primary }}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ gap: 8, marginTop: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Feather name="navigation" size={14} color={colors.mutedForeground} />
+            <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }}>{suggestion.flightHint}</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Feather name="sun" size={14} color={colors.mutedForeground} />
+            <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }}>{suggestion.bestTime}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← skip · love it →</Text>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+/* ── Swipe stack ───────────────────────────────────────────────── */
+
+function DestinationSwipeStack({
+  suggestions, uid, allVotes, tripId, colors, onComplete,
+}: {
+  suggestions: DestinationSuggestion[];
+  uid: string;
+  allVotes: Record<number, Record<string, "up" | "down">>;
+  tripId: string;
+  colors: any;
+  onComplete: () => void;
+}) {
+  const [swipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
+  const [pos, setPos] = useState(0);
+  const posRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  posRef.current = pos;
+  onCompleteRef.current = onComplete;
+
+  const doVote = useCallback((dir: "up" | "down") => {
+    const i = posRef.current;
+    const actualIdx = swipeOrder[i];
+    if (actualIdx === undefined) return;
+    voteDestination(tripId, actualIdx, uid, dir);
+    posRef.current = i + 1;
+    setPos(i + 1);
+    if (i + 1 >= swipeOrder.length) onCompleteRef.current();
+  }, [tripId, uid, swipeOrder]);
+
+  const onSwipeRight = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    doVote("up");
+  }, [doVote]);
+  const onSwipeLeft = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    doVote("down");
+  }, [doVote]);
+
+  if (pos >= swipeOrder.length) {
+    return (
+      <View style={styles.allDoneWrap}>
+        <View style={[styles.allDoneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="check-circle" size={44} color={colors.primary} />
+          <Text style={[styles.allDoneTitle, { color: colors.foreground }]}>All voted!</Text>
+          <Text style={[styles.allDoneSub, { color: colors.mutedForeground }]}>
+            You've rated all {swipeOrder.length} destinations. Locking in your vote…
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const topIdx = swipeOrder[pos];
+  const nextIdx = swipeOrder[pos + 1];
+  const thirdIdx = swipeOrder[pos + 2];
+  const topSuggestion = suggestions[topIdx];
+  if (!topSuggestion) return null;
+  const myVote = ((allVotes[topIdx] ?? {}) as Record<string, "up" | "down">)[uid] ?? null;
+
+  return (
+    <View style={styles.swipeStackWrap}>
+      <Text style={[styles.swipeCounter, { color: colors.mutedForeground }]}>{pos + 1} / {swipeOrder.length}</Text>
+      <View style={styles.swipeStack}>
+        {thirdIdx !== undefined && suggestions[thirdIdx] ? (
+          <View style={[styles.swipeCard, styles.swipeBgCard3, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]} />
+        ) : null}
+        {nextIdx !== undefined && suggestions[nextIdx] ? (
+          <View style={[styles.swipeCard, styles.swipeBgCard2, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }]} />
+        ) : null}
+        <TopDestinationCard
+          key={`dest-${pos}`}
+          suggestion={topSuggestion}
+          myVote={myVote}
+          onSwipeLeft={onSwipeLeft}
+          onSwipeRight={onSwipeRight}
+          colors={colors}
+        />
+      </View>
+      <View style={styles.swipeTapRow}>
+        <Pressable onPress={onSwipeLeft} style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}>
+          <Feather name="x" size={28} color="#ef4444" />
+        </Pressable>
+        <Pressable onPress={onSwipeRight} style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}>
+          <Feather name="heart" size={26} color="#4CAF50" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/* ── Ranked card (post-lock view) ──────────────────────────────── */
 
 interface SuggestionCardProps {
   suggestion: DestinationSuggestion;
@@ -57,38 +261,28 @@ interface SuggestionCardProps {
 }
 
 function SuggestionCard({
-  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, packConfirmed, colors, onConfirm,
+  suggestion, idx, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
 }: SuggestionCardProps) {
-  const myVote = votes[uid] ?? null;
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
   const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
   const score = upVoters.length - downVoters.length;
-
   const upNames = upVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
 
-  const handleVote = (dir: "up" | "down") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    voteDestination(tripId, idx, uid, dir);
-  };
-
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: isWinning && allLocked ? "#2B2723" : colors.card,
-          borderColor: isWinning && allLocked ? "#E85D3A" : colors.border,
-          borderWidth: isWinning && allLocked ? 2 : 1,
-        },
-      ]}
-    >
+    <View style={[
+      styles.card,
+      {
+        backgroundColor: isWinning && allLocked ? "#2B2723" : colors.card,
+        borderColor: isWinning && allLocked ? "#E85D3A" : colors.border,
+        borderWidth: isWinning && allLocked ? 2 : 1,
+      },
+    ]}>
       {isWinning && allLocked && (
         <View style={styles.winBadge}>
           <Text style={styles.winBadgeText}>⭐ WINNER</Text>
         </View>
       )}
-
       <View style={styles.cardTop}>
         <View style={{ flex: 1, gap: 6 }}>
           <Text style={[styles.cardName, { color: isWinning && allLocked ? "#FFFDF9" : colors.foreground }]}>
@@ -98,27 +292,13 @@ function SuggestionCard({
             {suggestion.pitch}
           </Text>
         </View>
-
-        <View style={styles.arrowStack}>
-          <Pressable
-            onPress={() => handleVote("up")}
-            style={[styles.arrowBtn, { backgroundColor: myVote === "up" ? colors.primary + "22" : "transparent" }]}
-          >
-            <Feather name="arrow-up" size={20} color={myVote === "up" ? colors.primary : colors.mutedForeground} />
-          </Pressable>
-          <Text style={[styles.scoreText, { color: score > 0 ? colors.primary : score < 0 ? colors.mutedForeground : colors.mutedForeground }]}>
+        <View style={{ alignItems: "center", gap: 4 }}>
+          <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 18, color: score > 0 ? colors.primary : colors.mutedForeground }}>
             {score > 0 ? `+${score}` : score}
           </Text>
-          <Pressable
-            onPress={() => handleVote("down")}
-            style={[styles.arrowBtn, { backgroundColor: myVote === "down" ? "#9E9E9E22" : "transparent" }]}
-          >
-            <Feather name="arrow-down" size={20} color={myVote === "down" ? colors.foreground : colors.mutedForeground} />
-          </Pressable>
+          <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 10, color: colors.mutedForeground }}>score</Text>
         </View>
       </View>
-
-      {/* Tags */}
       <View style={styles.tagsRow}>
         {suggestion.tags.map((tag) => (
           <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
@@ -126,8 +306,6 @@ function SuggestionCard({
           </View>
         ))}
       </View>
-
-      {/* Meta */}
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
           <Feather name="navigation" size={12} color={colors.mutedForeground} />
@@ -138,26 +316,18 @@ function SuggestionCard({
           <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{suggestion.bestTime}</Text>
         </View>
       </View>
-
-      {/* Voter names */}
       {upNames.length > 0 && (
         <View style={styles.voterRow}>
-          <Feather name="arrow-up" size={11} color={colors.primary} />
-          <Text style={[styles.voterNames, { color: colors.primary }]} numberOfLines={1}>
-            {upNames.join(", ")}
-          </Text>
+          <Feather name="heart" size={11} color={colors.primary} />
+          <Text style={[styles.voterNames, { color: colors.primary }]} numberOfLines={1}>{upNames.join(", ")}</Text>
         </View>
       )}
       {downNames.length > 0 && (
         <View style={styles.voterRow}>
-          <Feather name="arrow-down" size={11} color={colors.mutedForeground} />
-          <Text style={[styles.voterNames, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {downNames.join(", ")}
-          </Text>
+          <Feather name="x" size={11} color={colors.mutedForeground} />
+          <Text style={[styles.voterNames, { color: colors.mutedForeground }]} numberOfLines={1}>{downNames.join(", ")}</Text>
         </View>
       )}
-
-      {/* Confirm button — creator only, winning card, all locked */}
       {isCreator && isWinning && allLocked && (
         <Pressable onPress={onConfirm} style={styles.confirmBtn}>
           <Feather name="check" size={16} color="#fff" />
@@ -168,7 +338,7 @@ function SuggestionCard({
   );
 }
 
-/* ── Screen ──────────────────────────────────────────────────────── */
+/* ── Main screen ───────────────────────────────────────────────── */
 
 export default function DestinationVoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -235,29 +405,23 @@ export default function DestinationVoteScreen() {
     return getScore(idx) > getScore(best) ? idx : best;
   }, 0);
 
-  const handleToggleLock = async () => {
+  const handleAutoLock = async () => {
     if (!user || !id) return;
-
-    if (!myLocked) {
-      const unvoted = suggestions.filter((_, idx) => !getVotesForIdx(idx)[user.uid]);
-      if (unvoted.length > 0) {
-        Alert.alert(
-          "Vote on all destinations first",
-          `You need to vote on ${unvoted.length} more destination${unvoted.length > 1 ? "s" : ""} before locking in.`,
-          [{ text: "OK" }],
-        );
-        return;
-      }
-    }
-
     setLocking(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (myLocked) {
-        await unlockDestinationVotes(id, user.uid);
-      } else {
-        await lockDestinationVotes(id, user.uid);
-      }
+      await lockDestinationVotes(id, user.uid);
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (!user || !id) return;
+    setLocking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await unlockDestinationVotes(id, user.uid);
     } finally {
       setLocking(false);
     }
@@ -394,34 +558,35 @@ export default function DestinationVoteScreen() {
       <View style={[styles.lockBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-            {allLocked ? "All votes locked in ✓" : `${lockedCount} of ${memberCount} locked in`}
+            {allLocked
+              ? "All votes locked in ✓"
+              : myLocked
+              ? "Your vote is locked ✓"
+              : `${lockedCount} of ${memberCount} locked in`}
           </Text>
           <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
-            <View
-              style={[
-                styles.lockProgressFill,
-                {
-                  backgroundColor: allLocked ? "#4CAF50" : colors.primary,
-                  width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
-                },
-              ]}
-            />
+            <View style={[styles.lockProgressFill, {
+              backgroundColor: allLocked ? "#4CAF50" : colors.primary,
+              width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
+            }]} />
           </View>
         </View>
-        <Pressable
-          onPress={handleToggleLock}
-          disabled={locking}
-          style={[styles.lockBtn, { backgroundColor: myLocked ? "#4CAF50" : colors.primary }]}
-        >
-          {locking ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Feather name={myLocked ? "check" : "lock"} size={14} color="#fff" />
-              <Text style={styles.lockBtnText}>{myLocked ? "Locked" : "Lock in"}</Text>
-            </>
-          )}
-        </Pressable>
+        {myLocked && (
+          <Pressable
+            onPress={handleUnlock}
+            disabled={locking}
+            style={[styles.lockBtn, { backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border }]}
+          >
+            {locking
+              ? <ActivityIndicator color={colors.mutedForeground} size="small" />
+              : (
+                <>
+                  <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.lockBtnText, { color: colors.mutedForeground }]}>Re-vote</Text>
+                </>
+              )}
+          </Pressable>
+        )}
       </View>
 
       {/* Member avatars */}
@@ -436,51 +601,67 @@ export default function DestinationVoteScreen() {
         </Text>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
-      >
-        {allLocked && !isCreator && (
-          <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Feather name="clock" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
-              Waiting for the trip creator to confirm the destination…
-            </Text>
-          </View>
-        )}
+      {/* Main content — swipe deck when not locked, ranked list when locked */}
+      {!myLocked ? (
+        <DestinationSwipeStack
+          suggestions={suggestions}
+          uid={user?.uid ?? ""}
+          allVotes={allVotes as Record<number, Record<string, "up" | "down">>}
+          tripId={id!}
+          colors={colors}
+          onComplete={handleAutoLock}
+        />
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
+        >
+          {allLocked && !isCreator && (
+            <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="clock" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
+                Waiting for the trip creator to confirm the destination…
+              </Text>
+            </View>
+          )}
 
-        {redoing && (
-          <View style={[styles.confirmingBanner, { backgroundColor: "#7E57C222" }]}>
-            <ActivityIndicator color="#7E57C2" size="small" />
-            <Text style={[styles.waitingText, { color: "#7E57C2" }]}>Asking AI for fresh suggestions…</Text>
-          </View>
-        )}
+          {redoing && (
+            <View style={[styles.confirmingBanner, { backgroundColor: "#7E57C222" }]}>
+              <ActivityIndicator color="#7E57C2" size="small" />
+              <Text style={[styles.waitingText, { color: "#7E57C2" }]}>Asking AI for fresh suggestions…</Text>
+            </View>
+          )}
 
-        {confirming && (
-          <View style={[styles.confirmingBanner, { backgroundColor: colors.primary + "18" }]}>
-            <ActivityIndicator color={colors.primary} size="small" />
-            <Text style={[styles.waitingText, { color: colors.primary }]}>Setting destination…</Text>
-          </View>
-        )}
+          {confirming && (
+            <View style={[styles.confirmingBanner, { backgroundColor: colors.primary + "18" }]}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={[styles.waitingText, { color: colors.primary }]}>Setting destination…</Text>
+            </View>
+          )}
 
-        {suggestions.map((s, idx) => (
-          <SuggestionCard
-            key={idx}
-            suggestion={s}
-            idx={idx}
-            tripId={id!}
-            uid={user?.uid ?? ""}
-            votes={getVotesForIdx(idx)}
-            members={members}
-            isWinning={idx === winnerIdx}
-            allLocked={allLocked}
-            isCreator={isCreator}
-            packConfirmed={!!trip?.packConfirmed}
-            colors={colors}
-            onConfirm={handleConfirm}
-          />
-        ))}
-      </ScrollView>
+          {[...suggestions]
+            .map((s, i) => ({ s, i, score: getScore(i) }))
+            .sort((a, b) => b.score - a.score)
+            .map(({ s, i }) => (
+              <SuggestionCard
+                key={i}
+                suggestion={s}
+                idx={i}
+                tripId={id!}
+                uid={user?.uid ?? ""}
+                votes={getVotesForIdx(i)}
+                members={members}
+                isWinning={i === winnerIdx}
+                allLocked={allLocked}
+                isCreator={isCreator}
+                packConfirmed={!!trip?.packConfirmed}
+                colors={colors}
+                onConfirm={handleConfirm}
+              />
+            ))}
+        </ScrollView>
+      )}
+
       {/* Invite modal */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowInvite(false)}>
@@ -494,9 +675,7 @@ export default function DestinationVoteScreen() {
             </View>
             <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP LINK</Text>
             <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <Text style={[styles.sheetLinkText, { color: colors.foreground }]} numberOfLines={1}>
-                {inviteLink}
-              </Text>
+              <Text style={[styles.sheetLinkText, { color: colors.foreground }]} numberOfLines={1}>{inviteLink}</Text>
               <Pressable onPress={handleCopy} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
                 <Feather name={copied ? "check" : "copy"} size={16} color="#fff" />
               </Pressable>
@@ -526,62 +705,75 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
   headerTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20 },
+  redoBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  inviteBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  inviteBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
   lockBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   lockBarTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 13, marginBottom: 6 },
   lockProgress: { height: 4, borderRadius: 2, overflow: "hidden" },
   lockProgressFill: { height: 4, borderRadius: 2 },
   lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
-  lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+  lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
   membersRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
 
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 16, paddingBottom: 12 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 8 },
+  swipeStack: { position: "relative", alignItems: "center", justifyContent: "center", height: 430 },
+  swipeCard: { borderRadius: 20, borderWidth: 1, padding: 22, gap: 14, overflow: "hidden" },
+  swipeBgCard2: { position: "absolute", transform: [{ scale: 0.96 }, { translateY: 10 }], zIndex: 1, height: 410 },
+  swipeBgCard3: { position: "absolute", transform: [{ scale: 0.92 }, { translateY: 20 }], zIndex: 0, height: 410 },
+  swipeLabel: {
+    position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
+    gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    borderWidth: 2, zIndex: 10, backgroundColor: "rgba(255,255,255,0.92)",
+  },
+  swipeLabelRight: { right: 16, borderColor: "#4CAF50" },
+  swipeLabelLeft: { left: 16, borderColor: "#ef4444" },
+  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
+  swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
+  swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30, lineHeight: 36 },
+  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
+
+  allDoneWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  allDoneCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center", gap: 12, width: "100%" },
+  allDoneTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26 },
+  allDoneSub: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
+
   card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   winBadge: { alignSelf: "flex-start", backgroundColor: "#E85D3A", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   winBadgeText: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff", letterSpacing: 1 },
-
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   cardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
   cardPitch: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20 },
-
-  arrowStack: { alignItems: "center", gap: 2 },
-  arrowBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  scoreText: { fontFamily: "DmSans_700Bold", fontSize: 14, minWidth: 24, textAlign: "center" },
-
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   tagText: { fontFamily: "DmSans_500Medium", fontSize: 12 },
-
   metaRow: { flexDirection: "row", gap: 16 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   metaText: { fontFamily: "DmSans_400Regular", fontSize: 12 },
-
   voterRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
-
   confirmBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, backgroundColor: "#E85D3A", borderRadius: 12, paddingVertical: 13, marginTop: 4,
   },
   confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
-
-  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
+  waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
 
-  redoBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  inviteBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-  inviteBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
-
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  inviteSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48, gap: 10 },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  inviteSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48, gap: 14 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
   sheetLabel: { fontFamily: "DmSans_500Medium", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase" },
-  sheetLinkRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
+  sheetLinkRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, paddingLeft: 14, paddingRight: 6, paddingVertical: 6, gap: 10 },
   sheetLinkText: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 13 },
-  copyBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  inviteCode: { fontFamily: "DmSans_700Bold", fontSize: 22, letterSpacing: 3, textAlign: "center", paddingVertical: 8 },
+  inviteCode: { flex: 1, fontFamily: "DmSans_700Bold", fontSize: 20, letterSpacing: 2 },
+  copyBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
 });
