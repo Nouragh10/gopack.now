@@ -187,10 +187,26 @@ function TopSwipeCard({
 
 /* ── SwipeWishStack ──────────────────────────────────────────────── */
 
+/* ── WishItem (Wish tab — simple list row) ──────────────────────── */
+
+function WishItem({ wish, colors }: { wish: Wish; colors: any }) {
+  return (
+    <View style={[styles.wishRow, { borderBottomColor: colors.border }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.wishText, { color: colors.foreground }]}>{wish.text}</Text>
+        <Text style={[styles.wishAuthor, { color: colors.mutedForeground }]}>{wish.authorName}</Text>
+      </View>
+    </View>
+  );
+}
+
+/* ── SwipeWishStack (Vote tab) ───────────────────────────────────── */
+
 function SwipeWishStack({
-  wishes, uid, userName, tripId, colors,
+  wishes, uid, userName, tripId, colors, onComplete,
 }: {
   wishes: Wish[]; uid: string; userName: string; tripId: string; colors: any;
+  onComplete?: () => void;
 }) {
   const [topIndex, setTopIndex] = useState(0);
 
@@ -199,16 +215,20 @@ function SwipeWishStack({
     if (!wish) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     voteWish(tripId, wish.id, uid, userName, "up");
-    setTopIndex((i) => i + 1);
-  }, [topIndex, wishes, tripId, uid, userName]);
+    const next = topIndex + 1;
+    setTopIndex(next);
+    if (next >= wishes.length) onComplete?.();
+  }, [topIndex, wishes, tripId, uid, userName, onComplete]);
 
   const onSwipeLeft = useCallback(() => {
     const wish = wishes[topIndex];
     if (!wish) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     voteWish(tripId, wish.id, uid, userName, "down");
-    setTopIndex((i) => i + 1);
-  }, [topIndex, wishes, tripId, uid, userName]);
+    const next = topIndex + 1;
+    setTopIndex(next);
+    if (next >= wishes.length) onComplete?.();
+  }, [topIndex, wishes, tripId, uid, userName, onComplete]);
 
   if (wishes.length === 0) {
     return (
@@ -725,12 +745,16 @@ export default function TripHubScreen() {
               </Pressable>
             </View>
           )}
-          <SwipeWishStack
-            wishes={wishes}
-            uid={user?.uid ?? ""}
-            userName={user?.displayName ?? "Traveler"}
-            tripId={id!}
-            colors={colors}
+          <FlatList
+            data={wishes}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <WishItem wish={item} colors={colors} />}
+            ListEmptyComponent={
+              <View style={styles.emptyWish}>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes yet — add the first one below!</Text>
+              </View>
+            }
+            contentContainerStyle={{ paddingTop: 8 }}
           />
           <View style={[styles.addWishBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}>
             <TextInput
@@ -756,11 +780,11 @@ export default function TripHubScreen() {
       {/* ── VOTE TAB ── */}
       {trip?.packConfirmed && activeTab === "vote" && (
         <View style={{ flex: 1 }}>
-          {/* Lock-in progress bar */}
+          {/* Voting progress bar */}
           <View style={[styles.lockBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-                {allLocked ? "All votes locked in ✓" : `${lockedCount} of ${memberCount} locked in`}
+                {allLocked ? "Everyone's voted ✓" : `${lockedCount} of ${memberCount} finished voting`}
               </Text>
               <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
                 <View
@@ -774,45 +798,74 @@ export default function TripHubScreen() {
                 />
               </View>
             </View>
-            <Pressable
-              onPress={handleToggleLock}
-              disabled={lockingVotes}
-              style={[
-                styles.lockBtn,
-                { backgroundColor: myLocked ? "#4CAF50" : colors.primary },
-              ]}
-            >
-              {lockingVotes ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Feather name={myLocked ? "check" : "lock"} size={14} color="#fff" />
-                  <Text style={styles.lockBtnText}>{myLocked ? "Locked" : "Lock in"}</Text>
-                </>
-              )}
-            </Pressable>
+            {myLocked && (
+              <Pressable
+                onPress={async () => {
+                  setLockingVotes(true);
+                  await unlockVotes(id!, user?.uid ?? "");
+                  setLockingVotes(false);
+                }}
+                disabled={lockingVotes}
+                style={[styles.lockBtn, { backgroundColor: colors.primary }]}
+              >
+                {lockingVotes ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Feather name="refresh-cw" size={14} color="#fff" />
+                    <Text style={styles.lockBtnText}>Re-vote</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </View>
 
-          <FlatList
-            data={wishes}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <VoteCard
-                wish={item}
-                rank={index + 1}
-                uid={user?.uid ?? ""}
-                userName={user?.displayName ?? "Traveler"}
-                tripId={id!}
-                colors={colors}
-              />
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyWish}>
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes to vote on yet.</Text>
-              </View>
-            }
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + 12 }}
-          />
+          {/* Swipe deck while not done; ranked list once done */}
+          {!myLocked ? (
+            <SwipeWishStack
+              wishes={wishes}
+              uid={user?.uid ?? ""}
+              userName={user?.displayName ?? "Traveler"}
+              tripId={id!}
+              colors={colors}
+              onComplete={async () => {
+                setLockingVotes(true);
+                await lockVotes(id!, user?.uid ?? "");
+                setLockingVotes(false);
+              }}
+            />
+          ) : (
+            <FlatList
+              data={wishes}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item, index }) => (
+                <VoteCard
+                  wish={item}
+                  rank={index + 1}
+                  uid={user?.uid ?? ""}
+                  userName={user?.displayName ?? "Traveler"}
+                  tripId={id!}
+                  colors={colors}
+                />
+              )}
+              ListHeaderComponent={
+                <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
+                  <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>Current rankings</Text>
+                  {!allLocked && (
+                    <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: "DmSans_400Regular", marginTop: 3 }}>
+                      Waiting for the rest of the pack to finish voting.
+                    </Text>
+                  )}
+                </View>
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyWish}>
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes to vote on yet.</Text>
+                </View>
+              }
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: bottomInset + 12 }}
+            />
+          )}
         </View>
       )}
 
@@ -921,9 +974,16 @@ export default function TripHubScreen() {
               {allLocked ? "READY WHEN YOU ARE" : "WAITING FOR PACK"}
             </Text>
             <Text style={styles.goCardTitle}>Build the{"\n"}itinerary</Text>
-            {!allLocked && waitingMembers.length > 0 && (
+            {!allLocked && (
               <Text style={styles.goWaiting}>
-                Waiting for: {waitingMembers.join(", ")}
+                {waitingMembers.length > 0
+                  ? `Still swiping: ${waitingMembers.join(", ")}`
+                  : "Everyone needs to finish voting first"}
+              </Text>
+            )}
+            {!allLocked && (
+              <Text style={{ color: "#fff", opacity: 0.65, fontSize: 11, fontFamily: "DmSans_400Regular", marginBottom: 4 }}>
+                Head to the Vote tab to swipe through the wishes
               </Text>
             )}
             {allLocked && !canGenerateItinerary && (
