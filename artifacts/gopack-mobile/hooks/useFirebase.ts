@@ -838,19 +838,23 @@ export function usePacks(uid: string | undefined) {
 
   useEffect(() => {
     if (!uid) { setPacks([]); setLoading(false); return; }
-    return onValue(ref(db, `userPacks/${uid}`), async (snap) => {
+    return onValue(ref(db, `userPacks/${uid}`), (snap) => {
       const data = snap.val() as Record<string, boolean> | null;
       if (!data) { setPacks([]); setLoading(false); return; }
       const packIds = Object.keys(data);
-      try {
-        const snaps = await Promise.all(packIds.map((pid) => get(ref(db, `packs/${pid}`))));
-        const list = snaps
-          .map((s, i) => s.exists() ? ({ id: packIds[i], ...s.val() } as Pack) : null)
-          .filter((p): p is Pack => p !== null)
-          .sort((a, b) => (b.lastTripAt ?? b.createdAt) - (a.lastTripAt ?? a.createdAt));
-        setPacks(list);
-      } catch {}
-      setLoading(false);
+      Promise.all(packIds.map((pid) => get(ref(db, `packs/${pid}`))))
+        .then((snaps) => {
+          const list = snaps
+            .map((s, i) => s.exists() ? ({ id: packIds[i], ...s.val() } as Pack) : null)
+            .filter((p): p is Pack => p !== null)
+            .sort((a, b) => (b.lastTripAt ?? b.createdAt) - (a.lastTripAt ?? a.createdAt));
+          setPacks(list);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.warn("usePacks fetch error:", err);
+          setLoading(false);
+        });
     });
   }, [uid]);
 

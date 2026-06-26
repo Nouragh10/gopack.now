@@ -731,15 +731,12 @@ export default function ItineraryScreen() {
             <Pressable
               onPress={handleExportPDF}
               disabled={exportingPDF}
-              style={[styles.pdfBtn, { backgroundColor: colors.primary }]}
+              style={[styles.iconBtn, { borderColor: colors.border }]}
             >
               {exportingPDF ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.foreground} size="small" />
               ) : (
-                <>
-                  <Feather name="file-text" size={14} color="#fff" />
-                  <Text style={styles.pdfBtnText}>PDF</Text>
-                </>
+                <Feather name="file-text" size={16} color={colors.foreground} />
               )}
             </Pressable>
           </View>
