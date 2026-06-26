@@ -359,10 +359,6 @@ function ActivityCard({
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
     if (Platform.OS === "web") {
       window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
-    } else if (Platform.OS === "ios") {
-      Linking.openURL(`maps://?q=${query}`).catch(() => {
-        Linking.openURL(googleMapsUrl).catch(() => {});
-      });
     } else {
       Linking.openURL(googleMapsUrl).catch(() => {});
     }
