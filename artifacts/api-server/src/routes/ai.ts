@@ -135,7 +135,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
   try {
     const body = {
-      model: "claude-sonnet-4-5",
+      model: "claude-haiku-4-5",
       max_tokens: 8000,
       messages: [{ role: "user", content: prompt }],
     };
@@ -199,7 +199,7 @@ Respond with ONLY valid JSON (no markdown):
 
   try {
     const body = {
-      model: "claude-sonnet-4-5",
+      model: "claude-haiku-4-5",
       max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     };
