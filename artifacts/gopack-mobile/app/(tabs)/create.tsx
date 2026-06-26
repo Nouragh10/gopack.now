@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -74,7 +75,11 @@ export default function CreateScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await invitePackToTrip(pack, inviteModalTripId, destination.trim() || "your new trip", user.uid, user.displayName ?? "You");
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    } catch (e: any) {
+      Alert.alert("Invite failed", e?.message ?? String(e));
+      setInvitingPackId(null);
+      return;
+    }
     setInvitingPackId(null);
     const tid = inviteModalTripId;
     setInviteModalTripId(null);

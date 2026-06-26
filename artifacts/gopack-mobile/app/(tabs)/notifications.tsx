@@ -48,7 +48,7 @@ export default function NotificationsScreen() {
     if (!user) return;
     setAccepting(invite.id);
     try {
-      await acceptInvite(invite.id, user.uid, user.displayName ?? "Traveler", invite.tripId);
+      await acceptInvite(invite.packId, user.uid, user.displayName ?? "Traveler", invite.tripId);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push(`/trip/${invite.tripId}` as any);
     } catch {}
@@ -57,7 +57,7 @@ export default function NotificationsScreen() {
 
   const handleDismissInvite = async (invite: PackInvite) => {
     if (!user) return;
-    try { await dismissInvite(user.uid, invite.id); } catch {}
+    try { await dismissInvite(user.uid, invite.packId, invite.tripId); } catch {}
   };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;

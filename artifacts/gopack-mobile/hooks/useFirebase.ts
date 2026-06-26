@@ -829,7 +829,8 @@ export interface Pack {
 }
 
 export interface PackInvite {
-  id: string;
+  id: string;        // composite "${packId}:${tripId}"
+  packId: string;
   fromUid: string;
   fromName: string;
   tripId: string;
@@ -889,32 +890,64 @@ export function useInvites(uid: string | undefined) {
 
   useEffect(() => {
     if (!uid) { setInvites([]); return; }
-    // invites indexed in /userTrips/{uid}/{tripId} = "pending"
+    // Invites are discovered through trips the user shares with the host.
+    // When a pack is saved from a trip, /trips/{tripId}/savedPacks/{packId} is written.
+    // When the host invites the pack, /trips/{packId}/pendingInvites/{targetTripId} is written.
+    // No cross-user writes needed — all paths are under /trips which any auth'd user can write.
     return onValue(ref(db, `userTrips/${uid}`), (snap) => {
       const data = snap.val() as Record<string, boolean | string> | null;
       if (!data) { setInvites([]); return; }
-      const pendingIds = Object.entries(data)
-        .filter(([, v]) => v === "pending")
+
+      const joinedTripIds = Object.entries(data)
+        .filter(([, v]) => v === true)
         .map(([k]) => k);
-      if (pendingIds.length === 0) { setInvites([]); return; }
-      Promise.all(pendingIds.map((tid) => get(ref(db, `trips/${tid}/pendingInvites/${uid}`))))
-        .then((snaps) => {
-          const list = snaps
-            .map((s, i) => {
-              if (!s.exists()) return null;
-              const v = s.val();
-              return {
-                id: pendingIds[i],
-                fromUid: v.fromUid ?? "",
-                fromName: v.fromName ?? "Someone",
-                tripId: pendingIds[i],
-                destination: v.destination ?? "",
-                packName: v.packName ?? "",
-                createdAt: v.createdAt ?? 0,
-              } as PackInvite;
-            })
-            .filter((inv): inv is PackInvite => inv !== null)
-            .sort((a, b) => b.createdAt - a.createdAt);
+      if (joinedTripIds.length === 0) { setInvites([]); return; }
+
+      // Step 1: find all packs linked to the user's trips
+      Promise.all(joinedTripIds.map((tid) => get(ref(db, `trips/${tid}/savedPacks`))))
+        .then((packSnaps) => {
+          const packIds = new Set<string>();
+          packSnaps.forEach((s) => {
+            if (s.exists()) Object.keys(s.val() as Record<string, boolean>).forEach((pid) => packIds.add(pid));
+          });
+          if (packIds.size === 0) { setInvites([]); return; }
+
+          // Step 2: read pendingInvites from each pack
+          return Promise.all(
+            [...packIds].map((packId) =>
+              get(ref(db, `trips/${packId}/pendingInvites`)).then((s) => ({ packId, s })),
+            ),
+          );
+        })
+        .then((results) => {
+          if (!results) return;
+          const list: PackInvite[] = [];
+          for (const { packId, s } of results) {
+            if (!s.exists()) continue;
+            const invMap = s.val() as Record<string, {
+              destination: string;
+              fromUid: string;
+              fromName: string;
+              packName: string;
+              createdAt: number;
+              members: Record<string, string>;
+            }>;
+            for (const [targetTripId, inv] of Object.entries(invMap)) {
+              if (inv.members?.[uid] === "pending") {
+                list.push({
+                  id: `${packId}:${targetTripId}`,
+                  packId,
+                  tripId: targetTripId,
+                  fromUid: inv.fromUid ?? "",
+                  fromName: inv.fromName ?? "Someone",
+                  destination: inv.destination ?? "",
+                  packName: inv.packName ?? "",
+                  createdAt: inv.createdAt ?? 0,
+                });
+              }
+            }
+          }
+          list.sort((a, b) => b.createdAt - a.createdAt);
           setInvites(list);
         })
         .catch(() => setInvites([]));
@@ -937,7 +970,7 @@ export async function savePack({
   tripId: string;
   destination: string;
 }): Promise<string> {
-  // store pack as a special trip entry using already-allowed /trips and /userTrips paths
+  // store pack as a special trip entry under the already-allowed /trips path
   const newRef = push(ref(db, "trips"));
   const packId = newRef.key!;
   await set(newRef, {
@@ -955,7 +988,9 @@ export async function savePack({
     lastTripAt: Date.now(),
     tripIds: { [tripId]: true },
   });
-  // value "pack" distinguishes from joined trips (true) and pending invites ("pending")
+  // Link pack into the originating trip so every member can discover it for invites
+  await set(ref(db, `trips/${tripId}/savedPacks/${packId}`), true);
+  // Index pack for the host only (own userTrips path ✓)
   await set(ref(db, `userTrips/${hostUid}/${packId}`), "pack");
   return packId;
 }
@@ -987,35 +1022,38 @@ export async function invitePackToTrip(
   fromUid: string,
   fromName: string,
 ): Promise<void> {
-  const writes: Promise<void>[] = [];
+  // Build per-member status map (skip the inviter)
+  const members: Record<string, string> = {};
   for (const memberUid of Object.keys(pack.members)) {
     if (memberUid === fromUid) continue;
-    // store invite data inside the trip + mark in userTrips so user can discover it
-    writes.push(
-      set(ref(db, `trips/${tripId}/pendingInvites/${memberUid}`), {
-        fromUid,
-        fromName,
-        tripId,
-        destination,
-        packName: pack.name,
-        createdAt: Date.now(),
-      }),
-    );
-    writes.push(
-      set(ref(db, `userTrips/${memberUid}/${tripId}`), "pending"),
-    );
+    members[memberUid] = "pending";
   }
-  await Promise.all(writes);
+  if (Object.keys(members).length === 0) return;
+
+  // Write invite to the PACK's own trip node (host writes to their own trip ✓)
+  // No cross-user writes — friends discover this through savedPacks links on shared trips
+  await set(ref(db, `trips/${pack.id}/pendingInvites/${tripId}`), {
+    destination,
+    fromUid,
+    fromName,
+    packName: pack.name,
+    createdAt: Date.now(),
+    members,
+  });
+  // Update pack's tripIds + last trip info
+  await update(ref(db, `trips/${pack.id}`), {
+    [`tripIds/${tripId}`]: true,
+    lastTripDestination: destination,
+    lastTripAt: Date.now(),
+  });
 }
 
-export async function dismissInvite(uid: string, inviteId: string): Promise<void> {
-  // inviteId is the tripId in the new storage model
-  await set(ref(db, `userTrips/${uid}/${inviteId}`), null);
-  await set(ref(db, `trips/${inviteId}/pendingInvites/${uid}`), null);
+export async function dismissInvite(uid: string, packId: string, tripId: string): Promise<void> {
+  await set(ref(db, `trips/${packId}/pendingInvites/${tripId}/members/${uid}`), "dismissed");
 }
 
 export async function acceptInvite(
-  inviteId: string,
+  packId: string,
   uid: string,
   displayName: string,
   tripId: string,
@@ -1025,8 +1063,7 @@ export async function acceptInvite(
     joinedAt: new Date().toISOString(),
     isHost: false,
   });
-  // promote from "pending" → true and clean up invite data
   await set(ref(db, `userTrips/${uid}/${tripId}`), true);
-  await set(ref(db, `trips/${tripId}/pendingInvites/${uid}`), null);
+  await set(ref(db, `trips/${packId}/pendingInvites/${tripId}/members/${uid}`), "accepted");
   await addLocalTripId(uid, tripId);
 }
