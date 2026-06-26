@@ -98,6 +98,7 @@ function TopAccommodationCard({
   onSwipeRight: () => void;
   colors: any;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
 
@@ -146,8 +147,13 @@ function TopAccommodationCard({
           <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
         </Animated.View>
 
-        {firstPhoto ? (
-          <Image source={{ uri: firstPhoto }} style={styles.photoHero as any} resizeMode="cover" />
+        {firstPhoto && !imgFailed ? (
+          <Image
+            source={{ uri: firstPhoto }}
+            style={{ width: CARD_WIDTH - 40, height: 160, borderRadius: 12 }}
+            resizeMode="cover"
+            onError={() => setImgFailed(true)}
+          />
         ) : null}
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -880,7 +886,6 @@ const styles = StyleSheet.create({
   swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
   swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
   swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-  photoHero: { width: "100%", height: 150, borderRadius: 12 },
   swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
   swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
 

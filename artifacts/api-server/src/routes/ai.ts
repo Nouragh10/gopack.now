@@ -705,7 +705,20 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
     const result = JSON.parse(extractJson(allText));
-    res.json({ ...result, photos: extractedPhotos });
+
+    // Fallback photos by accommodation type when og:image extraction yields nothing.
+    // These are stable Unsplash photo IDs representing each category.
+    const FALLBACK_BY_TYPE: Record<string, string> = {
+      hotel:  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&h=480&fit=crop",
+      airbnb: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&h=480&fit=crop",
+      hostel: "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800&h=480&fit=crop",
+      other:  "https://images.unsplash.com/photo-1455587734955-081b22074882?w=800&h=480&fit=crop",
+    };
+    const photos = extractedPhotos.length > 0
+      ? extractedPhotos
+      : [FALLBACK_BY_TYPE[(result as any).type ?? "other"] ?? FALLBACK_BY_TYPE.hotel];
+
+    res.json({ ...result, photos });
   } catch (err) {
     req.log.error({ err }, "Failed to parse accommodation");
     res.status(500).json({ error: "Could not parse listing. Please try again." });
