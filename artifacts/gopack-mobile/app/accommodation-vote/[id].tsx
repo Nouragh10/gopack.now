@@ -864,12 +864,12 @@ const styles = StyleSheet.create({
   lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
   lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
-  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 16, paddingBottom: 12 },
-  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 8 },
-  swipeStack: { position: "relative", alignItems: "center", justifyContent: "center", height: 490 },
-  swipeCard: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12, overflow: "hidden" },
-  swipeBgCard2: { position: "absolute", transform: [{ scale: 0.96 }, { translateY: 10 }], zIndex: 1, height: 470 },
-  swipeBgCard3: { position: "absolute", transform: [{ scale: 0.92 }, { translateY: 20 }], zIndex: 0, height: 470 },
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 8 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 10 },
+  swipeStack: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
+  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
+  swipeBgCard2: { top: 14, transform: [{ scale: 0.96 }], opacity: 0.85 },
+  swipeBgCard3: { top: 28, transform: [{ scale: 0.92 }], opacity: 0.6 },
   swipeLabel: {
     position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
     gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
