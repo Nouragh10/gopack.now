@@ -143,9 +143,22 @@ export default function Explore() {
   const toggleVibeFilter = (key: string) =>
     setSelectedVibes(prev => prev.includes(key) ? prev.filter(v => v !== key) : [...prev, key]);
 
+  // Normalize a stored vibe to the canonical filter key.
+  // Handles mixed case ("Beach", "beach"), label forms ("Foodie" → "food"),
+  // and whitespace so stored data always matches the filter keys.
+  const normalizeVibeKey = (v: string) => {
+    const lower = v.toLowerCase().trim();
+    if (lower === "foodie") return "food";
+    if (lower === "cultural") return "culture";
+    return lower;
+  };
+
   const filteredReviews = reviews.filter(r => {
     const matchesQuery = !query || r.destination?.toLowerCase().includes(query.toLowerCase());
-    const matchesVibe = selectedVibes.length === 0 || r.vibes?.some((v: string) => selectedVibes.includes(v.toLowerCase()));
+    const matchesVibe =
+      selectedVibes.length === 0 ||
+      (Array.isArray(r.vibes) && r.vibes.length > 0 &&
+        r.vibes.some((v: string) => selectedVibes.includes(normalizeVibeKey(v))));
     return matchesQuery && matchesVibe;
   });
 

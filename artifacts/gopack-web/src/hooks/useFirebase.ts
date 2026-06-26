@@ -102,24 +102,68 @@ export function usePublicReviews() {
 
   useEffect(() => {
     const reviewsRef = ref(db, "reviews");
+    let cancel = false;
+
     const unsubscribe = onValue(
       reviewsRef,
       (snap) => {
-        if (snap.exists()) {
-          const data = snap.val();
-          const arr = Object.entries(data)
-            .map(([id, v]: [string, any]) => normalizeReview(id, v))
-            .filter((r) => r.destination)
-            .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
-          setReviews(arr);
-        } else {
-          setReviews([]);
+        if (!snap.exists()) {
+          if (!cancel) { setReviews([]); setLoading(false); }
+          return;
         }
-        setLoading(false);
+        const data = snap.val();
+        const arr = Object.entries(data)
+          .map(([id, v]: [string, any]) => normalizeReview(id, v))
+          .filter((r) => r.destination)
+          .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
+
+        if (!cancel) { setReviews(arr); setLoading(false); }
+
+        // Best-effort: for reviews that don't have an itinerary snapshot (submitted
+        // before that feature was added), fetch the trip's current itinerary.
+        const missing = arr.filter(r => !r.itineraryDays?.length);
+        if (missing.length === 0) return;
+
+        Promise.all(
+          missing.map(async (r) => {
+            try {
+              const iSnap = await get(ref(db, `trips/${r.id}/itinerary`));
+              if (!iSnap.exists()) return null;
+              const itin = iSnap.val();
+              if (!Array.isArray(itin.days) || !itin.days.length) return null;
+              return {
+                id: r.id,
+                itineraryDays: itin.days.map((d: any, di: number) => ({
+                  day: d.day ?? di + 1,
+                  theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+                  activities: (d.activities || []).slice(0, 4).map((a: any) => ({
+                    time: a.time || "",
+                    name: a.name || "",
+                    category: a.category || "",
+                  })),
+                })),
+              };
+            } catch {
+              return null;
+            }
+          }),
+        ).then((results) => {
+          if (cancel) return;
+          const map = new Map<string, any[]>();
+          results.forEach((r) => r && map.set(r.id, r.itineraryDays));
+          if (map.size === 0) return;
+          setReviews((prev) =>
+            prev.map((r) => ({
+              ...r,
+              itineraryDays: r.itineraryDays?.length ? r.itineraryDays : (map.get(r.id) ?? null),
+            })),
+          );
+        }).catch(() => {});
       },
-      () => setLoading(false)
+      () => { if (!cancel) setLoading(false); },
     );
-    return () => unsubscribe();
+
+    return () => { cancel = true; unsubscribe(); };
   }, []);
 
   return { reviews, loading };

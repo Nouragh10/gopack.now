@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { ArrowLeft, Star, Camera, X, Globe, Lock, Loader2, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrip, uploadTripPhoto } from "@/hooks/useFirebase";
+import { useTrip } from "@/hooks/useFirebase";
 
 const VIBES = [
   { key: "beach", label: "Beach" },
@@ -21,6 +21,29 @@ const VIBES = [
 ];
 
 const RATING_LABELS = ["", "Disappointing", "It was OK", "Pretty good", "Really good", "Incredible!"];
+
+/** Compress an image file to a JPEG data URL using Canvas (≈ 800px wide, 70% quality). */
+function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxWidth) { h = Math.round((h * maxWidth) / w); w = maxWidth; }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas unavailable")); URL.revokeObjectURL(objectUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Could not load image")); };
+    img.src = objectUrl;
+  });
+}
 
 export default function Review() {
   const [, params] = useRoute("/trip/:tripId/review");
@@ -87,9 +110,12 @@ export default function Review() {
     if (!rating || !text.trim()) return;
     setError("");
     try {
-      setUploading(true);
-      const photoUrls = await Promise.all(photoItems.map(p => uploadTripPhoto(tripId, p.file)));
-      setUploading(false);
+      let photoUrls: string[] = [];
+      if (photoItems.length > 0) {
+        setUploading(true);
+        photoUrls = await Promise.all(photoItems.map(p => compressImage(p.file)));
+        setUploading(false);
+      }
       setSubmitting(true);
       await submitReview({
         rating,

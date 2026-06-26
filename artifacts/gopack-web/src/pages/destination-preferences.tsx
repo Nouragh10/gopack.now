@@ -88,6 +88,7 @@ export default function DestinationPreferences() {
 
   const handleSubmit = async () => {
     if (vibes.length === 0) { setError("Pick at least one vibe."); return; }
+    if (!startLocation.trim()) { setError("Please enter your departure location (e.g. New York, London)."); return; }
     if (!user || !tripId) return;
     setError("");
     setSubmitting(true);
@@ -358,7 +359,7 @@ export default function DestinationPreferences() {
 
           {/* Flying from */}
           <div>
-            <div className="text-sm font-medium text-muted-foreground mb-2">Flying from (optional)</div>
+            <div className="text-sm font-medium text-muted-foreground mb-2">Flying from <span className="text-red-500">*</span></div>
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-card">
               <MapPin size={15} className="text-teal-500 shrink-0" />
               <input
