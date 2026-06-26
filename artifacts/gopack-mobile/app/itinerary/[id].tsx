@@ -468,6 +468,7 @@ export default function ItineraryScreen() {
   const [savePackName, setSavePackName] = useState("");
   const [savePackSaving, setSavePackSaving] = useState(false);
   const [packSavedName, setPackSavedName] = useState<string | null>(null);
+  const [savePackError, setSavePackError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!trip?.itinerary || !user || !id) return;
@@ -482,20 +483,23 @@ export default function ItineraryScreen() {
   const handleSavePack = async () => {
     if (!user || !id || !trip) return;
     setSavePackSaving(true);
+    setSavePackError(null);
     try {
-      const members: Record<string, { name: string }> = {};
-      for (const [uid, m] of Object.entries(trip.members ?? {})) {
-        members[uid] = { name: (m as any).name ?? "Member" };
+      const memberObj: Record<string, { name: string }> = {};
+      for (const [muid, m] of Object.entries(trip.members ?? {})) {
+        memberObj[muid] = { name: (m as any).name ?? "Member" };
       }
       const finalName = savePackName.trim() || `${trip.destination} Crew`;
-      await savePack({ hostUid: user.uid, name: finalName, members, tripId: id, destination: trip.destination });
+      await savePack({ hostUid: user.uid, name: finalName, members: memberObj, tripId: id, destination: trip.destination });
       await AsyncStorage.setItem(`gopack:packSaved:${id}`, "1");
       setShowSavePackModal(false);
       setPackSavedName(finalName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setPackSavedName(null), 3000);
-    } catch (e) {
-      console.warn("savePack error", e);
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      setSavePackError(msg);
+      Alert.alert("Save failed", msg);
     }
     setSavePackSaving(false);
   };
@@ -1085,6 +1089,11 @@ export default function ItineraryScreen() {
               <Text style={[styles.packModalSub, { color: colors.mutedForeground }]}>
                 One tap to invite everyone next time, no link sharing needed.
               </Text>
+              {savePackError ? (
+                <Text style={{ fontFamily: "DmSans_500Medium", fontSize: 13, color: "#E85D3A", textAlign: "center" }}>
+                  {savePackError}
+                </Text>
+              ) : null}
               <Text style={[styles.packModalLabel, { color: colors.mutedForeground }]}>Pack name</Text>
               <TextInput
                 style={[styles.packModalInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}

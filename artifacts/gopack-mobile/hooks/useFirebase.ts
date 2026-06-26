@@ -90,6 +90,8 @@ export interface Trip {
   isPremium?: boolean;
   aiUsage?: Record<string, number>;
   review?: unknown;
+  isPack?: boolean;
+  pendingInvites?: Record<string, { fromUid: string; fromName: string; packName: string; destination: string; createdAt: number }>;
 }
 
 export interface Wish {
@@ -190,7 +192,11 @@ export function useTrips(uid: string | undefined) {
       try {
         const snap = await get(ref(db, `userTrips/${uid}`));
         if (snap.exists()) {
-          firebaseIds = Object.keys(snap.val() as Record<string, boolean>);
+          const val = snap.val() as Record<string, boolean | string>;
+          // only include genuinely joined trips (value === true), not packs or pending invites
+          firebaseIds = Object.entries(val)
+            .filter(([, v]) => v === true)
+            .map(([k]) => k);
         }
       } catch {}
 
@@ -209,7 +215,7 @@ export function useTrips(uid: string | undefined) {
           .map((s, i) =>
             s.exists() ? ({ id: allIds[i], ...s.val() } as Trip) : null,
           )
-          .filter((t): t is Trip => t !== null)
+          .filter((t): t is Trip => t !== null && !t.isPack)
           .sort(
             (a, b) =>
               new Date(b.createdAt ?? 0).getTime() -
@@ -838,14 +844,31 @@ export function usePacks(uid: string | undefined) {
 
   useEffect(() => {
     if (!uid) { setPacks([]); setLoading(false); return; }
-    return onValue(ref(db, `userPacks/${uid}`), (snap) => {
-      const data = snap.val() as Record<string, boolean> | null;
+    // packs are stored in /trips with isPack=true, indexed in /userTrips/{uid}/{packId} = "pack"
+    return onValue(ref(db, `userTrips/${uid}`), (snap) => {
+      const data = snap.val() as Record<string, boolean | string> | null;
       if (!data) { setPacks([]); setLoading(false); return; }
-      const packIds = Object.keys(data);
-      Promise.all(packIds.map((pid) => get(ref(db, `packs/${pid}`))))
+      const packIds = Object.entries(data)
+        .filter(([, v]) => v === "pack")
+        .map(([k]) => k);
+      if (packIds.length === 0) { setPacks([]); setLoading(false); return; }
+      Promise.all(packIds.map((pid) => get(ref(db, `trips/${pid}`))))
         .then((snaps) => {
           const list = snaps
-            .map((s, i) => s.exists() ? ({ id: packIds[i], ...s.val() } as Pack) : null)
+            .map((s, i) => {
+              if (!s.exists()) return null;
+              const v = s.val();
+              return {
+                id: packIds[i],
+                hostUid: v.hostMemberId ?? "",
+                name: v.name ?? "Pack",
+                createdAt: typeof v.createdAt === "number" ? v.createdAt : Date.parse(v.createdAt ?? "0"),
+                members: v.members ?? {},
+                lastTripDestination: v.lastTripDestination,
+                lastTripAt: v.lastTripAt,
+                tripIds: v.tripIds ?? {},
+              } as Pack;
+            })
             .filter((p): p is Pack => p !== null)
             .sort((a, b) => (b.lastTripAt ?? b.createdAt) - (a.lastTripAt ?? a.createdAt));
           setPacks(list);
@@ -866,13 +889,35 @@ export function useInvites(uid: string | undefined) {
 
   useEffect(() => {
     if (!uid) { setInvites([]); return; }
-    return onValue(ref(db, `invites/${uid}`), (snap) => {
-      const data = snap.val() as Record<string, Omit<PackInvite, "id">> | null;
+    // invites indexed in /userTrips/{uid}/{tripId} = "pending"
+    return onValue(ref(db, `userTrips/${uid}`), (snap) => {
+      const data = snap.val() as Record<string, boolean | string> | null;
       if (!data) { setInvites([]); return; }
-      const list = Object.entries(data)
-        .map(([id, v]) => ({ id, ...v } as PackInvite))
-        .sort((a, b) => b.createdAt - a.createdAt);
-      setInvites(list);
+      const pendingIds = Object.entries(data)
+        .filter(([, v]) => v === "pending")
+        .map(([k]) => k);
+      if (pendingIds.length === 0) { setInvites([]); return; }
+      Promise.all(pendingIds.map((tid) => get(ref(db, `trips/${tid}/pendingInvites/${uid}`))))
+        .then((snaps) => {
+          const list = snaps
+            .map((s, i) => {
+              if (!s.exists()) return null;
+              const v = s.val();
+              return {
+                id: pendingIds[i],
+                fromUid: v.fromUid ?? "",
+                fromName: v.fromName ?? "Someone",
+                tripId: pendingIds[i],
+                destination: v.destination ?? "",
+                packName: v.packName ?? "",
+                createdAt: v.createdAt ?? 0,
+              } as PackInvite;
+            })
+            .filter((inv): inv is PackInvite => inv !== null)
+            .sort((a, b) => b.createdAt - a.createdAt);
+          setInvites(list);
+        })
+        .catch(() => setInvites([]));
     });
   }, [uid]);
 
@@ -892,27 +937,35 @@ export async function savePack({
   tripId: string;
   destination: string;
 }): Promise<string> {
-  const newRef = push(ref(db, "packs"));
+  // store pack as a special trip entry using already-allowed /trips and /userTrips paths
+  const newRef = push(ref(db, "trips"));
   const packId = newRef.key!;
   await set(newRef, {
-    hostUid,
+    isPack: true,
+    hostMemberId: hostUid,
     name,
+    destination,
+    days: 0,
+    vibes: [],
+    budget: "",
+    startDate: null,
     createdAt: Date.now(),
     members,
     lastTripDestination: destination,
     lastTripAt: Date.now(),
     tripIds: { [tripId]: true },
   });
-  await set(ref(db, `userPacks/${hostUid}/${packId}`), true);
+  // value "pack" distinguishes from joined trips (true) and pending invites ("pending")
+  await set(ref(db, `userTrips/${hostUid}/${packId}`), "pack");
   return packId;
 }
 
 export async function renamePack(packId: string, name: string): Promise<void> {
-  await update(ref(db, `packs/${packId}`), { name });
+  await update(ref(db, `trips/${packId}`), { name });
 }
 
 export async function removePackMember(packId: string, memberUid: string): Promise<void> {
-  await set(ref(db, `packs/${packId}/members/${memberUid}`), null);
+  await set(ref(db, `trips/${packId}/members/${memberUid}`), null);
 }
 
 export async function addTripToPack(
@@ -920,7 +973,7 @@ export async function addTripToPack(
   tripId: string,
   destination: string,
 ): Promise<void> {
-  await update(ref(db, `packs/${packId}`), {
+  await update(ref(db, `trips/${packId}`), {
     [`tripIds/${tripId}`]: true,
     lastTripDestination: destination,
     lastTripAt: Date.now(),
@@ -935,11 +988,11 @@ export async function invitePackToTrip(
   fromName: string,
 ): Promise<void> {
   const writes: Promise<void>[] = [];
-  for (const uid of Object.keys(pack.members)) {
-    if (uid === fromUid) continue;
-    const inviteRef = push(ref(db, `invites/${uid}`));
+  for (const memberUid of Object.keys(pack.members)) {
+    if (memberUid === fromUid) continue;
+    // store invite data inside the trip + mark in userTrips so user can discover it
     writes.push(
-      set(inviteRef, {
+      set(ref(db, `trips/${tripId}/pendingInvites/${memberUid}`), {
         fromUid,
         fromName,
         tripId,
@@ -948,12 +1001,17 @@ export async function invitePackToTrip(
         createdAt: Date.now(),
       }),
     );
+    writes.push(
+      set(ref(db, `userTrips/${memberUid}/${tripId}`), "pending"),
+    );
   }
   await Promise.all(writes);
 }
 
 export async function dismissInvite(uid: string, inviteId: string): Promise<void> {
-  await set(ref(db, `invites/${uid}/${inviteId}`), null);
+  // inviteId is the tripId in the new storage model
+  await set(ref(db, `userTrips/${uid}/${inviteId}`), null);
+  await set(ref(db, `trips/${inviteId}/pendingInvites/${uid}`), null);
 }
 
 export async function acceptInvite(
@@ -967,7 +1025,8 @@ export async function acceptInvite(
     joinedAt: new Date().toISOString(),
     isHost: false,
   });
+  // promote from "pending" → true and clean up invite data
   await set(ref(db, `userTrips/${uid}/${tripId}`), true);
+  await set(ref(db, `trips/${tripId}/pendingInvites/${uid}`), null);
   await addLocalTripId(uid, tripId);
-  await set(ref(db, `invites/${uid}/${inviteId}`), null);
 }
