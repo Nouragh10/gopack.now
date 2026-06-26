@@ -890,68 +890,84 @@ export function useInvites(uid: string | undefined) {
 
   useEffect(() => {
     if (!uid) { setInvites([]); return; }
-    // Invites are discovered through trips the user shares with the host.
-    // When a pack is saved from a trip, /trips/{tripId}/savedPacks/{packId} is written.
-    // When the host invites the pack, /trips/{packId}/pendingInvites/{targetTripId} is written.
-    // No cross-user writes needed — all paths are under /trips which any auth'd user can write.
-    return onValue(ref(db, `userTrips/${uid}`), (snap) => {
-      const data = snap.val() as Record<string, boolean | string> | null;
-      if (!data) { setInvites([]); return; }
+    const myUid = uid; // capture for use inside callbacks
 
-      const joinedTripIds = Object.entries(data)
-        .filter(([, v]) => v === true)
-        .map(([k]) => k);
-      if (joinedTripIds.length === 0) { setInvites([]); return; }
+    let cancelled = false;
+    // Level 2: per-trip → watches /trips/{tripId}/savedPacks
+    const tripUnsubs = new Map<string, () => void>();
+    // Level 3: per-pack → watches /trips/{packId}/pendingInvites
+    const packUnsubs = new Map<string, () => void>();
+    // Aggregated invite list per pack, rebuilt on any change
+    const invitesByPack = new Map<string, PackInvite[]>();
 
-      // Step 1: find all packs linked to the user's trips
-      Promise.all(joinedTripIds.map((tid) => get(ref(db, `trips/${tid}/savedPacks`))))
-        .then((packSnaps) => {
-          const packIds = new Set<string>();
-          packSnaps.forEach((s) => {
-            if (s.exists()) Object.keys(s.val() as Record<string, boolean>).forEach((pid) => packIds.add(pid));
-          });
-          if (packIds.size === 0) { setInvites([]); return; }
+    function rebuildInvites() {
+      if (cancelled) return;
+      const list: PackInvite[] = [];
+      invitesByPack.forEach((items) => list.push(...items));
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      setInvites(list);
+    }
 
-          // Step 2: read pendingInvites from each pack
-          return Promise.all(
-            [...packIds].map((packId) =>
-              get(ref(db, `trips/${packId}/pendingInvites`)).then((s) => ({ packId, s })),
-            ),
-          );
-        })
-        .then((results) => {
-          if (!results) return;
-          const list: PackInvite[] = [];
-          for (const { packId, s } of results) {
-            if (!s.exists()) continue;
-            const invMap = s.val() as Record<string, {
-              destination: string;
-              fromUid: string;
-              fromName: string;
-              packName: string;
-              createdAt: number;
-              members: Record<string, string>;
-            }>;
-            for (const [targetTripId, inv] of Object.entries(invMap)) {
-              if (inv.members?.[uid] === "pending") {
-                list.push({
-                  id: `${packId}:${targetTripId}`,
-                  packId,
-                  tripId: targetTripId,
-                  fromUid: inv.fromUid ?? "",
-                  fromName: inv.fromName ?? "Someone",
-                  destination: inv.destination ?? "",
-                  packName: inv.packName ?? "",
-                  createdAt: inv.createdAt ?? 0,
-                });
-              }
+    // Level 3: live subscription to a pack's pendingInvites
+    function subscribeToPackInvites(packId: string) {
+      if (packUnsubs.has(packId)) return;
+      const unsub = onValue(ref(db, `trips/${packId}/pendingInvites`), (snap) => {
+        if (cancelled) return;
+        const packInvites: PackInvite[] = [];
+        if (snap.exists()) {
+          const invMap = snap.val() as Record<string, {
+            destination: string; fromUid: string; fromName: string;
+            packName: string; createdAt: number; members: Record<string, string>;
+          }>;
+          for (const [targetTripId, inv] of Object.entries(invMap)) {
+            if (inv.members?.[myUid] === "pending") {
+              packInvites.push({
+                id: `${packId}:${targetTripId}`,
+                packId,
+                tripId: targetTripId,
+                fromUid: inv.fromUid ?? "",
+                fromName: inv.fromName ?? "Someone",
+                destination: inv.destination ?? "",
+                packName: inv.packName ?? "",
+                createdAt: inv.createdAt ?? 0,
+              });
             }
           }
-          list.sort((a, b) => b.createdAt - a.createdAt);
-          setInvites(list);
-        })
-        .catch(() => setInvites([]));
+        }
+        invitesByPack.set(packId, packInvites);
+        rebuildInvites();
+      });
+      packUnsubs.set(packId, unsub);
+    }
+
+    // Level 2: live subscription to a trip's savedPacks list
+    function subscribeToTripPacks(tripId: string) {
+      if (tripUnsubs.has(tripId)) return;
+      const unsub = onValue(ref(db, `trips/${tripId}/savedPacks`), (snap) => {
+        if (cancelled || !snap.exists()) return;
+        Object.keys(snap.val() as Record<string, boolean>).forEach((packId) =>
+          subscribeToPackInvites(packId),
+        );
+      });
+      tripUnsubs.set(tripId, unsub);
+    }
+
+    // Level 1: watch which trips the user has joined
+    const unsubUserTrips = onValue(ref(db, `userTrips/${uid}`), (snap) => {
+      if (cancelled) return;
+      const data = snap.val() as Record<string, boolean | string> | null;
+      if (!data) { setInvites([]); return; }
+      Object.entries(data)
+        .filter(([, v]) => v === true)
+        .forEach(([tripId]) => subscribeToTripPacks(tripId));
     });
+
+    return () => {
+      cancelled = true;
+      unsubUserTrips();
+      tripUnsubs.forEach((u) => u());
+      packUnsubs.forEach((u) => u());
+    };
   }, [uid]);
 
   return invites;
@@ -1031,8 +1047,8 @@ export async function invitePackToTrip(
   if (Object.keys(members).length === 0) return;
 
   // Write invite to the PACK's own trip node (host writes to their own trip ✓)
-  // No cross-user writes — friends discover this through savedPacks links on shared trips
-  await set(ref(db, `trips/${pack.id}/pendingInvites/${tripId}`), {
+  // No cross-user writes needed — friends discover this via savedPacks links on their shared trips
+  const inviteWrite = set(ref(db, `trips/${pack.id}/pendingInvites/${tripId}`), {
     destination,
     fromUid,
     fromName,
@@ -1040,12 +1056,19 @@ export async function invitePackToTrip(
     createdAt: Date.now(),
     members,
   });
-  // Update pack's tripIds + last trip info
-  await update(ref(db, `trips/${pack.id}`), {
+  // Update pack metadata
+  const packUpdate = update(ref(db, `trips/${pack.id}`), {
     [`tripIds/${tripId}`]: true,
     lastTripDestination: destination,
     lastTripAt: Date.now(),
   });
+  // Retroactively ensure savedPacks links exist on all shared trips.
+  // This handles packs that were saved before the savedPacks link was introduced,
+  // and also triggers the friends' Level-2 subscriptions in useInvites immediately.
+  const savedPacksWrites = Object.keys(pack.tripIds ?? {}).map((sharedTripId) =>
+    set(ref(db, `trips/${sharedTripId}/savedPacks/${pack.id}`), true),
+  );
+  await Promise.all([inviteWrite, packUpdate, ...savedPacksWrites]);
 }
 
 export async function dismissInvite(uid: string, packId: string, tripId: string): Promise<void> {
