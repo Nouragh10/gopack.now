@@ -61,7 +61,10 @@ export default function PackingScreen() {
           budget: trip.budget ?? "midrange",
         }),
       });
-      if (!res.ok) throw new Error("Server error. Please try again.");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Generation failed. Please try again.");
+      }
       const data = await res.json() as { list: Record<string, string[]> };
       await savePackingList(id, data.list);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

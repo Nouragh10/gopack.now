@@ -25,7 +25,7 @@ export default function BuildingScreen() {
   const wishes = useWishes(id);
 
   const [msgIndex, setMsgIndex] = useState(0);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const hasStarted = useRef(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -103,7 +103,10 @@ export default function BuildingScreen() {
           }),
         });
 
-        if (!res.ok) throw new Error("API error");
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(body.error ?? "Generation failed. Please try again.");
+        }
         const result = await res.json();
 
         Animated.timing(progressAnim, {
@@ -115,7 +118,7 @@ export default function BuildingScreen() {
         await saveItinerary(id!, result);
         setTimeout(() => router.replace(`/itinerary/${id}`), 800);
       } catch (err) {
-        setError(true);
+        setError((err as Error).message || "Something went wrong. Please try again.");
       }
     };
 
@@ -151,7 +154,7 @@ export default function BuildingScreen() {
 
       {error && (
         <Text style={styles.errorHint}>
-          Check your connection and try again.
+          {error}
         </Text>
       )}
     </View>
