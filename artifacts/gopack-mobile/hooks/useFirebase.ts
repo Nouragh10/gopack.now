@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
+import { db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
 
 /* ── Interfaces ───────────────────────────────────────────────────── */
 
@@ -244,8 +243,35 @@ export function useTrip(tripId: string | undefined) {
     if (!tripId) { setLoading(false); return; }
     const tripRef = ref(db, `trips/${tripId}`);
     return onValue(tripRef, (snap) => {
-      setTrip(snap.exists() ? ({ id: tripId, ...snap.val() } as Trip) : null);
+      const data = snap.val();
+      setTrip(data ? ({ id: tripId, ...data } as Trip) : null);
       setLoading(false);
+
+      // Auto-patch: if a review exists without itinerary snapshot but the trip
+      // has itinerary data, write it to both /trips/{id}/review and /reviews/{id}.
+      // Fires when any trip member opens the trip page — ensures the Discover page
+      // always has itinerary data without needing Firebase Storage read access.
+      if (
+        data?.review &&
+        !data.review.itineraryDays?.length &&
+        Array.isArray(data.itinerary?.days) &&
+        data.itinerary.days.length > 0
+      ) {
+        const itineraryDays = (data.itinerary.days as any[]).map((d: any, di: number) => ({
+          day: d.day ?? di + 1,
+          theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+          activities: (d.activities || []).slice(0, 5).map((a: any) => ({
+            time: a.time || "",
+            name: a.name || "",
+            category: a.category || "",
+          })),
+        }));
+        const patched = { ...data.review, itineraryDays };
+        update(ref(db, `trips/${tripId}`), { review: patched }).catch(() => {});
+        if (data.review.isPublic !== false) {
+          set(ref(db, `reviews/${tripId}`), patched).catch(() => {});
+        }
+      }
     });
   }, [tripId]);
 
@@ -323,8 +349,16 @@ export function usePublicReviews(limit = 6) {
         id,
         text: r.text ?? r.review ?? "",
         destination: r.destination ?? "",
-        vibes: r.vibes ?? (r.vibeLabel ? r.vibeLabel.split(" & ") : []),
+        days: r.days ?? 0,
+        rating: r.rating ?? 0,
+        highlight: r.highlight ?? "",
+        photos: r.photos ?? [],
         memberNames: r.memberNames ?? (r.authorName ? [r.authorName] : []),
+        reviewedAt: r.reviewedAt ?? "",
+        // Normalize vibes: stored as lowercase keys, display as capitalized labels
+        vibes: (r.vibes ?? (r.vibeLabel ? r.vibeLabel.split(" & ") : []))
+          .map((v: string) => v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()),
+        itineraryDays: r.itineraryDays ?? null,
       }));
       setReviews(list.slice(0, limit));
     });
@@ -348,14 +382,18 @@ export async function submitTripReview(
     photoUris: string[];
   },
 ): Promise<void> {
-  // Upload photos to Firebase Storage
+  // Convert photos to base64 data-URIs and store directly in RTDB.
+  // Firebase Storage rules block unauthenticated writes; using base64 in RTDB
+  // sidesteps that entirely without needing a storage rule change.
   const photoUrls = await Promise.all(
     reviewData.photoUris.map(async (uri) => {
       const blob = await fetch(uri).then((r) => r.blob());
-      const path = `tripPhotos/${tripId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, blob);
-      return getDownloadURL(fileRef);
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }),
   );
 

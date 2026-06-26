@@ -142,6 +142,7 @@ export default function DestinationPreferencesScreen() {
 
   const handleSubmit = async () => {
     if (vibes.length === 0) { setError("Pick at least one vibe."); return; }
+    if (!startLocation.trim()) { setError("Please enter your departure city (Flying from)."); return; }
     if (!user || !id) return;
     setError("");
     setSubmitting(true);
@@ -506,7 +507,7 @@ export default function DestinationPreferencesScreen() {
 
           {/* Flying from */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Flying from (optional)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Flying from <Text style={{ color: "#ef4444" }}>*</Text></Text>
             <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="map-pin" size={16} color="#26A69A" />
               <TextInput

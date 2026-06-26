@@ -164,17 +164,17 @@ function ReviewPreviewModal({ review, onClose, colors }: { review: PublicReview;
           ) : null}
 
           {/* Itinerary preview */}
-          {(review as any).itinerary?.days?.length > 0 ? (
+          {review.itineraryDays?.length > 0 ? (
             <View style={{ marginTop: 16, gap: 10 }}>
               <Text style={[styles.itineraryLabel, { color: colors.mutedForeground }]}>ITINERARY HIGHLIGHTS</Text>
-              {((review as any).itinerary.days as any[]).slice(0, 3).map((day: any, i: number) => (
+              {(review.itineraryDays as any[]).slice(0, 3).map((day: any, i: number) => (
                 <View key={i} style={[styles.dayRow, { borderColor: colors.border }]}>
                   <View style={[styles.dayBadge, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.dayBadgeText}>{day.dayNumber}</Text>
+                    <Text style={styles.dayBadgeText}>{day.day ?? i + 1}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.dayCity, { color: colors.foreground }]}>{day.city ?? day.theme}</Text>
-                    {day.activities?.slice(0, 2).map((act: any, j: number) => (
+                    <Text style={[styles.dayCity, { color: colors.foreground }]}>{day.theme}</Text>
+                    {(day.activities || []).slice(0, 2).map((act: any, j: number) => (
                       <Text key={j} style={[styles.dayActivity, { color: colors.mutedForeground }]}>
                         · {act.name}
                       </Text>
@@ -187,7 +187,7 @@ function ReviewPreviewModal({ review, onClose, colors }: { review: PublicReview;
             <View style={[styles.noItinerary, { backgroundColor: colors.muted }]}>
               <Feather name="map" size={16} color={colors.mutedForeground} />
               <Text style={[styles.noItineraryText, { color: colors.mutedForeground }]}>
-                No itinerary shared publicly for this trip.
+                Itinerary preview will appear once a trip member opens the trip page.
               </Text>
             </View>
           )}
@@ -210,7 +210,10 @@ export default function DiscoverScreen() {
 
   const filtered = reviews.filter((r) => {
     const matchesQuery = !query || r.destination?.toLowerCase().includes(query.toLowerCase());
-    const matchesVibe = !activeVibe || r.vibes?.includes(activeVibe);
+    // Compare case-insensitively: vibes are capitalized in normalized data; activeVibe is a label like "Food"
+    const matchesVibe = !activeVibe || r.vibes?.some(
+      (v: string) => v.toLowerCase() === activeVibe.toLowerCase()
+    );
     return matchesQuery && matchesVibe;
   });
 
