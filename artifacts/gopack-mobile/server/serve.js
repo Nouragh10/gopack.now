@@ -151,6 +151,14 @@ const server = http.createServer((req, res) => {
 });
 
 const port = parseInt(process.env.PORT || "3000", 10);
+
+server.on("error", (err) => {
+  // Log but never crash — the platform can SIGTERM us cleanly.
+  // The real guard against EADDRINUSE is in build.js (Metro is pinned to
+  // port 8081 so it can't steal the service port at startup).
+  console.error(`Server error (${err.code || err.message}) — staying alive for clean shutdown`);
+});
+
 server.listen(port, "0.0.0.0", () => {
   console.log(`Serving static Expo build on port ${port} (built=${staticBuildExists})`);
 });

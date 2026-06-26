@@ -136,8 +136,15 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
   console.log("Starting Metro...");
   console.log(`Setting EXPO_PUBLIC_DOMAIN=${expoPublicDomain}`);
+  // Force Metro onto port 8081 regardless of the outer PORT env var.
+  // Without this, `expo start` inherits PORT=18342 (the serve step's port)
+  // and Metro binds there instead of 8081.  checkMetroHealth() checks 8081,
+  // never finds it, the build exits — but Metro stays alive on 18342,
+  // causing EADDRINUSE when serve.js starts.
+  const METRO_PORT = 8081;
   const env = {
     ...process.env,
+    PORT: String(METRO_PORT),
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
   };
@@ -155,6 +162,8 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
       "--no-dev",
       "--minify",
       "--localhost",
+      "--port",
+      String(METRO_PORT),
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
