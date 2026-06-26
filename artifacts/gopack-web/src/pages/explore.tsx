@@ -436,9 +436,19 @@ export default function Explore() {
                       </p>
                     )}
 
-                    {/* Mini itinerary preview */}
-                    {review.itineraryDays?.length > 0 && (
+                    {/* Itinerary preview */}
+                    {review.itineraryDays?.length > 0 ? (
                       <ItineraryPreview days={review.itineraryDays} tripDays={review.days} />
+                    ) : (
+                      <div className="mt-4 rounded-xl border border-border/70 overflow-hidden text-[11px]">
+                        <div className="bg-foreground text-background px-3 py-2 flex items-center gap-1.5 font-semibold">
+                          <CalendarDays size={11} />
+                          <span>{review.days > 0 ? `${review.days}-day` : ""} itinerary</span>
+                        </div>
+                        <div className="px-3 py-2.5 text-muted-foreground bg-background italic">
+                          Itinerary preview will appear here once a trip member opens the trip page.
+                        </div>
+                      </div>
                     )}
 
                     <div className="flex-1" />

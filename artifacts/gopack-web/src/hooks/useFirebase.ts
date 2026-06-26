@@ -118,47 +118,6 @@ export function usePublicReviews() {
           .sort((a, b) => new Date(b.reviewedAt || 0).getTime() - new Date(a.reviewedAt || 0).getTime());
 
         if (!cancel) { setReviews(arr); setLoading(false); }
-
-        // Best-effort: for reviews that don't have an itinerary snapshot (submitted
-        // before that feature was added), fetch the trip's current itinerary.
-        const missing = arr.filter(r => !r.itineraryDays?.length);
-        if (missing.length === 0) return;
-
-        Promise.all(
-          missing.map(async (r) => {
-            try {
-              const iSnap = await get(ref(db, `trips/${r.id}/itinerary`));
-              if (!iSnap.exists()) return null;
-              const itin = iSnap.val();
-              if (!Array.isArray(itin.days) || !itin.days.length) return null;
-              return {
-                id: r.id,
-                itineraryDays: itin.days.map((d: any, di: number) => ({
-                  day: d.day ?? di + 1,
-                  theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
-                  activities: (d.activities || []).slice(0, 4).map((a: any) => ({
-                    time: a.time || "",
-                    name: a.name || "",
-                    category: a.category || "",
-                  })),
-                })),
-              };
-            } catch {
-              return null;
-            }
-          }),
-        ).then((results) => {
-          if (cancel) return;
-          const map = new Map<string, any[]>();
-          results.forEach((r) => r && map.set(r.id, r.itineraryDays));
-          if (map.size === 0) return;
-          setReviews((prev) =>
-            prev.map((r) => ({
-              ...r,
-              itineraryDays: r.itineraryDays?.length ? r.itineraryDays : (map.get(r.id) ?? null),
-            })),
-          );
-        }).catch(() => {});
       },
       () => { if (!cancel) setLoading(false); },
     );
@@ -340,6 +299,32 @@ export function useTrip(tripId: string) {
             setWishes(wishesArray);
           } else {
             setWishes([]);
+          }
+
+          // Auto-patch: if a review exists but has no itinerary snapshot yet
+          // and the trip already has itinerary data, write it in now.
+          // This runs once per member who visits the trip page and ensures the
+          // public /reviews entry always has the itinerary for the Discover page.
+          if (
+            data.review &&
+            !data.review.itineraryDays?.length &&
+            Array.isArray(data.itinerary?.days) &&
+            data.itinerary.days.length > 0
+          ) {
+            const itineraryDays = (data.itinerary.days as any[]).map((d: any, di: number) => ({
+              day: d.day ?? di + 1,
+              theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+              activities: (d.activities || []).slice(0, 5).map((a: any) => ({
+                time: a.time || "",
+                name: a.name || "",
+                category: a.category || "",
+              })),
+            }));
+            const patched = { ...data.review, itineraryDays };
+            update(ref(db, `trips/${tripId}`), { review: patched }).catch(() => {});
+            if (data.review.isPublic !== false) {
+              set(ref(db, `reviews/${tripId}`), patched).catch(() => {});
+            }
           }
         } else {
           setTrip(null);
