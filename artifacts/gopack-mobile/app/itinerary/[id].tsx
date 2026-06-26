@@ -1,9 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -32,6 +33,7 @@ import {
   updateActivity,
   deleteActivity,
   incrementAiUsage,
+  savePack,
   useTrip,
 } from "@/hooks/useFirebase";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -462,6 +464,35 @@ export default function ItineraryScreen() {
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("");
+  const [showSavePackModal, setShowSavePackModal] = useState(false);
+  const [savePackName, setSavePackName] = useState("");
+  const [savePackSaving, setSavePackSaving] = useState(false);
+
+  useEffect(() => {
+    if (!trip?.itinerary || !user || !id) return;
+    const isHost = trip.hostMemberId === user.uid;
+    const memberCount = Object.keys(trip.members ?? {}).length;
+    if (!isHost || memberCount < 2) return;
+    AsyncStorage.getItem(`gopack:packSaved:${id}`).then((val) => {
+      if (!val) { setSavePackName(`${trip.destination} Crew`); setShowSavePackModal(true); }
+    }).catch(() => {});
+  }, [id, user?.uid, !!trip?.itinerary]);
+
+  const handleSavePack = async () => {
+    if (!user || !id || !trip) return;
+    setSavePackSaving(true);
+    try {
+      const members: Record<string, { name: string }> = {};
+      for (const [uid, m] of Object.entries(trip.members ?? {})) {
+        members[uid] = { name: (m as any).name ?? "Member" };
+      }
+      await savePack({ hostUid: user.uid, name: savePackName.trim() || `${trip.destination} Crew`, members, tripId: id, destination: trip.destination });
+      await AsyncStorage.setItem(`gopack:packSaved:${id}`, "1");
+      setShowSavePackModal(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+    setSavePackSaving(false);
+  };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
@@ -1018,6 +1049,60 @@ export default function ItineraryScreen() {
         tripId={id ?? ""}
         onClose={() => setShowUpgrade(false)}
       />
+
+      {/* Save Pack modal */}
+      <Modal
+        visible={showSavePackModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowSavePackModal(false); AsyncStorage.setItem(`gopack:packSaved:${id ?? ""}`, "1").catch(() => {}); }}
+      >
+        <Pressable style={styles.packModalOverlay} onPress={() => { setShowSavePackModal(false); AsyncStorage.setItem(`gopack:packSaved:${id ?? ""}`, "1").catch(() => {}); }}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={[styles.packModalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.packModalHandle, { backgroundColor: colors.border }]} />
+              <View style={[styles.packModalIconWrap, { backgroundColor: colors.primary + "18" }]}>
+                <Feather name="users" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.packModalTitle, { color: colors.foreground }]}>Save this group as a Pack?</Text>
+              <Text style={[styles.packModalSub, { color: colors.mutedForeground }]}>
+                One tap to invite everyone next time, no link sharing needed.
+              </Text>
+              <Text style={[styles.packModalLabel, { color: colors.mutedForeground }]}>Pack name</Text>
+              <TextInput
+                style={[styles.packModalInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+                value={savePackName}
+                onChangeText={setSavePackName}
+                placeholder={`${trip?.destination ?? ""} Crew`}
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+              />
+              <View style={styles.packModalBtns}>
+                <Pressable
+                  onPress={() => { setShowSavePackModal(false); AsyncStorage.setItem(`gopack:packSaved:${id ?? ""}`, "1").catch(() => {}); }}
+                  style={[styles.packModalCancelBtn, { borderColor: colors.border }]}
+                >
+                  <Text style={[styles.packModalCancelText, { color: colors.mutedForeground }]}>Not now</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleSavePack}
+                  disabled={savePackSaving}
+                  style={[styles.packModalSaveBtn, { backgroundColor: colors.primary, opacity: savePackSaving ? 0.6 : 1 }]}
+                >
+                  {savePackSaving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Feather name="check" size={15} color="#fff" />
+                      <Text style={styles.packModalSaveText}>Save Pack</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1196,4 +1281,17 @@ const styles = StyleSheet.create({
   sheetCancelText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   sheetSaveBtn: { flex: 1, alignItems: "center", borderRadius: 12, paddingVertical: 13 },
   sheetSaveText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
+  packModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  packModalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: 24, paddingBottom: 44, gap: 10 },
+  packModalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
+  packModalIconWrap: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 4 },
+  packModalTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, textAlign: "center" },
+  packModalSub: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20, textAlign: "center" },
+  packModalLabel: { fontFamily: "DmSans_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 1 },
+  packModalInput: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, fontFamily: "DmSans_400Regular", fontSize: 15 },
+  packModalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
+  packModalCancelBtn: { flex: 1, alignItems: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 13 },
+  packModalCancelText: { fontFamily: "DmSans_500Medium", fontSize: 15 },
+  packModalSaveBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingVertical: 13 },
+  packModalSaveText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
 });

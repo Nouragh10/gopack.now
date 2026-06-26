@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { useTrips } from "@/hooks/useFirebase";
+import { useTrips, usePacks } from "@/hooks/useFirebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
 
 function getGreeting() {
@@ -24,6 +24,8 @@ function getGreeting() {
   if (h < 17) return "Good afternoon";
   return "Good evening";
 }
+
+const PACK_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
 const HOW_IT_WORKS = [
   {
@@ -57,6 +59,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { trips, refetch } = useTrips(user?.uid);
+  const { packs } = usePacks(user?.uid);
   const router = useRouter();
   const [helpVisible, setHelpVisible] = useState(false);
 
@@ -146,6 +149,51 @@ export default function DashboardScreen() {
             <Text style={[styles.actionBtnText, { color: colors.foreground }]}>Join trip</Text>
           </Pressable>
         </View>
+
+        {/* My Packs */}
+        {packs.length > 0 && (
+          <View style={styles.packsSection}>
+            <View style={styles.packsSectionRow}>
+              <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>My Packs</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
+              {packs.slice(0, 6).map((pack, idx) => {
+                const memberEntries = Object.entries(pack.members);
+                return (
+                  <Pressable
+                    key={pack.id}
+                    onPress={() => router.push(`/groups/${pack.id}` as any)}
+                    style={[styles.packCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  >
+                    <Text style={[styles.packCardName, { color: colors.foreground }]} numberOfLines={1}>{pack.name}</Text>
+                    <View style={styles.packAvatarRow}>
+                      {memberEntries.slice(0, 4).map(([uid, m], i) => (
+                        <View
+                          key={uid}
+                          style={[styles.packAvatar, { backgroundColor: PACK_COLORS[i % PACK_COLORS.length], marginLeft: i > 0 ? -6 : 0 }]}
+                        >
+                          <Text style={styles.packAvatarText}>{((m as any).name ?? "?")[0]?.toUpperCase()}</Text>
+                        </View>
+                      ))}
+                      {memberEntries.length > 4 && (
+                        <View style={[styles.packAvatar, { backgroundColor: colors.muted, marginLeft: -6 }]}>
+                          <Text style={[styles.packAvatarText, { color: colors.mutedForeground }]}>+{memberEntries.length - 4}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.packCardMeta, { color: colors.mutedForeground }]}>
+                      {memberEntries.length} members{pack.lastTripDestination ? ` · ${pack.lastTripDestination}` : ""}
+                    </Text>
+                    <View style={[styles.packPlanPill, { borderColor: colors.primary + "50" }]}>
+                      <Feather name="plus" size={11} color={colors.primary} />
+                      <Text style={[styles.packPlanText, { color: colors.primary }]}>Plan new trip</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* How it works */}
         <View style={styles.section}>
@@ -288,4 +336,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14, alignItems: "center",
   },
   helpDoneText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
+  packsSection: { marginBottom: 24 },
+  packsSectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 12 },
+  packCard: { width: 168, borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
+  packCardName: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  packAvatarRow: { flexDirection: "row", alignItems: "center" },
+  packAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  packAvatarText: { fontFamily: "DmSans_700Bold", fontSize: 10, color: "#fff" },
+  packCardMeta: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  packPlanPill: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, alignSelf: "flex-start" },
+  packPlanText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
 });

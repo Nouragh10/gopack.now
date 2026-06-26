@@ -808,3 +808,162 @@ export async function incrementAiUsage(tripId: string, feature: string) {
   const current = (snap.val() as number) ?? 0;
   await set(r, current + 1);
 }
+
+/* ── Pack (Travel Group) ─────────────────────────────────────────── */
+
+export interface Pack {
+  id: string;
+  hostUid: string;
+  name: string;
+  createdAt: number;
+  members: Record<string, { name: string }>;
+  lastTripDestination?: string;
+  lastTripAt?: number;
+  tripIds?: Record<string, boolean>;
+}
+
+export interface PackInvite {
+  id: string;
+  fromUid: string;
+  fromName: string;
+  tripId: string;
+  destination: string;
+  packName: string;
+  createdAt: number;
+}
+
+export function usePacks(uid: string | undefined) {
+  const [packs, setPacks] = useState<Pack[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) { setPacks([]); setLoading(false); return; }
+    return onValue(ref(db, `userPacks/${uid}`), async (snap) => {
+      const data = snap.val() as Record<string, boolean> | null;
+      if (!data) { setPacks([]); setLoading(false); return; }
+      const packIds = Object.keys(data);
+      try {
+        const snaps = await Promise.all(packIds.map((pid) => get(ref(db, `packs/${pid}`))));
+        const list = snaps
+          .map((s, i) => s.exists() ? ({ id: packIds[i], ...s.val() } as Pack) : null)
+          .filter((p): p is Pack => p !== null)
+          .sort((a, b) => (b.lastTripAt ?? b.createdAt) - (a.lastTripAt ?? a.createdAt));
+        setPacks(list);
+      } catch {}
+      setLoading(false);
+    });
+  }, [uid]);
+
+  return { packs, loading };
+}
+
+export function useInvites(uid: string | undefined) {
+  const [invites, setInvites] = useState<PackInvite[]>([]);
+
+  useEffect(() => {
+    if (!uid) { setInvites([]); return; }
+    return onValue(ref(db, `invites/${uid}`), (snap) => {
+      const data = snap.val() as Record<string, Omit<PackInvite, "id">> | null;
+      if (!data) { setInvites([]); return; }
+      const list = Object.entries(data)
+        .map(([id, v]) => ({ id, ...v } as PackInvite))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      setInvites(list);
+    });
+  }, [uid]);
+
+  return invites;
+}
+
+export async function savePack({
+  hostUid,
+  name,
+  members,
+  tripId,
+  destination,
+}: {
+  hostUid: string;
+  name: string;
+  members: Record<string, { name: string }>;
+  tripId: string;
+  destination: string;
+}): Promise<string> {
+  const newRef = push(ref(db, "packs"));
+  const packId = newRef.key!;
+  await set(newRef, {
+    hostUid,
+    name,
+    createdAt: Date.now(),
+    members,
+    lastTripDestination: destination,
+    lastTripAt: Date.now(),
+    tripIds: { [tripId]: true },
+  });
+  await set(ref(db, `userPacks/${hostUid}/${packId}`), true);
+  return packId;
+}
+
+export async function renamePack(packId: string, name: string): Promise<void> {
+  await update(ref(db, `packs/${packId}`), { name });
+}
+
+export async function removePackMember(packId: string, memberUid: string): Promise<void> {
+  await set(ref(db, `packs/${packId}/members/${memberUid}`), null);
+}
+
+export async function addTripToPack(
+  packId: string,
+  tripId: string,
+  destination: string,
+): Promise<void> {
+  await update(ref(db, `packs/${packId}`), {
+    [`tripIds/${tripId}`]: true,
+    lastTripDestination: destination,
+    lastTripAt: Date.now(),
+  });
+}
+
+export async function invitePackToTrip(
+  pack: Pack,
+  tripId: string,
+  destination: string,
+  fromUid: string,
+  fromName: string,
+): Promise<void> {
+  const writes: Promise<void>[] = [];
+  for (const uid of Object.keys(pack.members)) {
+    if (uid === fromUid) continue;
+    const inviteRef = push(ref(db, `invites/${uid}`));
+    writes.push(
+      set(inviteRef, {
+        fromUid,
+        fromName,
+        tripId,
+        destination,
+        packName: pack.name,
+        createdAt: Date.now(),
+      }),
+    );
+  }
+  await Promise.all(writes);
+}
+
+export async function dismissInvite(uid: string, inviteId: string): Promise<void> {
+  await set(ref(db, `invites/${uid}/${inviteId}`), null);
+}
+
+export async function acceptInvite(
+  inviteId: string,
+  uid: string,
+  displayName: string,
+  tripId: string,
+): Promise<void> {
+  await set(ref(db, `trips/${tripId}/members/${uid}`), {
+    name: displayName,
+    joinedAt: new Date().toISOString(),
+    isHost: false,
+  });
+  await set(ref(db, `userTrips/${uid}/${tripId}`), true);
+  await addLocalTripId(uid, tripId);
+  await set(ref(db, `invites/${uid}/${inviteId}`), null);
+}

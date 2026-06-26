@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { createTrip, joinTrip, setCollectingPreferences } from "@/hooks/useFirebase";
+import { createTrip, joinTrip, setCollectingPreferences, usePacks, invitePackToTrip, Pack } from "@/hooks/useFirebase";
 
 const VIBES = [
   "Adventure", "Culture", "Food", "Beach",
@@ -58,11 +58,28 @@ export default function CreateScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [budget, setBudget] = useState<"Budget" | "Midrange" | "Luxury">("Midrange");
+  const { packs } = usePacks(user?.uid);
   const [loading, setLoading] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [error, setError] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinLoading, setJoinLoading] = useState(false);
+  const [inviteModalTripId, setInviteModalTripId] = useState<string | null>(null);
+  const [invitingPackId, setInvitingPackId] = useState<string | null>(null);
+
+  const handleInvitePack = async (pack: Pack) => {
+    if (!user || !inviteModalTripId) return;
+    setInvitingPackId(pack.id);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await invitePackToTrip(pack, inviteModalTripId, destination.trim() || "your new trip", user.uid, user.displayName ?? "You");
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {}
+    setInvitingPackId(null);
+    const tid = inviteModalTripId;
+    setInviteModalTripId(null);
+    router.push(`/trip/${tid}`);
+  };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -90,7 +107,11 @@ export default function CreateScreen() {
         uid: user.uid,
         displayName: user.displayName ?? "Traveler",
       });
-      router.push(`/trip/${tripId}`);
+      if (packs.length > 0) {
+        setInviteModalTripId(tripId);
+      } else {
+        router.push(`/trip/${tripId}`);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(`Could not create trip: ${msg}`);
@@ -384,6 +405,55 @@ export default function CreateScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Invite Pack modal — appears after trip creation when the user has saved packs */}
+      <Modal visible={!!inviteModalTripId} transparent animationType="slide" onRequestClose={() => { if (inviteModalTripId) { router.push(`/trip/${inviteModalTripId}`); setInviteModalTripId(null); } }}>
+        <View style={styles.inviteOverlay}>
+          <View style={{ flex: 1 }} />
+          <View style={[styles.inviteSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inviteHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.inviteTitle, { color: colors.foreground }]}>Invite your Pack</Text>
+            <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
+              Tap a pack to send everyone an in-app invite instantly.
+            </Text>
+            <View style={{ gap: 10, marginTop: 4 }}>
+              {packs.map((pack) => {
+                const memberCount = Object.keys(pack.members).length;
+                const isInviting = invitingPackId === pack.id;
+                return (
+                  <Pressable
+                    key={pack.id}
+                    onPress={() => handleInvitePack(pack)}
+                    disabled={!!invitingPackId}
+                    style={[styles.packRow, { backgroundColor: colors.background, borderColor: colors.border, opacity: invitingPackId && !isInviting ? 0.5 : 1 }]}
+                  >
+                    <View style={[styles.packIconCircle, { backgroundColor: colors.primary + "18" }]}>
+                      <Feather name="users" size={16} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.packRowName, { color: colors.foreground }]}>{pack.name}</Text>
+                      <Text style={[styles.packRowMeta, { color: colors.mutedForeground }]}>{memberCount} member{memberCount !== 1 ? "s" : ""}</Text>
+                    </View>
+                    {isInviting ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <View style={[styles.invitePill, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.invitePillText}>Invite</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              onPress={() => { if (inviteModalTripId) { router.push(`/trip/${inviteModalTripId}`); setInviteModalTripId(null); } }}
+              style={[styles.skipBtn, { borderColor: colors.border }]}
+            >
+              <Text style={[styles.skipText, { color: colors.mutedForeground }]}>Skip — go to trip</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -429,4 +499,17 @@ const styles = StyleSheet.create({
   dateModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, paddingBottom: 8 },
   dateModalTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
   dateModalDone: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
+  inviteOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  inviteSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: 24, paddingBottom: 44, gap: 12 },
+  inviteHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  inviteTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
+  inviteSub: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20 },
+  packRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, padding: 14 },
+  packIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  packRowName: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  packRowMeta: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  invitePill: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  invitePillText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+  skipBtn: { alignItems: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 13, marginTop: 4 },
+  skipText: { fontFamily: "DmSans_500Medium", fontSize: 15 },
 });

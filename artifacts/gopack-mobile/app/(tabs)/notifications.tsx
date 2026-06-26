@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import * as Haptics from "expo-haptics";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { useTrips } from "@/hooks/useFirebase";
+import { useTrips, useInvites, acceptInvite, dismissInvite, PackInvite } from "@/hooks/useFirebase";
 
 interface AppNotification {
   id: string;
@@ -39,6 +41,24 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { trips } = useTrips(user?.uid);
+  const invites = useInvites(user?.uid);
+  const [accepting, setAccepting] = useState<string | null>(null);
+
+  const handleAcceptInvite = async (invite: PackInvite) => {
+    if (!user) return;
+    setAccepting(invite.id);
+    try {
+      await acceptInvite(invite.id, user.uid, user.displayName ?? "Traveler", invite.tripId);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push(`/trip/${invite.tripId}` as any);
+    } catch {}
+    setAccepting(null);
+  };
+
+  const handleDismissInvite = async (invite: PackInvite) => {
+    if (!user) return;
+    try { await dismissInvite(user.uid, invite.id); } catch {}
+  };
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -148,49 +168,79 @@ export default function NotificationsScreen() {
         )}
       </View>
 
-      {notifications.length === 0 ? (
-        <View style={styles.empty}>
-          <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
-            <Feather name="bell" size={28} color={colors.mutedForeground} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
-          <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
-            You'll be notified when your pack adds wishes, joins trips, or your itinerary is ready.
-          </Text>
-        </View>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: bottomInset }}
-        >
-          {notifications.map((note) => (
-            <Pressable
-              key={note.id}
-              onPress={() => note.tripId && router.push(`/trip/${note.tripId}` as any)}
-              style={[styles.noteRow, { borderBottomColor: colors.border }]}
-            >
-              <View style={[styles.noteIcon, { backgroundColor: note.color + "1A" }]}>
-                <Feather name={note.icon as any} size={18} color={note.color} />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.noteTitle, { color: colors.foreground }]}>{note.title}</Text>
-                <Text
-                  style={[styles.noteSub, { color: colors.mutedForeground }]}
-                  numberOfLines={2}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset }}>
+        {/* Pack invites — action required */}
+        {invites.map((invite) => (
+          <View key={invite.id} style={[styles.inviteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.noteIcon, { backgroundColor: "#7E57C220" }]}>
+              <Feather name="users" size={18} color="#7E57C2" />
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.noteTitle, { color: colors.foreground }]}>
+                {invite.fromName} invited you to a trip
+              </Text>
+              <Text style={[styles.noteSub, { color: colors.mutedForeground }]}>
+                {invite.destination} · via {invite.packName}
+              </Text>
+              <View style={styles.inviteBtns}>
+                <Pressable
+                  onPress={() => handleAcceptInvite(invite)}
+                  disabled={!!accepting}
+                  style={[styles.joinBtn, { backgroundColor: "#7E57C2", opacity: accepting === invite.id ? 0.6 : 1 }]}
                 >
-                  {note.subtitle}
-                </Text>
+                  {accepting === invite.id ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.joinBtnText}>Join trip</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => handleDismissInvite(invite)}
+                  style={[styles.dismissBtn, { borderColor: colors.border }]}
+                >
+                  <Text style={[styles.dismissText, { color: colors.mutedForeground }]}>Dismiss</Text>
+                </Pressable>
               </View>
-              <View style={styles.noteRight}>
-                <Text style={[styles.noteTime, { color: colors.mutedForeground }]}>
-                  {timeAgo(note.time)}
-                </Text>
-                <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+            </View>
+          </View>
+        ))}
+
+        {/* Regular notifications */}
+        {notifications.map((note) => (
+          <Pressable
+            key={note.id}
+            onPress={() => note.tripId && router.push(`/trip/${note.tripId}` as any)}
+            style={[styles.noteRow, { borderBottomColor: colors.border }]}
+          >
+            <View style={[styles.noteIcon, { backgroundColor: note.color + "1A" }]}>
+              <Feather name={note.icon as any} size={18} color={note.color} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[styles.noteTitle, { color: colors.foreground }]}>{note.title}</Text>
+              <Text style={[styles.noteSub, { color: colors.mutedForeground }]} numberOfLines={2}>
+                {note.subtitle}
+              </Text>
+            </View>
+            <View style={styles.noteRight}>
+              <Text style={[styles.noteTime, { color: colors.mutedForeground }]}>{timeAgo(note.time)}</Text>
+              <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+            </View>
+          </Pressable>
+        ))}
+
+        {/* Empty state */}
+        {notifications.length === 0 && invites.length === 0 && (
+          <View style={styles.empty}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+              <Feather name="bell" size={28} color={colors.mutedForeground} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
+            <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+              You'll be notified when your pack adds wishes, joins trips, or your itinerary is ready.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -259,4 +309,14 @@ const styles = StyleSheet.create({
   noteSub: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18 },
   noteRight: { alignItems: "flex-end", gap: 4 },
   noteTime: { fontFamily: "DmSans_400Regular", fontSize: 11 },
+  inviteCard: {
+    flexDirection: "row", alignItems: "flex-start", gap: 14,
+    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "transparent",
+    marginHorizontal: 12, marginVertical: 6, borderRadius: 16, borderWidth: 1,
+  },
+  inviteBtns: { flexDirection: "row", gap: 8, marginTop: 4 },
+  joinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, alignItems: "center", justifyContent: "center", minWidth: 80 },
+  joinBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
+  dismissBtn: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1 },
+  dismissText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
 });
