@@ -751,9 +751,7 @@ export default function TripHub() {
                       <div className="flex-1">
                         <div>Book accommodation</div>
                         <div className="text-xs font-normal text-muted-foreground">
-                          {trip.accommodationPreferences
-                            ? `${Object.keys(trip.accommodationPreferences).length} preference${Object.keys(trip.accommodationPreferences).length !== 1 ? "s" : ""} collected`
-                            : "Add your preferences"}
+                          Add picks to vote on
                         </div>
                       </div>
                       <ChevronRight size={14} className="text-muted-foreground" />
