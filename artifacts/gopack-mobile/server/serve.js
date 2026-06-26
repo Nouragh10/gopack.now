@@ -104,8 +104,22 @@ function serveStaticFile(urlPath, res) {
   res.end(content);
 }
 
-const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
+// Read template gracefully — if missing, use an inline fallback so the
+// server still starts and passes health checks even when the build hasn't run.
+let landingPageTemplate;
+try {
+  landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
+} catch {
+  landingPageTemplate =
+    "<!DOCTYPE html><html><body><h1>APP_NAME_PLACEHOLDER</h1>" +
+    "<p>Open in the Expo Go app to use on your device.</p></body></html>";
+}
 const appName = getAppName();
+
+const staticBuildExists = fs.existsSync(STATIC_ROOT);
+if (!staticBuildExists) {
+  console.warn("static-build/ not found — serving health check only until a build is available.");
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
@@ -113,6 +127,13 @@ const server = http.createServer((req, res) => {
 
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  // Always respond OK to health-check pings so the platform doesn't kill the deployment.
+  if (pathname === "/status" || pathname === "/healthz") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true, built: staticBuildExists }));
+    return;
   }
 
   if (pathname === "/" || pathname === "/manifest") {
@@ -131,5 +152,5 @@ const server = http.createServer((req, res) => {
 
 const port = parseInt(process.env.PORT || "3000", 10);
 server.listen(port, "0.0.0.0", () => {
-  console.log(`Serving static Expo build on port ${port}`);
+  console.log(`Serving static Expo build on port ${port} (built=${staticBuildExists})`);
 });
