@@ -467,6 +467,7 @@ export default function ItineraryScreen() {
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
   const [savePackSaving, setSavePackSaving] = useState(false);
+  const [packSavedName, setPackSavedName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!trip?.itinerary || !user || !id) return;
@@ -486,11 +487,16 @@ export default function ItineraryScreen() {
       for (const [uid, m] of Object.entries(trip.members ?? {})) {
         members[uid] = { name: (m as any).name ?? "Member" };
       }
-      await savePack({ hostUid: user.uid, name: savePackName.trim() || `${trip.destination} Crew`, members, tripId: id, destination: trip.destination });
+      const finalName = savePackName.trim() || `${trip.destination} Crew`;
+      await savePack({ hostUid: user.uid, name: finalName, members, tripId: id, destination: trip.destination });
       await AsyncStorage.setItem(`gopack:packSaved:${id}`, "1");
       setShowSavePackModal(false);
+      setPackSavedName(finalName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+      setTimeout(() => setPackSavedName(null), 3000);
+    } catch (e) {
+      console.warn("savePack error", e);
+    }
     setSavePackSaving(false);
   };
 
@@ -713,6 +719,12 @@ export default function ItineraryScreen() {
             </Text>
           </View>
           <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => { setSavePackName(`${trip.destination} Crew`); setShowSavePackModal(true); Haptics.selectionAsync(); }}
+              style={[styles.iconBtn, { borderColor: colors.border }]}
+            >
+              <Feather name="users" size={16} color={colors.foreground} />
+            </Pressable>
             <Pressable onPress={handleShare} style={[styles.iconBtn, { borderColor: colors.border }]}>
               <Feather name="share" size={16} color={colors.foreground} />
             </Pressable>
@@ -1050,6 +1062,14 @@ export default function ItineraryScreen() {
         onClose={() => setShowUpgrade(false)}
       />
 
+      {/* Pack saved toast */}
+      {packSavedName ? (
+        <View style={[styles.savedToast, { backgroundColor: colors.primary }]} pointerEvents="none">
+          <Feather name="check-circle" size={16} color="#fff" />
+          <Text style={styles.savedToastText}>"{packSavedName}" saved as a Pack!</Text>
+        </View>
+      ) : null}
+
       {/* Save Pack modal */}
       <Modal
         visible={showSavePackModal}
@@ -1294,4 +1314,11 @@ const styles = StyleSheet.create({
   packModalCancelText: { fontFamily: "DmSans_500Medium", fontSize: 15 },
   packModalSaveBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingVertical: 13 },
   packModalSaveText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
+  savedToast: {
+    position: "absolute", bottom: 40, left: 20, right: 20,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
+    shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
+  },
+  savedToastText: { fontFamily: "DmSans_600SemiBold", fontSize: 14, color: "#fff", flex: 1 },
 });
