@@ -100,10 +100,11 @@ Vibe inspiration guide:
 ${vibeGuide}
 
 ━━━ STRICT RULES ━━━
+0. LOCATION LOCK — Every single activity, restaurant, venue, and experience MUST be physically located in or immediately around ${destination}. Do NOT suggest activities in other cities, regions, or countries, even as a day trip. If a wish mentions a place outside ${destination}, adapt the spirit of it to something available in ${destination} instead.
 1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
 2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
-4. Every activity "name" must be a real venue's official name (e.g. "Sagrada Família" not "Famous Cathedral").
+4. Every activity "name" must be a real venue's official name within ${destination} (e.g. "Sagrada Família" not "Famous Cathedral").
 5. Descriptions: ONE sentence, max 15 words.
 6. Do not repeat the same venue or the same activity type more than once per day.
 
