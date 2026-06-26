@@ -148,7 +148,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
     if (!(response as unknown as globalThis.Response).ok) {
       req.log.error({ data }, "Anthropic API error (itinerary)");
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
 
@@ -212,7 +212,7 @@ Respond with ONLY valid JSON (no markdown):
 
     if (!(response as unknown as globalThis.Response).ok) {
       req.log.error({ data }, "Anthropic API error (packing)");
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
 
@@ -432,7 +432,7 @@ Respond with ONLY valid JSON, no markdown:
 
     if (!(response as unknown as globalThis.Response).ok) {
       req.log.error({ data }, "Anthropic API error (suggest-destinations)");
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
 
@@ -539,7 +539,7 @@ Respond with ONLY valid JSON, no markdown:
 
     if (!(response as unknown as globalThis.Response).ok) {
       req.log.error({ data }, "Anthropic API error (suggest-accommodations)");
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
 
@@ -701,7 +701,7 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
       error?: { message: string };
     };
     if (!(response as unknown as globalThis.Response).ok) {
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
@@ -853,7 +853,7 @@ Respond with ONLY valid JSON (no markdown):
     };
     if (!(response as unknown as globalThis.Response).ok) {
       req.log.error({ data }, "Anthropic API error (redo-activity)");
-      res.status((response as unknown as globalThis.Response).status).json(data);
+      res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
