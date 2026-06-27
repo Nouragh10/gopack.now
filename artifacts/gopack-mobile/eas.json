@@ -13,14 +13,5 @@
     "production": {
       "autoIncrement": true
     }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "norah alghamdi",
-        "ascAppId": "",
-        "appleTeamId": ""
-      }
-    }
   }
 }
