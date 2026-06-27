@@ -186,15 +186,6 @@ export default function DashboardScreen() {
                     onPress={() => router.push(`/groups/${pack.id}` as any)}
                     style={[styles.packCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
-                    {/* Delete button */}
-                    <Pressable
-                      onPress={(e) => { e.stopPropagation(); handleDeletePack(pack); }}
-                      hitSlop={8}
-                      style={styles.packDeleteBtn}
-                    >
-                      <Feather name="x" size={12} color={colors.mutedForeground} />
-                    </Pressable>
-
                     <Text style={[styles.packCardName, { color: colors.foreground }]} numberOfLines={1}>{pack.name}</Text>
                     <View style={styles.packAvatarRow}>
                       {memberEntries.slice(0, 4).map(([uid, m], i) => (
@@ -218,6 +209,15 @@ export default function DashboardScreen() {
                       <Feather name="plus" size={11} color={colors.primary} />
                       <Text style={[styles.packPlanText, { color: colors.primary }]}>Plan new trip</Text>
                     </View>
+
+                    {/* Delete button — rendered last so it sits on top */}
+                    <Pressable
+                      onPress={() => handleDeletePack(pack)}
+                      hitSlop={10}
+                      style={styles.packDeleteBtn}
+                    >
+                      <Feather name="x" size={13} color="#fff" />
+                    </Pressable>
                   </Pressable>
                 );
               })}
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   packsSection: { marginBottom: 24 },
   packsSectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 12 },
   packCard: { width: 168, borderRadius: 16, borderWidth: 1, padding: 14, gap: 8, position: "relative" },
-  packDeleteBtn: { position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.08)", alignItems: "center", justifyContent: "center", zIndex: 10 },
+  packDeleteBtn: { position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", zIndex: 20 },
   packCardName: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   packAvatarRow: { flexDirection: "row", alignItems: "center" },
   packAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
