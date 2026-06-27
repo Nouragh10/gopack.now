@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gopack.mobile"
+      "bundleIdentifier": "com.gopacknow.app"
     },
     "android": {
-      "package": "com.gopack.mobile"
+      "package": "com.gopacknow.app"
     },
     "web": {
       "favicon": "./assets/images/icon.png"

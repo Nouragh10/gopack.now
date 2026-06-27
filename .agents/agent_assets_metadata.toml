@@ -41,3 +41,9 @@ id = "Fk3UVMGjJbHp2s2QhbaC5"
 uri = "file://attached_assets/logo_plane.png"
 type = "image"
 title = "Option 3 — Map Paper Plane"
+
+[[outputs]]
+id = "iTO9fTnKP89fmv6huCFch"
+uri = "file://artifacts/gopack-mobile/assets/images/icon.png"
+type = "image"
+title = "GoPackNow App Icon (1024×1024)"
