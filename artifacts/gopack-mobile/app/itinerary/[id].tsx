@@ -836,7 +836,7 @@ export default function ItineraryScreen() {
                 ))}
                 <View style={styles.lockedOverlay}>
                   <View style={[styles.lockedIconWrap, { backgroundColor: "#E85D3A18" }]}>
-                    <Feather name="lock" size={24} color={colors.primary} />
+                    <Feather name="lock" size={18} color={colors.primary} />
                   </View>
                   <Text style={[styles.lockedTitle, { color: colors.foreground }]}>
                     Day {currentDay.dayNumber} is locked
@@ -845,7 +845,7 @@ export default function ItineraryScreen() {
                     Unlock just today, the full trip, or subscribe
                   </Text>
 
-                  {/* Day unlock — $2.99 */}
+                  {/* Unlock rest of days — $2.99 */}
                   <Pressable
                     disabled={dayUnlockLoading === currentDay.dayNumber}
                     onPress={async () => {
@@ -856,7 +856,13 @@ export default function ItineraryScreen() {
                       setDayUnlockLoading(currentDay.dayNumber);
                       try {
                         await purchase(dayUnlockPackage);
-                        if (id) await setDayUnlocked(id, currentDay.dayNumber);
+                        if (id) {
+                          await Promise.all(
+                            days
+                              .filter((d) => isDayLocked(d.dayNumber))
+                              .map((d) => setDayUnlocked(id, d.dayNumber))
+                          );
+                        }
                         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       } catch (e: any) {
                         if (!e?.userCancelled) Alert.alert("Purchase failed", e?.message ?? "Please try again.");
@@ -870,9 +876,9 @@ export default function ItineraryScreen() {
                       <ActivityIndicator size="small" color={colors.foreground} />
                     ) : (
                       <>
-                        <Feather name="unlock" size={14} color={colors.foreground} />
+                        <Feather name="unlock" size={13} color={colors.foreground} />
                         <Text style={[styles.lockedCtaText, { color: colors.foreground }]}>
-                          Unlock Day {currentDay.dayNumber} · $2.99
+                          Unlock Remaining Days · $2.99
                         </Text>
                       </>
                     )}
@@ -903,7 +909,7 @@ export default function ItineraryScreen() {
                       <ActivityIndicator size="small" color={colors.background} />
                     ) : (
                       <>
-                        <Feather name="star" size={14} color={colors.background} />
+                        <Feather name="star" size={13} color={colors.background} />
                         <Text style={[styles.lockedCtaText, { color: colors.background }]}>
                           Unlock Full Trip · $5.99 for everyone
                         </Text>
@@ -919,7 +925,7 @@ export default function ItineraryScreen() {
                     }}
                     style={[styles.lockedCta, { backgroundColor: "#E85D3A" }]}
                   >
-                    <Feather name="zap" size={14} color="#fff" />
+                    <Feather name="zap" size={13} color="#fff" />
                     <Text style={styles.lockedCtaText}>
                       Subscribe · from $9.99/mo
                     </Text>
@@ -1350,14 +1356,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     marginTop: 4,
-    minHeight: 260,
+    minHeight: 360,
     position: "relative",
-    gap: 10,
-    padding: 16,
+    gap: 8,
+    padding: 14,
   },
   lockedPlaceholder: {
-    height: 64,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 10,
     opacity: 0.25,
   },
   lockedOverlay: {
@@ -1368,42 +1374,44 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 24,
+    gap: 6,
+    paddingHorizontal: 20,
   },
   lockedIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   lockedTitle: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 20,
+    fontSize: 17,
     textAlign: "center",
   },
   lockedSub: {
     fontFamily: "DmSans_400Regular",
-    fontSize: 13,
+    fontSize: 12,
     textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 4,
+    lineHeight: 16,
+    marginBottom: 2,
   },
   lockedCta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: "#E85D3A",
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginTop: 4,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 2,
+    width: "100%",
+    justifyContent: "center",
   },
   lockedCtaText: {
     fontFamily: "DmSans_700Bold",
-    fontSize: 14,
+    fontSize: 12,
     color: "#fff",
   },
   costCard: {
