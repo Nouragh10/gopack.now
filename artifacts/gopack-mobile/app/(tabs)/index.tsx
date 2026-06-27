@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -15,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { useTrips, usePacks } from "@/hooks/useFirebase";
+import { useTrips, usePacks, deletePack } from "@/hooks/useFirebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
 
 function getGreeting() {
@@ -62,6 +63,26 @@ export default function DashboardScreen() {
   const { packs } = usePacks(user?.uid);
   const router = useRouter();
   const [helpVisible, setHelpVisible] = useState(false);
+  const [deletedPackIds, setDeletedPackIds] = useState<Set<string>>(new Set());
+
+  const handleDeletePack = (pack: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      `Delete "${pack.name}"?`,
+      "This will permanently remove this crew for everyone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deletePack(pack.id, user!.uid);
+            setDeletedPackIds(prev => new Set([...prev, pack.id]));
+          },
+        },
+      ],
+    );
+  };
 
   const displayName = user?.displayName ?? (user?.isAnonymous ? "Traveler" : "Explorer");
   const firstName = displayName.split(" ")[0];
@@ -151,13 +172,13 @@ export default function DashboardScreen() {
         </View>
 
         {/* My Packs */}
-        {packs.length > 0 && (
+        {packs.filter(p => !deletedPackIds.has(p.id)).length > 0 && (
           <View style={styles.packsSection}>
             <View style={styles.packsSectionRow}>
               <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>My Packs</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingBottom: 4 }}>
-              {packs.slice(0, 6).map((pack, idx) => {
+              {packs.filter(p => !deletedPackIds.has(p.id)).slice(0, 6).map((pack) => {
                 const memberEntries = Object.entries(pack.members);
                 return (
                   <Pressable
@@ -165,6 +186,15 @@ export default function DashboardScreen() {
                     onPress={() => router.push(`/groups/${pack.id}` as any)}
                     style={[styles.packCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
+                    {/* Delete button */}
+                    <Pressable
+                      onPress={(e) => { e.stopPropagation(); handleDeletePack(pack); }}
+                      hitSlop={8}
+                      style={styles.packDeleteBtn}
+                    >
+                      <Feather name="x" size={12} color={colors.mutedForeground} />
+                    </Pressable>
+
                     <Text style={[styles.packCardName, { color: colors.foreground }]} numberOfLines={1}>{pack.name}</Text>
                     <View style={styles.packAvatarRow}>
                       {memberEntries.slice(0, 4).map(([uid, m], i) => (
@@ -338,7 +368,8 @@ const styles = StyleSheet.create({
   helpDoneText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
   packsSection: { marginBottom: 24 },
   packsSectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 12 },
-  packCard: { width: 168, borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
+  packCard: { width: 168, borderRadius: 16, borderWidth: 1, padding: 14, gap: 8, position: "relative" },
+  packDeleteBtn: { position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.08)", alignItems: "center", justifyContent: "center", zIndex: 10 },
   packCardName: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   packAvatarRow: { flexDirection: "row", alignItems: "center" },
   packAvatar: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },

@@ -1049,6 +1049,11 @@ export async function savePack({
   return packId;
 }
 
+export async function deletePack(packId: string, uid: string): Promise<void> {
+  await set(ref(db, `trips/${packId}`), null);
+  await set(ref(db, `userTrips/${uid}/${packId}`), null);
+}
+
 export async function renamePack(packId: string, name: string): Promise<void> {
   await update(ref(db, `trips/${packId}`), { name });
 }
