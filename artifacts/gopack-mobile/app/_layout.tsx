@@ -10,7 +10,7 @@ import {
   PlayfairDisplay_700Bold,
 } from "@expo-google-fonts/playfair-display";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setBaseUrl } from "@/lib/api-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
