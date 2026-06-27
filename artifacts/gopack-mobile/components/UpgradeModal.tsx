@@ -76,7 +76,7 @@ export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Pr
   const [error, setError] = useState<string | null>(null);
 
   const packageToPurchase = packPlusPackage ?? offerings?.current?.availablePackages.find(p => p.identifier === "$rc_monthly");
-  const priceString = packageToPurchase?.product.priceString ?? "$14.99";
+  const priceString = "$14.99";
 
   const handleUpgradePress = () => {
     setError(null);

@@ -869,7 +869,7 @@ export default function ItineraryScreen() {
                       <>
                         <Feather name="unlock" size={14} color={colors.background} />
                         <Text style={[styles.lockedCtaText, { color: colors.background }]}>
-                          Unlock Day {currentDay.dayNumber} — {dayUnlockPackage?.product.priceString ?? "$9.99"}
+                          Unlock Day {currentDay.dayNumber} — $4.99
                         </Text>
                       </>
                     )}
@@ -883,7 +883,7 @@ export default function ItineraryScreen() {
                   >
                     <Feather name="zap" size={14} color="#fff" />
                     <Text style={styles.lockedCtaText}>
-                      Pack Plus — {packPlusPackage?.product.priceString ?? "$14.99"}/mo
+                      Pack Plus — $14.99/mo
                     </Text>
                   </Pressable>
                 </View>

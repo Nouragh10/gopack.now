@@ -35,12 +35,12 @@ const PRODUCT_USER_FACING_TITLE = "Pack Plus";
 const PRODUCT_DURATION = "P1M";
 const PRODUCT_PRICES = [{ amount_micros: 14990000, currency: "USD" }]; // $14.99
 
-// Day unlock one-time purchase ($9.99)
-const DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock";
-const PLAY_STORE_DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock:day";
-const DAY_PRODUCT_DISPLAY_NAME = "Itinerary Day Unlock";
+// Day unlock one-time purchase ($4.99)
+const DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_499";
+const PLAY_STORE_DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_499:day";
+const DAY_PRODUCT_DISPLAY_NAME = "Day Unlock 4.99";
 const DAY_PRODUCT_USER_FACING_TITLE = "Day Unlock";
-const DAY_PRODUCT_PRICES = [{ amount_micros: 9990000, currency: "USD" }]; // $9.99
+const DAY_PRODUCT_PRICES = [{ amount_micros: 4990000, currency: "USD" }]; // $4.99
 
 const APP_STORE_APP_NAME = "GoPackNow iOS";
 const APP_STORE_BUNDLE_ID = "com.gopacknow.app";
