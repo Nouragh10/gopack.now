@@ -458,7 +458,7 @@ export default function ItineraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { purchase, dayUnlockPackage, tripUnlockPackage } = useSubscription();
+  const { purchase, dayUnlockPackage, tripUnlockPackage, refetchOfferings } = useSubscription();
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
@@ -845,13 +845,18 @@ export default function ItineraryScreen() {
                   <Pressable
                     disabled={dayUnlockLoading === currentDay.dayNumber}
                     onPress={async () => {
-                      if (!dayUnlockPackage) {
-                        Alert.alert("Unavailable", "Day unlock is not available right now.");
+                      let pkg = dayUnlockPackage;
+                      if (!pkg) {
+                        const result = await refetchOfferings();
+                        pkg = result.data?.current?.availablePackages?.find((p) => p.identifier === "day_unlock_299");
+                      }
+                      if (!pkg) {
+                        Alert.alert("Unavailable", "Day unlock is loading. Please try again in a moment.");
                         return;
                       }
                       setDayUnlockLoading(currentDay.dayNumber);
                       try {
-                        await purchase(dayUnlockPackage);
+                        await purchase(pkg);
                         if (id) {
                           await Promise.all(
                             days
@@ -884,13 +889,18 @@ export default function ItineraryScreen() {
                   <Pressable
                     disabled={tripUnlockLoading}
                     onPress={async () => {
-                      if (!tripUnlockPackage) {
-                        Alert.alert("Unavailable", "Trip unlock is not available right now.");
+                      let pkg = tripUnlockPackage;
+                      if (!pkg) {
+                        const result = await refetchOfferings();
+                        pkg = result.data?.current?.availablePackages?.find((p) => p.identifier === "trip_unlock");
+                      }
+                      if (!pkg) {
+                        Alert.alert("Unavailable", "Trip unlock is loading. Please try again in a moment.");
                         return;
                       }
                       setTripUnlockLoading(true);
                       try {
-                        await purchase(tripUnlockPackage);
+                        await purchase(pkg);
                         if (id) await setTripPremium(id);
                         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       } catch (e: any) {

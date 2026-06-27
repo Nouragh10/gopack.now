@@ -56,7 +56,8 @@ function useSubscriptionContext() {
     queryFn: async () => {
       return Purchases.getOfferings();
     },
-    staleTime: 300 * 1000,
+    staleTime: 0,
+    retry: 3,
   });
 
   const purchaseMutation = useMutation({
@@ -89,6 +90,9 @@ function useSubscriptionContext() {
     offerings: offeringsQuery.data,
     isSubscribed,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    offeringsLoading: offeringsQuery.isLoading || offeringsQuery.isFetching,
+    offeringsError: offeringsQuery.isError,
+    refetchOfferings: offeringsQuery.refetch,
     purchase: purchaseMutation.mutateAsync,
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,

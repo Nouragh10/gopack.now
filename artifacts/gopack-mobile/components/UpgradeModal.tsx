@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -31,17 +31,31 @@ type Plan = "monthly" | "yearly";
 
 export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Props) {
   const colors = useColors();
-  const { monthlyPackage, annualPackage, purchase, isPurchasing, restore, isRestoring } = useSubscription();
+  const { monthlyPackage, annualPackage, purchase, isPurchasing, restore, isRestoring, refetchOfferings, offeringsLoading } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<Plan>("yearly");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setError(null);
+      refetchOfferings();
+    }
+  }, [visible]);
 
   const isLoading = isPurchasing || isRestoring;
 
   const handlePurchase = async () => {
     setError(null);
-    const pkg = selectedPlan === "yearly" ? annualPackage : monthlyPackage;
+    let pkg = selectedPlan === "yearly" ? annualPackage : monthlyPackage;
     if (!pkg) {
-      setError("This plan isn't available right now. Please try again.");
+      const result = await refetchOfferings();
+      const freshPackages = result.data?.current?.availablePackages ?? [];
+      const yearlyId = "yearly_pro_1999";
+      const monthlyId = "$rc_monthly";
+      pkg = freshPackages.find((p) => p.identifier === (selectedPlan === "yearly" ? yearlyId : monthlyId));
+    }
+    if (!pkg) {
+      setError("Plans are loading — please wait a moment and try again.");
       return;
     }
     try {
@@ -141,10 +155,10 @@ export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Pr
 
           <Pressable
             onPress={handlePurchase}
-            disabled={isLoading}
-            style={[styles.cta, { backgroundColor: "#E85D3A", opacity: isLoading ? 0.7 : 1 }]}
+            disabled={isLoading || offeringsLoading}
+            style={[styles.cta, { backgroundColor: "#E85D3A", opacity: (isLoading || offeringsLoading) ? 0.7 : 1 }]}
           >
-            {isLoading ? (
+            {(isLoading || offeringsLoading) ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
