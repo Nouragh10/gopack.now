@@ -515,11 +515,14 @@ export default function ItineraryScreen() {
   const accom = trip?.confirmedAccommodation ?? null;
   const accomCost = accom?.costPerPerson ?? 0;
 
-  const isPremium = true; // TEST MODE: all features unlocked
+  const isPremium = trip?.isPremium ?? false;
   const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
   const FREE_REDO_LIMIT = 1;
   const PREMIUM_REDO_LIMIT = 20;
   const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
+
+  const freeDayCount = days.length <= 1 ? days.length : Math.floor(days.length / 2);
+  const isDayLocked = (dayNumber: number) => !isPremium && dayNumber > freeDayCount;
 
   const totalCost =
     days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
@@ -778,24 +781,32 @@ export default function ItineraryScreen() {
         >
           {days.map((day) => {
             const isSelected = day.dayNumber === selectedDay;
+            const locked = isDayLocked(day.dayNumber);
             return (
               <Pressable
                 key={day.dayNumber}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedDay(day.dayNumber);
+                  if (locked) {
+                    setUpgradeReason(`Unlock Day ${day.dayNumber} with Pack Plus`);
+                    setShowUpgrade(true);
+                  }
                 }}
                 style={[
                   styles.dayChip,
                   {
-                    backgroundColor: isSelected ? colors.primary : colors.muted,
-                    borderColor: isSelected ? colors.primary : colors.border,
+                    backgroundColor: isSelected ? (locked ? "#888" : colors.primary) : colors.muted,
+                    borderColor: isSelected ? (locked ? "#888" : colors.primary) : colors.border,
                   },
                 ]}
               >
-                <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
-                  Day {day.dayNumber}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  {locked && <Feather name="lock" size={10} color={isSelected ? "#fff" : colors.mutedForeground} />}
+                  <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
+                    Day {day.dayNumber}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -813,50 +824,82 @@ export default function ItineraryScreen() {
               <Text style={[styles.dayCity, { color: colors.foreground }]}>{currentDay.city}</Text>
               <Text style={[styles.dayTheme, { color: colors.mutedForeground }]}>{currentDay.theme}</Text>
             </View>
-            {currentDay.activities.map((act, i) => (
-              <View key={i}>
-                <ActivityCard
-                  activity={act}
-                  actIndex={i}
-                  dayNumber={currentDay.dayNumber}
-                  destination={trip.destination}
-                  startDate={trip.startDate}
-                  colors={colors}
-                  onEdit={handleEdit}
-                  onRedo={handleRedo}
-                  onDelete={handleDelete}
-                  onCalendar={() => {
-                    if (!isPremium) {
-                      setUpgradeReason("Calendar export is a Pack Plus feature");
-                      setShowUpgrade(true);
-                      return;
-                    }
-                    const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
-                    const t = encodeURIComponent(act.name);
-                    const d = encodeURIComponent(act.description);
-                    const l = encodeURIComponent(`${act.name}, ${trip.destination}`);
-                    const url = dateStr
-                      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
-                      : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
-                    if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-                    else Linking.openURL(url);
-                  }}
-                />
-                {redoLoading === `${currentDay.dayNumber}-${i}` && (
-                  <View style={{ alignItems: "center", padding: 8 }}>
-                    <ActivityIndicator color={colors.primary} size="small" />
-                    <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>Finding a new activity…</Text>
+
+            {isDayLocked(currentDay.dayNumber) ? (
+              <View style={[styles.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {[0, 1, 2].map((i) => (
+                  <View key={i} style={[styles.lockedPlaceholder, { backgroundColor: colors.muted }]} />
+                ))}
+                <View style={styles.lockedOverlay}>
+                  <View style={[styles.lockedIconWrap, { backgroundColor: "#E85D3A18" }]}>
+                    <Feather name="lock" size={24} color={colors.primary} />
                   </View>
-                )}
+                  <Text style={[styles.lockedTitle, { color: colors.foreground }]}>
+                    Day {currentDay.dayNumber} is locked
+                  </Text>
+                  <Text style={[styles.lockedSub, { color: colors.mutedForeground }]}>
+                    Upgrade to Pack Plus to unlock all {days.length} days
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setUpgradeReason(`Unlock all ${days.length} days with Pack Plus`);
+                      setShowUpgrade(true);
+                    }}
+                    style={styles.lockedCta}
+                  >
+                    <Feather name="zap" size={14} color="#fff" />
+                    <Text style={styles.lockedCtaText}>Upgrade — $14.99</Text>
+                  </Pressable>
+                </View>
               </View>
-            ))}
-            <Pressable
-              onPress={handleAddActivity}
-              style={[styles.addActBtn, { borderColor: colors.border }]}
-            >
-              <Feather name="plus" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.addActText, { color: colors.mutedForeground }]}>Add activity</Text>
-            </Pressable>
+            ) : (
+              <>
+                {currentDay.activities.map((act, i) => (
+                  <View key={i}>
+                    <ActivityCard
+                      activity={act}
+                      actIndex={i}
+                      dayNumber={currentDay.dayNumber}
+                      destination={trip.destination}
+                      startDate={trip.startDate}
+                      colors={colors}
+                      onEdit={handleEdit}
+                      onRedo={handleRedo}
+                      onDelete={handleDelete}
+                      onCalendar={() => {
+                        if (!isPremium) {
+                          setUpgradeReason("Calendar export is a Pack Plus feature");
+                          setShowUpgrade(true);
+                          return;
+                        }
+                        const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
+                        const t = encodeURIComponent(act.name);
+                        const d = encodeURIComponent(act.description);
+                        const l = encodeURIComponent(`${act.name}, ${trip.destination}`);
+                        const url = dateStr
+                          ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
+                          : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
+                        if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
+                        else Linking.openURL(url);
+                      }}
+                    />
+                    {redoLoading === `${currentDay.dayNumber}-${i}` && (
+                      <View style={{ alignItems: "center", padding: 8 }}>
+                        <ActivityIndicator color={colors.primary} size="small" />
+                        <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>Finding a new activity…</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                <Pressable
+                  onPress={handleAddActivity}
+                  style={[styles.addActBtn, { borderColor: colors.border }]}
+                >
+                  <Feather name="plus" size={16} color={colors.mutedForeground} />
+                  <Text style={[styles.addActText, { color: colors.mutedForeground }]}>Add activity</Text>
+                </Pressable>
+              </>
+            )}
           </>
         )}
 
@@ -1227,6 +1270,67 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   addActText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
+  lockedCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginTop: 4,
+    minHeight: 260,
+    position: "relative",
+    gap: 10,
+    padding: 16,
+  },
+  lockedPlaceholder: {
+    height: 64,
+    borderRadius: 12,
+    opacity: 0.25,
+  },
+  lockedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+  },
+  lockedIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  lockedTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 20,
+    textAlign: "center",
+  },
+  lockedSub: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  lockedCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#E85D3A",
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  lockedCtaText: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 14,
+    color: "#fff",
+  },
   costCard: {
     flexDirection: "row",
     alignItems: "center",

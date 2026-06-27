@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
   FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye, EyeOff,
-  RotateCcw, Trash2
+  RotateCcw, Trash2, Lock, Zap
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
@@ -254,11 +254,16 @@ export default function Itinerary() {
   const isDirty = JSON.stringify(localItinerary) !== JSON.stringify(itinerary);
 
   /* ── premium / tier ── */
-  const isPremium = true; // TEST MODE: all features unlocked
+  const isPremium = trip?.isPremium ?? false;
   const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
   const FREE_REDO_LIMIT = 1;
   const PREMIUM_REDO_LIMIT = 20;
   const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
+
+  /* ── day locking ── */
+  const totalDays = localItinerary?.days?.length ?? 0;
+  const freeDayCount = totalDays <= 1 ? totalDays : Math.floor(totalDays / 2);
+  const isDayLocked = (dayNumber: number) => !isPremium && dayNumber > freeDayCount;
 
   const saveChanges = async () => {
     if (!localItinerary || !tripId) return;
@@ -606,6 +611,27 @@ export default function Itinerary() {
                     </div>
 
                     {/* activities */}
+                    {isDayLocked(day.dayNumber) ? (
+                      <div className="relative rounded-2xl border border-border overflow-hidden min-h-[220px]">
+                        <div className="blur-sm pointer-events-none select-none opacity-25 p-5 flex flex-col gap-3">
+                          {[1,2,3].map(i => (
+                            <div key={i} className="h-20 bg-muted rounded-2xl"/>
+                          ))}
+                        </div>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                            <Lock size={22} className="text-primary"/>
+                          </div>
+                          <p className="font-serif text-xl font-bold mb-1">Day {day.dayNumber} is locked</p>
+                          <p className="text-sm text-muted-foreground mb-5">Upgrade to Pack Plus to unlock all days</p>
+                          <button
+                            onClick={() => { setUpgradeReason(`Unlock all ${totalDays} days with Pack Plus`); setShowUpgrade(true); }}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
+                            <Zap size={14}/> Upgrade — $14.99
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex flex-col gap-3 pl-0 sm:pl-4">
                       <AnimatePresence>
                         {(day.activities||[]).map((act: any, ai: number) => {
@@ -776,6 +802,7 @@ export default function Itinerary() {
                         </button>
                       )}
                     </div>
+                    )}
                   </motion.div>
                 ))}
               </div>
