@@ -14,9 +14,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { auth, resendVerificationEmail, signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
+import { signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
+import { auth, signOut } from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
-import { reload } from "firebase/auth";
+import { sendEmailVerification } from "firebase/auth";
 
 const DARK = "#1A1412";
 const CARD = "#2A221D";
@@ -77,8 +78,12 @@ export default function SignInScreen() {
 
   const handleResend = async () => {
     setResent(false);
+    setError("");
     try {
-      await resendVerificationEmail();
+      // Sign in temporarily to get a user object, send email, then sign out again
+      const cred = await signInWithEmail(email.trim(), password);
+      await sendEmailVerification(cred.user);
+      await signOut();
       setResent(true);
     } catch {
       setError("Could not resend email. Try again.");
@@ -89,17 +94,18 @@ export default function SignInScreen() {
     setLoading(true);
     setError("");
     try {
-      const user = auth.currentUser;
-      if (user) {
-        await reload(user);
-        if (user.emailVerified) {
-          router.replace("/(tabs)");
-        } else {
-          setError("Email not verified yet. Check your inbox and click the link.");
-        }
+      // Sign in and check emailVerified — this is the source of truth
+      const cred = await signInWithEmail(email.trim(), password);
+      if (cred.user.emailVerified) {
+        // Verified — routing guard in _layout.tsx will allow entry to tabs
+        router.replace("/(tabs)");
+      } else {
+        // Not yet verified — sign back out and wait
+        await signOut();
+        setError("Email not verified yet. Check your inbox and click the link.");
       }
     } catch {
-      setError("Could not check verification status. Try again.");
+      setError("Could not sign in. Try again.");
     } finally {
       setLoading(false);
     }

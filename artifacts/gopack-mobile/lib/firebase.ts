@@ -68,6 +68,9 @@ export const signUpWithEmail = async (
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
   await sendEmailVerification(cred.user);
+  // Sign out immediately so the routing guard cannot bypass the verify screen.
+  // The user will sign in again after clicking the verification link.
+  await firebaseSignOut(auth);
   return cred;
 };
 
