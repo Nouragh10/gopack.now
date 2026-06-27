@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ChevronRight, Compass, X, Sparkles, ThumbsUp, Map } from "lucide-react";
+import {
+  Plus, ChevronRight, Compass, X, Sparkles, ThumbsUp, Map,
+  Trash2, MapPin, Users, Calendar, Loader2, LogOut,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTrips, deleteTrip } from "@/hooks/useFirebase";
 
 function getHour() {
   const h = new Date().getHours();
@@ -38,11 +42,124 @@ const HOW_IT_WORKS = [
   },
 ];
 
+function TripCard({
+  trip,
+  uid,
+  onDeleted,
+}: {
+  trip: any;
+  uid: string;
+  onDeleted: (id: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const isHost = trip.hostMemberId === uid;
+  const memberCount = Object.keys(trip.members ?? {}).length;
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteTrip(trip.id, uid, isHost);
+      onDeleted(trip.id);
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
+      transition={{ duration: 0.22 }}
+      className="group relative rounded-2xl border border-border bg-card hover:border-primary/30 hover:bg-primary/5 transition-all overflow-hidden"
+    >
+      <Link href={`/trip/${trip.id}`} className="block p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+            <MapPin size={16} />
+          </div>
+          <div className="flex-1 min-w-0 pr-8">
+            <div className="font-semibold text-foreground truncate">
+              {trip.destination || "Unnamed trip"}
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Users size={11} /> {memberCount} {memberCount === 1 ? "member" : "members"}
+              </span>
+              {trip.days && (
+                <span className="flex items-center gap-1">
+                  <Calendar size={11} /> {trip.days} {trip.days === 1 ? "day" : "days"}
+                </span>
+              )}
+              {isHost && (
+                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                  Host
+                </span>
+              )}
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground shrink-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </Link>
+
+      {/* Delete / leave button */}
+      {!confirming ? (
+        <button
+          onClick={(e) => { e.preventDefault(); setConfirming(true); }}
+          className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+          title={isHost ? "Delete trip" : "Leave trip"}
+        >
+          {isHost ? <Trash2 size={13} /> : <LogOut size={13} />}
+        </button>
+      ) : (
+        <div className="absolute inset-0 bg-background/97 backdrop-blur-sm flex items-center justify-center gap-2 px-4 rounded-2xl">
+          <span className="text-sm text-foreground mr-1">
+            {isHost ? "Delete this trip?" : "Leave this trip?"}
+          </span>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors disabled:opacity-60"
+          >
+            {deleting
+              ? <Loader2 size={11} className="animate-spin" />
+              : isHost ? <Trash2 size={11} /> : <LogOut size={11} />}
+            {isHost ? "Delete" : "Leave"}
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const { trips, loading } = useTrips();
+  const [localTrips, setLocalTrips] = useState<any[] | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+
+  const displayTrips = localTrips ?? trips;
+
+  const handleDeleted = (id: string) => {
+    setLocalTrips((localTrips ?? trips).filter((t: any) => t.id !== id));
+  };
+
+  // Sync localTrips once trips load
+  if (localTrips === null && !loading && trips.length >= 0) {
+    // don't set here — causes render loop; we just use trips directly until a delete happens
+  }
 
   const firstName = user?.displayName?.split(" ")[0] || "traveller";
 
@@ -52,6 +169,8 @@ export default function Dashboard() {
       setLocation(`/join/${joinCode.trim()}`);
     }
   };
+
+  const visibleTrips = localTrips !== null ? localTrips : trips;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -83,23 +202,23 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-8 py-16">
+      <div className="max-w-2xl mx-auto px-8 py-12">
         {/* Greeting */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <p className="text-muted-foreground text-sm mb-1">{getHour()}, {firstName}</p>
           <h1 className="font-serif text-5xl font-bold mb-4">
             Where&apos;s the pack <span className="text-primary">headed next?</span>
           </h1>
-          <p className="text-muted-foreground mb-10">
+          <p className="text-muted-foreground mb-8">
             Plan your next group trip together — everyone wishes, everyone votes, AI builds the itinerary.
           </p>
         </motion.div>
 
         {/* Create trip CTA */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}>
           <Link
             href="/create"
-            className="flex items-center gap-4 border-2 border-dashed border-primary/50 rounded-2xl p-5 mb-4 hover:border-primary hover:bg-primary/5 transition-all group"
+            className="flex items-center gap-4 border-2 border-dashed border-primary/50 rounded-2xl p-5 mb-3 hover:border-primary hover:bg-primary/5 transition-all group"
             data-testid="link-create-trip"
           >
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white group-hover:scale-110 transition-transform shrink-0">
@@ -114,8 +233,8 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Join trip form */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
-          <form onSubmit={handleJoin} className="flex gap-3 mb-16">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <form onSubmit={handleJoin} className="flex gap-3 mb-10">
             <input
               value={joinCode}
               onChange={e => setJoinCode(e.target.value)}
@@ -133,8 +252,36 @@ export default function Dashboard() {
           </form>
         </motion.div>
 
+        {/* Your trips */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+          <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Your trips</p>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 size={18} className="animate-spin mr-2" /> Loading your trips…
+            </div>
+          ) : visibleTrips.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-2xl">
+              No trips yet — create one above or join with a code.
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              <div className="flex flex-col gap-2 mb-10">
+                {visibleTrips.map((trip: any) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    uid={user?.uid ?? ""}
+                    onDeleted={handleDeleted}
+                  />
+                ))}
+              </div>
+            </AnimatePresence>
+          )}
+        </motion.div>
+
         {/* How it works */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-5">How it works</p>
           <div className="flex flex-col gap-3">
             {HOW_IT_WORKS.map((item, i) => {
@@ -144,7 +291,7 @@ export default function Dashboard() {
                   key={item.step}
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.22 + i * 0.07 }}
+                  transition={{ delay: 0.26 + i * 0.07 }}
                   className={`flex items-start gap-4 border rounded-2xl p-5 ${item.color}`}
                 >
                   <div className={`w-9 h-9 rounded-full ${item.iconBg} flex items-center justify-center text-white shrink-0 mt-0.5`}>
