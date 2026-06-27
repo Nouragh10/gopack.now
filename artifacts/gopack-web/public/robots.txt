@@ -1,2 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /join/
+Disallow: /dashboard
+Disallow: /create
+
+Sitemap: https://gopacknow.replit.app/sitemap.xml
