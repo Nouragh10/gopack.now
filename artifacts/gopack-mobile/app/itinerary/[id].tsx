@@ -831,10 +831,6 @@ export default function ItineraryScreen() {
 
             {isDayLocked(currentDay.dayNumber) ? (
               <View style={[styles.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {[0, 1, 2].map((i) => (
-                  <View key={i} style={[styles.lockedPlaceholder, { backgroundColor: colors.muted }]} />
-                ))}
-                <View style={styles.lockedOverlay}>
                   <View style={[styles.lockedIconWrap, { backgroundColor: "#E85D3A18" }]}>
                     <Feather name="lock" size={18} color={colors.primary} />
                   </View>
@@ -930,7 +926,6 @@ export default function ItineraryScreen() {
                       Subscribe · from $9.99/mo
                     </Text>
                   </Pressable>
-                </View>
               </View>
             ) : (
               <>
@@ -1354,28 +1349,11 @@ const styles = StyleSheet.create({
   lockedCard: {
     borderWidth: 1,
     borderRadius: 16,
-    overflow: "hidden",
     marginTop: 4,
-    minHeight: 360,
-    position: "relative",
     gap: 8,
-    padding: 14,
-  },
-  lockedPlaceholder: {
-    height: 54,
-    borderRadius: 10,
-    opacity: 0.25,
-  },
-  lockedOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    padding: 24,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 20,
   },
   lockedIconWrap: {
     width: 44,
