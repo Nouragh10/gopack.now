@@ -62,6 +62,7 @@
     "expo-clipboard": "^8.0.8",
     "expo-print": "^15.0.8",
     "expo-sharing": "^14.0.8",
-    "firebase": "^12.15.0"
+    "firebase": "^12.15.0",
+    "react-native-purchases": "^9.15.2"
   }
 }
