@@ -10,12 +10,12 @@ interface Props {
 }
 
 const FEATURES = [
+  "One purchase unlocks for everyone in the trip",
   "Unlimited AI itinerary regenerations",
   "Up to 20 activity redos",
   "Unlimited packing list regenerations",
   "Styled PDF export",
   "Google Calendar sync for all activities",
-  "Up to 20 group members",
 ];
 
 export function UpgradeModal({ open, reason, tripId, onClose }: Props) {

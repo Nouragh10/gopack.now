@@ -20,12 +20,12 @@ interface Props {
 }
 
 const FEATURES = [
-  { icon: "unlock", label: "All itinerary days unlocked" },
+  { icon: "users", label: "Unlocks for every member — one person pays" },
+  { icon: "unlock", label: "All itinerary days unlocked for the group" },
   { icon: "zap", label: "Unlimited itinerary & packing generations" },
   { icon: "rotate-cw", label: "20 activity redos per trip" },
   { icon: "file-text", label: "PDF export of your itinerary" },
   { icon: "calendar", label: "Calendar export for every activity" },
-  { icon: "users", label: "Up to 20 trip members" },
 ];
 
 interface ConfirmModalProps {
@@ -43,7 +43,7 @@ function ConfirmModal({ visible, priceString, onConfirm, onCancel }: ConfirmModa
         <View style={[confirmStyles.box, { backgroundColor: colors.card }]}>
           <Text style={[confirmStyles.title, { color: colors.foreground }]}>Confirm Purchase</Text>
           <Text style={[confirmStyles.body, { color: colors.mutedForeground }]}>
-            Purchase Pack Plus for {priceString}/month? You can cancel anytime.
+            Purchase Pack Plus for {priceString}/month? This unlocks all days for everyone in the trip. You can cancel anytime.
           </Text>
           <View style={confirmStyles.row}>
             <Pressable onPress={onCancel} style={[confirmStyles.btn, { backgroundColor: colors.border }]}>
@@ -135,6 +135,9 @@ export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Pr
                 Unlock the full GoPackNow experience for this trip.
               </Text>
             )}
+            <Text style={[styles.sharedNote, { color: colors.primary }]}>
+              🎉 One purchase unlocks for the entire group
+            </Text>
 
             <View style={[styles.featureList, { borderColor: colors.border }]}>
               {FEATURES.map((f) => (
@@ -195,7 +198,8 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff", letterSpacing: 1.2 },
   title: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 26, marginBottom: 6 },
-  reason: { fontFamily: "DmSans_400Regular", fontSize: 14, marginBottom: 18, lineHeight: 20 },
+  reason: { fontFamily: "DmSans_400Regular", fontSize: 14, marginBottom: 6, lineHeight: 20 },
+  sharedNote: { fontFamily: "DmSans_700Bold", fontSize: 13, marginBottom: 16 },
   featureList: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 12, marginBottom: 20 },
   featureRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },

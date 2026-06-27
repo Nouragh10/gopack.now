@@ -107,6 +107,7 @@ ${vibeGuide}
 4. Every activity "name" must be a real venue's official name within ${destination} (e.g. "Sagrada Família" not "Famous Cathedral").
 5. Descriptions: ONE sentence, max 15 words.
 6. Do not repeat the same venue or the same activity type more than once per day.
+7. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
