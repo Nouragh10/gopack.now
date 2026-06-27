@@ -9,7 +9,7 @@ const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pack_plus";
-export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock";
+export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock_299";
 export const TRIP_UNLOCK_PACKAGE_IDENTIFIER = "trip_unlock";
 
 function getRevenueCatApiKey() {
@@ -80,7 +80,7 @@ function useSubscriptionContext() {
   const packages = offeringsQuery.data?.current?.availablePackages ?? [];
 
   const monthlyPackage = packages.find((p) => p.identifier === "$rc_monthly");
-  const annualPackage = packages.find((p) => p.identifier === "$rc_annual");
+  const annualPackage = packages.find((p) => p.identifier === "yearly_pro_1999");
   const tripUnlockPackage = packages.find((p) => p.identifier === TRIP_UNLOCK_PACKAGE_IDENTIFIER);
   const dayUnlockPackage = packages.find((p) => p.identifier === DAY_UNLOCK_PACKAGE_IDENTIFIER);
 

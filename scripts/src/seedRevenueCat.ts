@@ -71,14 +71,14 @@ const OFFERING_DISPLAY_NAME = "Default Offering";
 const PACKAGE_IDENTIFIER = "$rc_monthly";
 const PACKAGE_DISPLAY_NAME = "Monthly";
 
-const ANNUAL_PACKAGE_IDENTIFIER = "$rc_annual";
-const ANNUAL_PACKAGE_DISPLAY_NAME = "Yearly";
+const ANNUAL_PACKAGE_IDENTIFIER = "yearly_pro_1999";
+const ANNUAL_PACKAGE_DISPLAY_NAME = "Yearly Pro";
 
 const TRIP_PACKAGE_IDENTIFIER = "trip_unlock";
 const TRIP_PACKAGE_DISPLAY_NAME = "Trip Unlock";
 
-const DAY_PACKAGE_IDENTIFIER = "day_unlock";
-const DAY_PACKAGE_DISPLAY_NAME = "Day Unlock";
+const DAY_PACKAGE_IDENTIFIER = "day_unlock_299";
+const DAY_PACKAGE_DISPLAY_NAME = "Day Unlock 299";
 
 type TestStorePricesResponse = {
   object: string;
