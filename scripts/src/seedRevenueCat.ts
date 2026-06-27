@@ -25,7 +25,7 @@ import {
   type CreateProductData,
 } from "@replit/revenuecat-sdk";
 
-const PROJECT_NAME = "GoPackNow";
+const PROJECT_NAME = "gopack\u2024now";
 
 const PRODUCT_IDENTIFIER = "pack_plus_monthly";
 const PLAY_STORE_PRODUCT_IDENTIFIER = "pack_plus_monthly:monthly";
@@ -67,6 +67,7 @@ async function seedRevenueCat() {
   });
 
   if (listProjectsError) throw new Error("Failed to list projects: " + JSON.stringify(listProjectsError));
+  console.log("Found projects:", existingProjects.items?.map(p => p.name + " / " + p.id).join(", "));
 
   const existingProject = existingProjects.items?.find((p) => p.name === PROJECT_NAME);
   if (existingProject) {

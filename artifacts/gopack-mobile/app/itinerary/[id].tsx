@@ -34,6 +34,7 @@ import {
   deleteActivity,
   incrementAiUsage,
   savePack,
+  setTripPremium,
   useTrip,
 } from "@/hooks/useFirebase";
 import { UpgradeModal } from "@/components/UpgradeModal";
@@ -1104,6 +1105,7 @@ export default function ItineraryScreen() {
         reason={upgradeReason}
         tripId={id ?? ""}
         onClose={() => setShowUpgrade(false)}
+        onPurchaseSuccess={async () => { if (id) await setTripPremium(id); }}
       />
 
       {/* Pack saved toast */}
