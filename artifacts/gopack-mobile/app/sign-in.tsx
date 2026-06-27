@@ -49,7 +49,9 @@ export default function SignInScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (mode === "signup") {
+        console.log("[signup] starting signUpWithEmail for", email.trim());
         await signUpWithEmail(email.trim(), password, name.trim());
+        console.log("[signup] done, showing verify screen");
         setMode("verify");
       } else {
         const cred = await signInWithEmail(email.trim(), password);
@@ -67,7 +69,7 @@ export default function SignInScreen() {
           ? "That email is already in use."
           : e?.code === "auth/weak-password"
           ? "Password must be at least 6 characters."
-          : "Something went wrong. Try again.";
+          : e?.message ?? "Something went wrong. Try again.";
       setError(msg);
     } finally {
       setLoading(false);

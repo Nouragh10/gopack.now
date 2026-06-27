@@ -66,13 +66,17 @@ export const sendBrandedVerificationEmail = async (
   email: string,
   displayName: string,
 ): Promise<void> => {
-  const res = await fetch(`${API_BASE}/api/auth/send-verification`, {
+  const url = `${API_BASE}/api/auth/send-verification`;
+  console.log("[sendVerification] POST", url);
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ uid, email, displayName }),
   });
+  console.log("[sendVerification] status", res.status);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    console.log("[sendVerification] error body", JSON.stringify(body));
     throw new Error((body as any).error ?? "Failed to send verification email");
   }
 };
