@@ -9,6 +9,7 @@ const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pack_plus";
+export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock";
 
 function getRevenueCatApiKey() {
   if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
@@ -75,6 +76,14 @@ function useSubscriptionContext() {
   const isSubscribed =
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
+  const packPlusPackage = offeringsQuery.data?.current?.availablePackages.find(
+    (p) => p.identifier === "$rc_monthly",
+  );
+
+  const dayUnlockPackage = offeringsQuery.data?.current?.availablePackages.find(
+    (p) => p.identifier === DAY_UNLOCK_PACKAGE_IDENTIFIER,
+  );
+
   return {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
@@ -84,6 +93,8 @@ function useSubscriptionContext() {
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
+    packPlusPackage,
+    dayUnlockPackage,
   };
 }
 

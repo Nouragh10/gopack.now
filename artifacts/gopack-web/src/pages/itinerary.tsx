@@ -627,7 +627,7 @@ export default function Itinerary() {
                           <button
                             onClick={() => { setUpgradeReason(`Unlock all ${totalDays} days with Pack Plus`); setShowUpgrade(true); }}
                             className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
-                            <Zap size={14}/> Upgrade — $14.99
+                            <Zap size={14}/> Upgrade — $14.99/mo
                           </button>
                         </div>
                       </div>

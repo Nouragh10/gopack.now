@@ -34,10 +34,12 @@ import {
   deleteActivity,
   incrementAiUsage,
   savePack,
+  setDayUnlocked,
   setTripPremium,
   useTrip,
 } from "@/hooks/useFirebase";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { useSubscription } from "@/lib/revenuecat";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -456,6 +458,7 @@ export default function ItineraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { purchase, dayUnlockPackage, packPlusPackage } = useSubscription();
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
@@ -465,6 +468,7 @@ export default function ItineraryScreen() {
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("");
+  const [dayUnlockLoading, setDayUnlockLoading] = useState<number | null>(null);
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
   const [savePackSaving, setSavePackSaving] = useState(false);
@@ -517,13 +521,15 @@ export default function ItineraryScreen() {
   const accomCost = accom?.costPerPerson ?? 0;
 
   const isPremium = trip?.isPremium ?? false;
+  const unlockedDays = trip?.unlockedDays ?? {};
   const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
   const FREE_REDO_LIMIT = 1;
   const PREMIUM_REDO_LIMIT = 20;
   const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
 
   const freeDayCount = days.length <= 1 ? days.length : Math.floor(days.length / 2);
-  const isDayLocked = (dayNumber: number) => !isPremium && dayNumber > freeDayCount;
+  const isDayLocked = (dayNumber: number) =>
+    !isPremium && !unlockedDays[String(dayNumber)] && dayNumber > freeDayCount;
 
   const totalCost =
     days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
@@ -789,10 +795,6 @@ export default function ItineraryScreen() {
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedDay(day.dayNumber);
-                  if (locked) {
-                    setUpgradeReason(`Unlock Day ${day.dayNumber} with Pack Plus`);
-                    setShowUpgrade(true);
-                  }
                 }}
                 style={[
                   styles.dayChip,
@@ -839,17 +841,50 @@ export default function ItineraryScreen() {
                     Day {currentDay.dayNumber} is locked
                   </Text>
                   <Text style={[styles.lockedSub, { color: colors.mutedForeground }]}>
-                    Upgrade to Pack Plus to unlock all {days.length} days
+                    Unlock just this day or get all days with Pack Plus
                   </Text>
+                  <Pressable
+                    disabled={dayUnlockLoading === currentDay.dayNumber}
+                    onPress={async () => {
+                      if (!dayUnlockPackage) {
+                        Alert.alert("Unavailable", "Day unlock is not available right now. Try Pack Plus instead.");
+                        return;
+                      }
+                      setDayUnlockLoading(currentDay.dayNumber);
+                      try {
+                        await purchase(dayUnlockPackage);
+                        if (id) await setDayUnlocked(id, currentDay.dayNumber);
+                        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      } catch (e: any) {
+                        if (!e?.userCancelled) Alert.alert("Purchase failed", e?.message ?? "Please try again.");
+                      } finally {
+                        setDayUnlockLoading(null);
+                      }
+                    }}
+                    style={[styles.lockedCta, { backgroundColor: colors.foreground, opacity: dayUnlockLoading === currentDay.dayNumber ? 0.6 : 1 }]}
+                  >
+                    {dayUnlockLoading === currentDay.dayNumber ? (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    ) : (
+                      <>
+                        <Feather name="unlock" size={14} color={colors.background} />
+                        <Text style={[styles.lockedCtaText, { color: colors.background }]}>
+                          Unlock Day {currentDay.dayNumber} — {dayUnlockPackage?.product.priceString ?? "$9.99"}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
                   <Pressable
                     onPress={() => {
                       setUpgradeReason(`Unlock all ${days.length} days with Pack Plus`);
                       setShowUpgrade(true);
                     }}
-                    style={styles.lockedCta}
+                    style={[styles.lockedCta, { backgroundColor: "#E85D3A" }]}
                   >
                     <Feather name="zap" size={14} color="#fff" />
-                    <Text style={styles.lockedCtaText}>Upgrade — $14.99</Text>
+                    <Text style={styles.lockedCtaText}>
+                      Pack Plus — {packPlusPackage?.product.priceString ?? "$14.99"}/mo
+                    </Text>
                   </Pressable>
                 </View>
               </View>

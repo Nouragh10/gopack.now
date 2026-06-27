@@ -71,12 +71,11 @@ const confirmStyles = StyleSheet.create({
 
 export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Props) {
   const colors = useColors();
-  const { offerings, purchase, isPurchasing, restore, isRestoring } = useSubscription();
+  const { offerings, purchase, isPurchasing, restore, isRestoring, packPlusPackage } = useSubscription();
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentOffering = offerings?.current;
-  const packageToPurchase = currentOffering?.availablePackages[0];
+  const packageToPurchase = packPlusPackage ?? offerings?.current?.availablePackages.find(p => p.identifier === "$rc_monthly");
   const priceString = packageToPurchase?.product.priceString ?? "$14.99";
 
   const handleUpgradePress = () => {

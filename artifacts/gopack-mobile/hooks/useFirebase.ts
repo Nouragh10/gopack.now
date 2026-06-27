@@ -87,6 +87,7 @@ export interface Trip {
   confirmedAccommodation?: AccommodationSuggestion;
   packConfirmed?: boolean;
   isPremium?: boolean;
+  unlockedDays?: Record<string, boolean>;
   aiUsage?: Record<string, number>;
   review?: unknown;
   isPack?: boolean;
@@ -844,6 +845,10 @@ export async function confirmPack(tripId: string) {
 
 export async function setTripPremium(tripId: string) {
   await update(ref(db, `trips/${tripId}`), { isPremium: true });
+}
+
+export async function setDayUnlocked(tripId: string, dayNumber: number) {
+  await update(ref(db, `trips/${tripId}/unlockedDays`), { [String(dayNumber)]: true });
 }
 
 export async function incrementAiUsage(tripId: string, feature: string) {

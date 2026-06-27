@@ -27,12 +27,20 @@ import {
 
 const PROJECT_NAME = "gopack\u2024now";
 
+// Pack Plus subscription ($14.99/mo)
 const PRODUCT_IDENTIFIER = "pack_plus_monthly";
 const PLAY_STORE_PRODUCT_IDENTIFIER = "pack_plus_monthly:monthly";
-
 const PRODUCT_DISPLAY_NAME = "Pack Plus Monthly";
 const PRODUCT_USER_FACING_TITLE = "Pack Plus";
 const PRODUCT_DURATION = "P1M";
+const PRODUCT_PRICES = [{ amount_micros: 14990000, currency: "USD" }]; // $14.99
+
+// Day unlock one-time purchase ($9.99)
+const DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock";
+const PLAY_STORE_DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock:day";
+const DAY_PRODUCT_DISPLAY_NAME = "Itinerary Day Unlock";
+const DAY_PRODUCT_USER_FACING_TITLE = "Day Unlock";
+const DAY_PRODUCT_PRICES = [{ amount_micros: 9990000, currency: "USD" }]; // $9.99
 
 const APP_STORE_APP_NAME = "GoPackNow iOS";
 const APP_STORE_BUNDLE_ID = "com.gopacknow.app";
@@ -48,9 +56,8 @@ const OFFERING_DISPLAY_NAME = "Default Offering";
 const PACKAGE_IDENTIFIER = "$rc_monthly";
 const PACKAGE_DISPLAY_NAME = "Monthly";
 
-const PRODUCT_PRICES = [
-  { amount_micros: 14990000, currency: "USD" }, // $14.99
-];
+const DAY_PACKAGE_IDENTIFIER = "day_unlock";
+const DAY_PACKAGE_DISPLAY_NAME = "Day Unlock";
 
 type TestStorePricesResponse = {
   object: string;
@@ -127,45 +134,65 @@ async function seedRevenueCat() {
   });
   if (listProductsError) throw new Error("Failed to list products");
 
-  const ensureProduct = async (targetApp: App, label: string, identifier: string, isTestStore: boolean): Promise<Product> => {
+  const ensureProduct = async (
+    targetApp: App,
+    label: string,
+    identifier: string,
+    isTestStore: boolean,
+    displayName: string,
+    userFacingTitle: string,
+    opts: { type: "subscription"; duration: string } | { type: "non_consumable" },
+  ): Promise<Product> => {
     const existing = existingProducts.items?.find((p) => p.store_identifier === identifier && p.app_id === targetApp.id);
     if (existing) { console.log(label + " product exists:", existing.id); return existing; }
 
     const body: CreateProductData["body"] = {
       store_identifier: identifier,
       app_id: targetApp.id,
-      type: "subscription",
-      display_name: PRODUCT_DISPLAY_NAME,
+      type: opts.type,
+      display_name: displayName,
     };
     if (isTestStore) {
-      body.subscription = { duration: PRODUCT_DURATION };
-      body.title = PRODUCT_USER_FACING_TITLE;
+      body.title = userFacingTitle;
+      if (opts.type === "subscription" && "duration" in opts) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        body.subscription = { duration: opts.duration as any };
+      }
     }
     const { data: created, error } = await createProduct({ client, path: { project_id: project.id }, body });
-    if (error) throw new Error("Failed to create " + label + " product");
+    if (error) throw new Error("Failed to create " + label + " product: " + JSON.stringify(error));
     console.log("Created " + label + " product:", created.id);
     return created;
   };
 
-  const testStoreProduct = await ensureProduct(app, "Test Store", PRODUCT_IDENTIFIER, true);
-  const appStoreProduct = await ensureProduct(appStoreApp, "App Store", PRODUCT_IDENTIFIER, false);
-  const playStoreProduct = await ensureProduct(playStoreApp, "Play Store", PLAY_STORE_PRODUCT_IDENTIFIER, false);
-
-  console.log("Adding test store prices...");
-  const { error: priceError } = await client.post<TestStorePricesResponse>({
-    url: "/projects/{project_id}/products/{product_id}/test_store_prices",
-    path: { project_id: project.id, product_id: testStoreProduct.id },
-    body: { prices: PRODUCT_PRICES },
-  });
-  if (priceError) {
-    if (typeof priceError === "object" && "type" in priceError && (priceError as any).type === "resource_already_exists") {
-      console.log("Test store prices already exist");
+  const addTestStorePrices = async (productId: string, prices: { amount_micros: number; currency: string }[], label: string) => {
+    const { error } = await client.post<TestStorePricesResponse>({
+      url: "/projects/{project_id}/products/{product_id}/test_store_prices",
+      path: { project_id: project.id, product_id: productId },
+      body: { prices },
+    });
+    if (error) {
+      if (typeof error === "object" && "type" in error && (error as any).type === "resource_already_exists") {
+        console.log(label + " test store prices already exist");
+      } else {
+        throw new Error("Failed to add " + label + " test store prices: " + JSON.stringify(error));
+      }
     } else {
-      throw new Error("Failed to add test store prices");
+      console.log("Added " + label + " test store prices");
     }
-  } else {
-    console.log("Added test store prices: $14.99/month");
-  }
+  };
+
+  // Pack Plus ($14.99/mo)
+  const testStoreProduct = await ensureProduct(app, "Test Store [Pack Plus]", PRODUCT_IDENTIFIER, true, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  const appStoreProduct = await ensureProduct(appStoreApp, "App Store [Pack Plus]", PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  const playStoreProduct = await ensureProduct(playStoreApp, "Play Store [Pack Plus]", PLAY_STORE_PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  await addTestStorePrices(testStoreProduct.id, PRODUCT_PRICES, "Pack Plus");
+
+  // Day Unlock ($9.99) — one-time non-consumable purchase
+  const testStoreDayProduct = await ensureProduct(app, "Test Store [Day Unlock]", DAY_PRODUCT_IDENTIFIER, true, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  const appStoreDayProduct = await ensureProduct(appStoreApp, "App Store [Day Unlock]", DAY_PRODUCT_IDENTIFIER, false, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  const playStoreDayProduct = await ensureProduct(playStoreApp, "Play Store [Day Unlock]", PLAY_STORE_DAY_PRODUCT_IDENTIFIER, false, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  await addTestStorePrices(testStoreDayProduct.id, DAY_PRODUCT_PRICES, "Day Unlock");
 
   let entitlement: Entitlement | undefined;
   const { data: existingEntitlements, error: listEntitlementsError } = await listEntitlements({
@@ -261,26 +288,43 @@ async function seedRevenueCat() {
     pkg = newPackage;
   }
 
-  const { error: attachPackageError } = await attachProductsToPackage({
-    client,
-    path: { project_id: project.id, package_id: pkg.id },
-    body: {
-      products: [
-        { product_id: testStoreProduct.id, eligibility_criteria: "all" },
-        { product_id: appStoreProduct.id, eligibility_criteria: "all" },
-        { product_id: playStoreProduct.id, eligibility_criteria: "all" },
-      ],
-    },
-  });
-  if (attachPackageError) {
-    if ((attachPackageError as any).type === "unprocessable_entity_error") {
-      console.log("Products already attached to package");
+  const attachToPackage = async (packageId: string, productIds: string[], label: string) => {
+    const { error } = await attachProductsToPackage({
+      client,
+      path: { project_id: project.id, package_id: packageId },
+      body: { products: productIds.map(id => ({ product_id: id, eligibility_criteria: "all" as const })) },
+    });
+    if (error) {
+      if ((error as any).type === "unprocessable_entity_error") {
+        console.log(label + " products already attached to package");
+      } else {
+        throw new Error("Failed to attach products to " + label + " package");
+      }
     } else {
-      throw new Error("Failed to attach products to package");
+      console.log("Attached products to " + label + " package");
     }
+  };
+
+  await attachToPackage(pkg.id, [testStoreProduct.id, appStoreProduct.id, playStoreProduct.id], "Pack Plus");
+
+  // Day Unlock package
+  let dayPkg: Package | undefined;
+  const existingDayPackage = existingPackages.items?.find((p) => p.lookup_key === DAY_PACKAGE_IDENTIFIER);
+  if (existingDayPackage) {
+    console.log("Day Unlock package exists:", existingDayPackage.id);
+    dayPkg = existingDayPackage;
   } else {
-    console.log("Attached products to package");
+    const { data: newDayPackage, error } = await createPackages({
+      client,
+      path: { project_id: project.id, offering_id: offering.id },
+      body: { lookup_key: DAY_PACKAGE_IDENTIFIER, display_name: DAY_PACKAGE_DISPLAY_NAME },
+    });
+    if (error) throw new Error("Failed to create day unlock package: " + JSON.stringify(error));
+    console.log("Created day unlock package:", newDayPackage.id);
+    dayPkg = newDayPackage;
   }
+
+  await attachToPackage(dayPkg.id, [testStoreDayProduct.id, appStoreDayProduct.id, playStoreDayProduct.id], "Day Unlock");
 
   const { data: testKeys } = await listAppPublicApiKeys({ client, path: { project_id: project.id, app_id: app.id } });
   const { data: iosKeys } = await listAppPublicApiKeys({ client, path: { project_id: project.id, app_id: appStoreApp.id } });

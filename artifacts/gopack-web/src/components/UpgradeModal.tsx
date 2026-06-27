@@ -108,7 +108,7 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                 disabled={loading}
                 className="w-full bg-primary text-white font-semibold py-3.5 rounded-full hover:bg-primary/90 transition-colors text-base mb-2.5 disabled:opacity-60"
               >
-                {loading ? "Loading…" : "Upgrade — $14.99"}
+                {loading ? "Loading…" : "Upgrade — $14.99/mo"}
               </button>
               <button
                 onClick={onClose}
