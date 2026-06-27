@@ -23,6 +23,7 @@ import AccommodationPreferences from "@/pages/accommodation-preferences";
 import AccommodationVote from "@/pages/accommodation-vote";
 import Building from "@/pages/building";
 import Notifications from "@/pages/notifications";
+import Privacy from "@/pages/privacy";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ function Router() {
         <Route path="/trip/:tripId" component={TripHub} />
         <Route path="/profile" component={Profile} />
         <Route path="/notifications" component={Notifications} />
+        <Route path="/privacy" component={Privacy} />
         <Route component={NotFound} />
       </Switch>
     </>
