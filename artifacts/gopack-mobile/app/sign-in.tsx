@@ -14,10 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
-import { auth, signOut } from "@/lib/firebase";
+import { auth, signInGuest, signInWithEmail, signUpWithEmail, sendBrandedVerificationEmail, signOut } from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
-import { sendEmailVerification } from "firebase/auth";
 
 const DARK = "#1A1412";
 const CARD = "#2A221D";
@@ -80,9 +78,9 @@ export default function SignInScreen() {
     setResent(false);
     setError("");
     try {
-      // Sign in temporarily to get a user object, send email, then sign out again
+      // Sign in temporarily to get uid, send branded email, sign out again
       const cred = await signInWithEmail(email.trim(), password);
-      await sendEmailVerification(cred.user);
+      await sendBrandedVerificationEmail(cred.user.uid, email.trim(), name.trim() || cred.user.displayName || "");
       await signOut();
       setResent(true);
     } catch {

@@ -6,7 +6,6 @@ import {
   inMemoryPersistence,
   initializeAuth,
   onAuthStateChanged,
-  sendEmailVerification,
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -60,6 +59,24 @@ export const storage = getStorage(app);
 export const signInWithEmail = (email: string, password: string) =>
   signInWithEmailAndPassword(auth, email, password);
 
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+
+export const sendBrandedVerificationEmail = async (
+  uid: string,
+  email: string,
+  displayName: string,
+): Promise<void> => {
+  const res = await fetch(`${API_BASE}/api/auth/send-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, email, displayName }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).error ?? "Failed to send verification email");
+  }
+};
+
 export const signUpWithEmail = async (
   email: string,
   password: string,
@@ -67,16 +84,11 @@ export const signUpWithEmail = async (
 ) => {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
-  await sendEmailVerification(cred.user);
-  // Sign out immediately so the routing guard cannot bypass the verify screen.
-  // The user will sign in again after clicking the verification link.
+  // Send branded email via API server (Resend), then sign out so the
+  // routing guard cannot bypass the verify screen.
+  await sendBrandedVerificationEmail(cred.user.uid, email, displayName);
   await firebaseSignOut(auth);
   return cred;
-};
-
-export const resendVerificationEmail = async () => {
-  const user = auth.currentUser;
-  if (user) await sendEmailVerification(user);
 };
 
 export const signInGuest = () => signInAnonymously(auth);
