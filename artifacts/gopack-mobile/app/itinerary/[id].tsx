@@ -458,7 +458,7 @@ export default function ItineraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { purchase, dayUnlockPackage, packPlusPackage } = useSubscription();
+  const { purchase, dayUnlockPackage, tripUnlockPackage } = useSubscription();
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
@@ -469,6 +469,7 @@ export default function ItineraryScreen() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("");
   const [dayUnlockLoading, setDayUnlockLoading] = useState<number | null>(null);
+  const [tripUnlockLoading, setTripUnlockLoading] = useState(false);
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
   const [savePackSaving, setSavePackSaving] = useState(false);
@@ -841,13 +842,15 @@ export default function ItineraryScreen() {
                     Day {currentDay.dayNumber} is locked
                   </Text>
                   <Text style={[styles.lockedSub, { color: colors.mutedForeground }]}>
-                    Unlock just this day or get all days with Pack Plus
+                    Unlock just today, the full trip, or subscribe
                   </Text>
+
+                  {/* Day unlock — $2.99 */}
                   <Pressable
                     disabled={dayUnlockLoading === currentDay.dayNumber}
                     onPress={async () => {
                       if (!dayUnlockPackage) {
-                        Alert.alert("Unavailable", "Day unlock is not available right now. Try Pack Plus instead.");
+                        Alert.alert("Unavailable", "Day unlock is not available right now.");
                         return;
                       }
                       setDayUnlockLoading(currentDay.dayNumber);
@@ -861,29 +864,64 @@ export default function ItineraryScreen() {
                         setDayUnlockLoading(null);
                       }
                     }}
-                    style={[styles.lockedCta, { backgroundColor: colors.foreground, opacity: dayUnlockLoading === currentDay.dayNumber ? 0.6 : 1 }]}
+                    style={[styles.lockedCta, { backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border, opacity: dayUnlockLoading === currentDay.dayNumber ? 0.6 : 1 }]}
                   >
                     {dayUnlockLoading === currentDay.dayNumber ? (
-                      <ActivityIndicator size="small" color={colors.background} />
+                      <ActivityIndicator size="small" color={colors.foreground} />
                     ) : (
                       <>
-                        <Feather name="unlock" size={14} color={colors.background} />
-                        <Text style={[styles.lockedCtaText, { color: colors.background }]}>
-                          Unlock Day {currentDay.dayNumber} — $4.99
+                        <Feather name="unlock" size={14} color={colors.foreground} />
+                        <Text style={[styles.lockedCtaText, { color: colors.foreground }]}>
+                          Unlock Day {currentDay.dayNumber} · $2.99
                         </Text>
                       </>
                     )}
                   </Pressable>
+
+                  {/* Trip unlock — $5.99 one-time */}
+                  <Pressable
+                    disabled={tripUnlockLoading}
+                    onPress={async () => {
+                      if (!tripUnlockPackage) {
+                        Alert.alert("Unavailable", "Trip unlock is not available right now.");
+                        return;
+                      }
+                      setTripUnlockLoading(true);
+                      try {
+                        await purchase(tripUnlockPackage);
+                        if (id) await setTripPremium(id);
+                        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      } catch (e: any) {
+                        if (!e?.userCancelled) Alert.alert("Purchase failed", e?.message ?? "Please try again.");
+                      } finally {
+                        setTripUnlockLoading(false);
+                      }
+                    }}
+                    style={[styles.lockedCta, { backgroundColor: colors.foreground, opacity: tripUnlockLoading ? 0.6 : 1 }]}
+                  >
+                    {tripUnlockLoading ? (
+                      <ActivityIndicator size="small" color={colors.background} />
+                    ) : (
+                      <>
+                        <Feather name="star" size={14} color={colors.background} />
+                        <Text style={[styles.lockedCtaText, { color: colors.background }]}>
+                          Unlock Full Trip · $5.99 for everyone
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  {/* Subscribe */}
                   <Pressable
                     onPress={() => {
-                      setUpgradeReason(`Unlock all ${days.length} days with Pack Plus`);
+                      setUpgradeReason(`Unlock all ${days.length} days with a subscription`);
                       setShowUpgrade(true);
                     }}
                     style={[styles.lockedCta, { backgroundColor: "#E85D3A" }]}
                   >
                     <Feather name="zap" size={14} color="#fff" />
                     <Text style={styles.lockedCtaText}>
-                      Pack Plus — $14.99/mo
+                      Subscribe · from $9.99/mo
                     </Text>
                   </Pressable>
                 </View>

@@ -623,13 +623,15 @@ export default function Itinerary() {
                             <Lock size={22} className="text-primary"/>
                           </div>
                           <p className="font-serif text-xl font-bold mb-1">Day {day.dayNumber} is locked</p>
-                          <p className="text-sm text-muted-foreground mb-1">Upgrade to Pack Plus to unlock all days</p>
-                          <p className="text-xs font-semibold text-primary mb-4">🎉 One purchase unlocks for the whole group</p>
-                          <button
-                            onClick={() => { setUpgradeReason(`Unlock all ${totalDays} days with Pack Plus`); setShowUpgrade(true); }}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
-                            <Zap size={14}/> Upgrade — $14.99/mo
-                          </button>
+                          <p className="text-sm text-muted-foreground mb-1">Subscribe to unlock all days for the group</p>
+                          <p className="text-xs font-semibold text-primary mb-4">🎉 One purchase unlocks for everyone</p>
+                          <div className="flex flex-col gap-2 w-full items-center">
+                            <button
+                              onClick={() => { setUpgradeReason(`Unlock all ${totalDays} days`); setShowUpgrade(true); }}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors">
+                              <Zap size={14}/> Subscribe · from $9.99/mo
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (

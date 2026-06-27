@@ -18,9 +18,12 @@ const FEATURES = [
   "Google Calendar sync for all activities",
 ];
 
+type Plan = "monthly" | "yearly";
+
 export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [plan, setPlan] = useState<Plan>("yearly");
 
   const handleUpgrade = async () => {
     setLoading(true);
@@ -81,14 +84,35 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                 </p>
               )}
 
-              <h2 className="font-serif text-2xl font-bold mb-2 leading-tight">
+              <h2 className="font-serif text-2xl font-bold mb-1 leading-tight">
                 Upgrade this Pack
               </h2>
-              <p className="text-muted-foreground text-sm mb-6">
-                One payment unlocks premium planning for everyone on this trip.
+              <p className="text-primary text-xs font-semibold mb-4">
+                🎉 One purchase unlocks for everyone on this trip
               </p>
 
-              <ul className="space-y-2 mb-7">
+              {/* Plan selector */}
+              <div className="grid grid-cols-2 gap-2.5 mb-5">
+                <button
+                  onClick={() => setPlan("monthly")}
+                  className={`relative rounded-2xl border-2 p-3.5 text-left transition-colors ${plan === "monthly" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                >
+                  <p className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1">MONTHLY</p>
+                  <p className="text-xl font-serif font-bold">$9.99</p>
+                  <p className="text-xs text-muted-foreground">per month</p>
+                </button>
+                <button
+                  onClick={() => setPlan("yearly")}
+                  className={`relative rounded-2xl border-2 p-3.5 text-left transition-colors ${plan === "yearly" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                >
+                  <span className="absolute -top-2.5 left-3 text-[9px] font-bold bg-primary text-white px-2 py-0.5 rounded-full tracking-wide">BEST VALUE</span>
+                  <p className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1 mt-1">YEARLY</p>
+                  <p className="text-xl font-serif font-bold">$19.99</p>
+                  <p className="text-xs text-muted-foreground">per year</p>
+                </button>
+              </div>
+
+              <ul className="space-y-2 mb-5">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex items-center gap-2.5 text-sm text-foreground/80">
                     <span className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
@@ -108,8 +132,7 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                 disabled={loading}
                 className="w-full bg-primary text-white font-semibold py-3.5 rounded-full hover:bg-primary/90 transition-colors text-base mb-2.5 disabled:opacity-60"
               >
-                {loading ? "Loading…" : "Upgrade — $14.99/mo"}
-
+                {loading ? "Loading…" : plan === "yearly" ? "Subscribe — $19.99/yr" : "Subscribe — $9.99/mo"}
               </button>
               <button
                 onClick={onClose}

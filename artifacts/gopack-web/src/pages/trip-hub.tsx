@@ -669,10 +669,10 @@ export default function TripHub() {
               <div className="rounded-2xl border-2 border-dashed border-primary/25 bg-primary/3 p-4">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Sparkles size={13} className="text-primary" />
-                  <p className="text-xs font-semibold text-primary">Pack Plus · $14.99</p>
+                  <p className="text-xs font-semibold text-primary">Pack Plus · from $9.99/mo</p>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
-                  Unlimited regenerations, PDF export, up to 20 members, and more.
+                  Unlock all days for the whole group. Unlimited regenerations, PDF export, and more.
                 </p>
                 <button
                   onClick={() => { setUpgradeReason(""); setShowUpgrade(true); }}

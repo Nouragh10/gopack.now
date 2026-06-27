@@ -27,20 +27,35 @@ import {
 
 const PROJECT_NAME = "gopack\u2024now";
 
-// Pack Plus subscription ($14.99/mo)
-const PRODUCT_IDENTIFIER = "pack_plus_monthly";
-const PLAY_STORE_PRODUCT_IDENTIFIER = "pack_plus_monthly:monthly";
-const PRODUCT_DISPLAY_NAME = "Pack Plus Monthly";
-const PRODUCT_USER_FACING_TITLE = "Pack Plus";
+// Monthly Plus subscription ($9.99/mo)
+const PRODUCT_IDENTIFIER = "pack_plus_monthly_999";
+const PLAY_STORE_PRODUCT_IDENTIFIER = "pack_plus_monthly_999:monthly";
+const PRODUCT_DISPLAY_NAME = "Pack Plus Monthly 9.99";
+const PRODUCT_USER_FACING_TITLE = "Plus Monthly";
 const PRODUCT_DURATION = "P1M";
-const PRODUCT_PRICES = [{ amount_micros: 14990000, currency: "USD" }]; // $14.99
+const PRODUCT_PRICES = [{ amount_micros: 9990000, currency: "USD" }]; // $9.99
 
-// Day unlock one-time purchase ($4.99)
-const DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_499";
-const PLAY_STORE_DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_499:day";
-const DAY_PRODUCT_DISPLAY_NAME = "Day Unlock 4.99";
+// Yearly Pro subscription ($19.99/yr)
+const YEARLY_PRODUCT_IDENTIFIER = "pack_plus_yearly_1999";
+const PLAY_STORE_YEARLY_PRODUCT_IDENTIFIER = "pack_plus_yearly_1999:yearly";
+const YEARLY_PRODUCT_DISPLAY_NAME = "Pack Plus Yearly 19.99";
+const YEARLY_PRODUCT_USER_FACING_TITLE = "Pro Yearly";
+const YEARLY_PRODUCT_DURATION = "P1Y";
+const YEARLY_PRODUCT_PRICES = [{ amount_micros: 19990000, currency: "USD" }]; // $19.99
+
+// Trip unlock one-time purchase ($5.99)
+const TRIP_PRODUCT_IDENTIFIER = "trip_unlock_599";
+const PLAY_STORE_TRIP_PRODUCT_IDENTIFIER = "trip_unlock_599:trip";
+const TRIP_PRODUCT_DISPLAY_NAME = "Trip Unlock 5.99";
+const TRIP_PRODUCT_USER_FACING_TITLE = "Trip Unlock";
+const TRIP_PRODUCT_PRICES = [{ amount_micros: 5990000, currency: "USD" }]; // $5.99
+
+// Day unlock one-time purchase ($2.99)
+const DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_299";
+const PLAY_STORE_DAY_PRODUCT_IDENTIFIER = "itinerary_day_unlock_299:day";
+const DAY_PRODUCT_DISPLAY_NAME = "Day Unlock 2.99";
 const DAY_PRODUCT_USER_FACING_TITLE = "Day Unlock";
-const DAY_PRODUCT_PRICES = [{ amount_micros: 4990000, currency: "USD" }]; // $4.99
+const DAY_PRODUCT_PRICES = [{ amount_micros: 2990000, currency: "USD" }]; // $2.99
 
 const APP_STORE_APP_NAME = "GoPackNow iOS";
 const APP_STORE_BUNDLE_ID = "com.gopacknow.app";
@@ -55,6 +70,12 @@ const OFFERING_DISPLAY_NAME = "Default Offering";
 
 const PACKAGE_IDENTIFIER = "$rc_monthly";
 const PACKAGE_DISPLAY_NAME = "Monthly";
+
+const ANNUAL_PACKAGE_IDENTIFIER = "$rc_annual";
+const ANNUAL_PACKAGE_DISPLAY_NAME = "Yearly";
+
+const TRIP_PACKAGE_IDENTIFIER = "trip_unlock";
+const TRIP_PACKAGE_DISPLAY_NAME = "Trip Unlock";
 
 const DAY_PACKAGE_IDENTIFIER = "day_unlock";
 const DAY_PACKAGE_DISPLAY_NAME = "Day Unlock";
@@ -182,13 +203,25 @@ async function seedRevenueCat() {
     }
   };
 
-  // Pack Plus ($14.99/mo)
-  const testStoreProduct = await ensureProduct(app, "Test Store [Pack Plus]", PRODUCT_IDENTIFIER, true, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
-  const appStoreProduct = await ensureProduct(appStoreApp, "App Store [Pack Plus]", PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
-  const playStoreProduct = await ensureProduct(playStoreApp, "Play Store [Pack Plus]", PLAY_STORE_PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
-  await addTestStorePrices(testStoreProduct.id, PRODUCT_PRICES, "Pack Plus");
+  // Monthly Plus ($9.99/mo)
+  const testStoreProduct = await ensureProduct(app, "Test Store [Monthly Plus]", PRODUCT_IDENTIFIER, true, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  const appStoreProduct = await ensureProduct(appStoreApp, "App Store [Monthly Plus]", PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  const playStoreProduct = await ensureProduct(playStoreApp, "Play Store [Monthly Plus]", PLAY_STORE_PRODUCT_IDENTIFIER, false, PRODUCT_DISPLAY_NAME, PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: PRODUCT_DURATION });
+  await addTestStorePrices(testStoreProduct.id, PRODUCT_PRICES, "Monthly Plus");
 
-  // Day Unlock ($9.99) — one-time non-consumable purchase
+  // Yearly Pro ($19.99/yr)
+  const testStoreYearlyProduct = await ensureProduct(app, "Test Store [Yearly Pro]", YEARLY_PRODUCT_IDENTIFIER, true, YEARLY_PRODUCT_DISPLAY_NAME, YEARLY_PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: YEARLY_PRODUCT_DURATION });
+  const appStoreYearlyProduct = await ensureProduct(appStoreApp, "App Store [Yearly Pro]", YEARLY_PRODUCT_IDENTIFIER, false, YEARLY_PRODUCT_DISPLAY_NAME, YEARLY_PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: YEARLY_PRODUCT_DURATION });
+  const playStoreYearlyProduct = await ensureProduct(playStoreApp, "Play Store [Yearly Pro]", PLAY_STORE_YEARLY_PRODUCT_IDENTIFIER, false, YEARLY_PRODUCT_DISPLAY_NAME, YEARLY_PRODUCT_USER_FACING_TITLE, { type: "subscription", duration: YEARLY_PRODUCT_DURATION });
+  await addTestStorePrices(testStoreYearlyProduct.id, YEARLY_PRODUCT_PRICES, "Yearly Pro");
+
+  // Trip Unlock ($5.99) — one-time non-consumable
+  const testStoreTripProduct = await ensureProduct(app, "Test Store [Trip Unlock]", TRIP_PRODUCT_IDENTIFIER, true, TRIP_PRODUCT_DISPLAY_NAME, TRIP_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  const appStoreTripProduct = await ensureProduct(appStoreApp, "App Store [Trip Unlock]", TRIP_PRODUCT_IDENTIFIER, false, TRIP_PRODUCT_DISPLAY_NAME, TRIP_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  const playStoreTripProduct = await ensureProduct(playStoreApp, "Play Store [Trip Unlock]", PLAY_STORE_TRIP_PRODUCT_IDENTIFIER, false, TRIP_PRODUCT_DISPLAY_NAME, TRIP_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
+  await addTestStorePrices(testStoreTripProduct.id, TRIP_PRODUCT_PRICES, "Trip Unlock");
+
+  // Day Unlock ($2.99) — one-time non-consumable
   const testStoreDayProduct = await ensureProduct(app, "Test Store [Day Unlock]", DAY_PRODUCT_IDENTIFIER, true, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
   const appStoreDayProduct = await ensureProduct(appStoreApp, "App Store [Day Unlock]", DAY_PRODUCT_IDENTIFIER, false, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
   const playStoreDayProduct = await ensureProduct(playStoreApp, "Play Store [Day Unlock]", PLAY_STORE_DAY_PRODUCT_IDENTIFIER, false, DAY_PRODUCT_DISPLAY_NAME, DAY_PRODUCT_USER_FACING_TITLE, { type: "non_consumable" });
@@ -220,7 +253,13 @@ async function seedRevenueCat() {
   const { error: attachEntitlementError } = await attachProductsToEntitlement({
     client,
     path: { project_id: project.id, entitlement_id: entitlement.id },
-    body: { product_ids: [testStoreProduct.id, appStoreProduct.id, playStoreProduct.id] },
+    body: {
+      product_ids: [
+        testStoreProduct.id, appStoreProduct.id, playStoreProduct.id,
+        testStoreYearlyProduct.id, appStoreYearlyProduct.id, playStoreYearlyProduct.id,
+        testStoreTripProduct.id, appStoreTripProduct.id, playStoreTripProduct.id,
+      ],
+    },
   });
   if (attachEntitlementError) {
     if ((attachEntitlementError as any).type === "unprocessable_entity_error") {
@@ -305,25 +344,28 @@ async function seedRevenueCat() {
     }
   };
 
-  await attachToPackage(pkg.id, [testStoreProduct.id, appStoreProduct.id, playStoreProduct.id], "Pack Plus");
+  await attachToPackage(pkg.id, [testStoreProduct.id, appStoreProduct.id, playStoreProduct.id], "Monthly Plus");
 
-  // Day Unlock package
-  let dayPkg: Package | undefined;
-  const existingDayPackage = existingPackages.items?.find((p) => p.lookup_key === DAY_PACKAGE_IDENTIFIER);
-  if (existingDayPackage) {
-    console.log("Day Unlock package exists:", existingDayPackage.id);
-    dayPkg = existingDayPackage;
-  } else {
-    const { data: newDayPackage, error } = await createPackages({
+  const ensurePackage = async (lookupKey: string, displayName: string, label: string): Promise<Package> => {
+    const existing = existingPackages.items?.find((p) => p.lookup_key === lookupKey);
+    if (existing) { console.log(label + " package exists:", existing.id); return existing; }
+    const { data: created, error } = await createPackages({
       client,
       path: { project_id: project.id, offering_id: offering.id },
-      body: { lookup_key: DAY_PACKAGE_IDENTIFIER, display_name: DAY_PACKAGE_DISPLAY_NAME },
+      body: { lookup_key: lookupKey, display_name: displayName },
     });
-    if (error) throw new Error("Failed to create day unlock package: " + JSON.stringify(error));
-    console.log("Created day unlock package:", newDayPackage.id);
-    dayPkg = newDayPackage;
-  }
+    if (error) throw new Error("Failed to create " + label + " package: " + JSON.stringify(error));
+    console.log("Created " + label + " package:", created.id);
+    return created;
+  };
 
+  const annualPkg = await ensurePackage(ANNUAL_PACKAGE_IDENTIFIER, ANNUAL_PACKAGE_DISPLAY_NAME, "Yearly Pro");
+  await attachToPackage(annualPkg.id, [testStoreYearlyProduct.id, appStoreYearlyProduct.id, playStoreYearlyProduct.id], "Yearly Pro");
+
+  const tripPkg = await ensurePackage(TRIP_PACKAGE_IDENTIFIER, TRIP_PACKAGE_DISPLAY_NAME, "Trip Unlock");
+  await attachToPackage(tripPkg.id, [testStoreTripProduct.id, appStoreTripProduct.id, playStoreTripProduct.id], "Trip Unlock");
+
+  const dayPkg = await ensurePackage(DAY_PACKAGE_IDENTIFIER, DAY_PACKAGE_DISPLAY_NAME, "Day Unlock");
   await attachToPackage(dayPkg.id, [testStoreDayProduct.id, appStoreDayProduct.id, playStoreDayProduct.id], "Day Unlock");
 
   const { data: testKeys } = await listAppPublicApiKeys({ client, path: { project_id: project.id, app_id: app.id } });

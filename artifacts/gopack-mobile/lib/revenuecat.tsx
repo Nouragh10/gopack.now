@@ -10,6 +10,7 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pack_plus";
 export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock";
+export const TRIP_UNLOCK_PACKAGE_IDENTIFIER = "trip_unlock";
 
 function getRevenueCatApiKey() {
   if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
@@ -76,13 +77,12 @@ function useSubscriptionContext() {
   const isSubscribed =
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
-  const packPlusPackage = offeringsQuery.data?.current?.availablePackages.find(
-    (p) => p.identifier === "$rc_monthly",
-  );
+  const packages = offeringsQuery.data?.current?.availablePackages ?? [];
 
-  const dayUnlockPackage = offeringsQuery.data?.current?.availablePackages.find(
-    (p) => p.identifier === DAY_UNLOCK_PACKAGE_IDENTIFIER,
-  );
+  const monthlyPackage = packages.find((p) => p.identifier === "$rc_monthly");
+  const annualPackage = packages.find((p) => p.identifier === "$rc_annual");
+  const tripUnlockPackage = packages.find((p) => p.identifier === TRIP_UNLOCK_PACKAGE_IDENTIFIER);
+  const dayUnlockPackage = packages.find((p) => p.identifier === DAY_UNLOCK_PACKAGE_IDENTIFIER);
 
   return {
     customerInfo: customerInfoQuery.data,
@@ -93,7 +93,9 @@ function useSubscriptionContext() {
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
-    packPlusPackage,
+    monthlyPackage,
+    annualPackage,
+    tripUnlockPackage,
     dayUnlockPackage,
   };
 }
