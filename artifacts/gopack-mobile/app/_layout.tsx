@@ -36,16 +36,19 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
     const inSignIn = segments[0] === "sign-in";
+    const needsVerification = !!user && !user.isAnonymous && !user.emailVerified;
+
     if (!user && !inSignIn) {
+      // Not logged in — send to sign-in
       router.replace("/sign-in");
-    } else if (user && inSignIn) {
-      const isEmailUser = user.providerData.some((p) => p.providerId === "password");
-      const needsVerification = isEmailUser && !user.emailVerified;
-      if (!needsVerification) {
-        router.replace("/(tabs)");
-      }
+    } else if (needsVerification && !inSignIn) {
+      // Unverified email user somehow reached the app — send back to sign-in
+      router.replace("/sign-in");
+    } else if (user && !needsVerification && inSignIn) {
+      // Verified (or guest/Google) user on sign-in screen — let them in
+      router.replace("/(tabs)");
     }
-  }, [user, loading]);
+  }, [user, loading, segments]);
 
   if (loading) {
     return (
