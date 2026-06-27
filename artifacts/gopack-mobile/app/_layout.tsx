@@ -39,7 +39,11 @@ function RootLayoutNav() {
     if (!user && !inSignIn) {
       router.replace("/sign-in");
     } else if (user && inSignIn) {
-      router.replace("/(tabs)");
+      const isEmailUser = user.providerData.some((p) => p.providerId === "password");
+      const needsVerification = isEmailUser && !user.emailVerified;
+      if (!needsVerification) {
+        router.replace("/(tabs)");
+      }
     }
   }, [user, loading]);
 
