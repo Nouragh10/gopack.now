@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { ref, onValue, push, set, update, get, runTransaction } from "firebase/database";
+import { ref, onValue, push, set, update, get, remove, runTransaction } from "firebase/database";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { useAuth } from "./useAuth";
@@ -150,6 +150,21 @@ function addLocalTripId(uid: string, tripId: string) {
   if (!ids.includes(tripId)) {
     localStorage.setItem(storageKey(uid), JSON.stringify([...ids, tripId]));
   }
+}
+
+function removeLocalTripId(uid: string, tripId: string) {
+  const ids = getLocalTripIds(uid).filter(id => id !== tripId);
+  localStorage.setItem(storageKey(uid), JSON.stringify(ids));
+}
+
+export async function deleteTrip(tripId: string, uid: string, isHost: boolean) {
+  if (isHost) {
+    await remove(ref(db, `trips/${tripId}`));
+  } else {
+    await remove(ref(db, `trips/${tripId}/members/${uid}`));
+  }
+  removeLocalTripId(uid, tripId);
+  try { await remove(ref(db, `userTrips/${uid}/${tripId}`)); } catch { /* ignore */ }
 }
 
 /* ─── useTrips ──────────────────────────────────────────────── */
