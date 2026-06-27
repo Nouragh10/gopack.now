@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { auth, signInGuest, signInWithEmail, signUpWithEmail, sendBrandedVerificationEmail, signOut } from "@/lib/firebase";
+import { auth, signInGuest, signInWithEmail, signUpWithEmail, signOut } from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
 
 const DARK = "#1A1412";
@@ -49,9 +49,7 @@ export default function SignInScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (mode === "signup") {
-        console.log("[signup] starting signUpWithEmail for", email.trim());
         await signUpWithEmail(email.trim(), password, name.trim());
-        console.log("[signup] done, showing verify screen");
         setMode("verify");
       } else {
         const cred = await signInWithEmail(email.trim(), password);
@@ -80,9 +78,9 @@ export default function SignInScreen() {
     setResent(false);
     setError("");
     try {
-      // Sign in temporarily to get uid, send branded email, sign out again
+      const { sendEmailVerification } = await import("firebase/auth");
       const cred = await signInWithEmail(email.trim(), password);
-      await sendBrandedVerificationEmail(cred.user.uid, email.trim(), name.trim() || cred.user.displayName || "");
+      await sendEmailVerification(cred.user);
       await signOut();
       setResent(true);
     } catch {
