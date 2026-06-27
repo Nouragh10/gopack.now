@@ -6,6 +6,7 @@ import {
   inMemoryPersistence,
   initializeAuth,
   onAuthStateChanged,
+  sendEmailVerification,
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -66,7 +67,13 @@ export const signUpWithEmail = async (
 ) => {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
+  await sendEmailVerification(cred.user);
   return cred;
+};
+
+export const resendVerificationEmail = async () => {
+  const user = auth.currentUser;
+  if (user) await sendEmailVerification(user);
 };
 
 export const signInGuest = () => signInAnonymously(auth);

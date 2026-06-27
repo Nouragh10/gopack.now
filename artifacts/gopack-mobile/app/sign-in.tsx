@@ -14,8 +14,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
+import { auth, resendVerificationEmail, signInGuest, signInWithEmail, signUpWithEmail } from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
+import { reload } from "firebase/auth";
 
 const DARK = "#1A1412";
 const CARD = "#2A221D";
@@ -26,13 +27,14 @@ const INPUT_BG = "#332820";
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "verify">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [resent, setResent] = useState(false);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
@@ -49,17 +51,55 @@ export default function SignInScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (mode === "signup") {
         await signUpWithEmail(email.trim(), password, name.trim());
+        setMode("verify");
       } else {
-        await signInWithEmail(email.trim(), password);
+        const cred = await signInWithEmail(email.trim(), password);
+        if (!cred.user.emailVerified) {
+          setMode("verify");
+        } else {
+          router.replace("/(tabs)");
+        }
       }
-      router.replace("/(tabs)");
     } catch (e: any) {
-      const msg = e?.code === "auth/invalid-credential"
-        ? "Incorrect email or password."
-        : e?.code === "auth/email-already-in-use"
-        ? "That email is already in use."
-        : "Something went wrong. Try again.";
+      const msg =
+        e?.code === "auth/invalid-credential"
+          ? "Incorrect email or password."
+          : e?.code === "auth/email-already-in-use"
+          ? "That email is already in use."
+          : e?.code === "auth/weak-password"
+          ? "Password must be at least 6 characters."
+          : "Something went wrong. Try again.";
       setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResent(false);
+    try {
+      await resendVerificationEmail();
+      setResent(true);
+    } catch {
+      setError("Could not resend email. Try again.");
+    }
+  };
+
+  const handleCheckVerified = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await reload(user);
+        if (user.emailVerified) {
+          router.replace("/(tabs)");
+        } else {
+          setError("Email not verified yet. Check your inbox and click the link.");
+        }
+      }
+    } catch {
+      setError("Could not check verification status. Try again.");
     } finally {
       setLoading(false);
     }
@@ -76,6 +116,52 @@ export default function SignInScreen() {
       setLoading(false);
     }
   };
+
+  if (mode === "verify") {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.verifyContainer}>
+          <View style={styles.verifyIconWrap}>
+            <Feather name="mail" size={36} color={PRIMARY} />
+          </View>
+          <Text style={styles.verifyTitle}>Verify your email</Text>
+          <Text style={styles.verifyBody}>
+            We sent a verification link to{"\n"}
+            <Text style={styles.verifyEmail}>{email.trim()}</Text>
+          </Text>
+          <Text style={styles.verifyHint}>
+            Open the link in your inbox, then come back and tap Continue.
+          </Text>
+
+          {!!error && <Text style={[styles.errorText, { marginBottom: 4 }]}>{error}</Text>}
+          {resent && !error && (
+            <Text style={styles.resentText}>Verification email resent!</Text>
+          )}
+
+          <Pressable
+            style={[styles.primaryBtn, loading && styles.disabledBtn, { marginTop: 8 }]}
+            onPress={handleCheckVerified}
+            disabled={loading}
+          >
+            <Text style={styles.primaryBtnText}>
+              {loading ? "Checking..." : "I've verified — Continue"}
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={handleResend} style={styles.toggleBtn}>
+            <Text style={styles.toggleText}>Resend verification email</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => { setMode("signin"); setError(""); setResent(false); }}
+            style={styles.toggleBtn}
+          >
+            <Text style={[styles.toggleText, { color: MUTED }]}>Back to sign in</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -203,15 +289,6 @@ const styles = StyleSheet.create({
     marginBottom: 48,
     marginTop: 20,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: CARD,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
   wordmark: {
     fontFamily: "PlayfairDisplay_700Bold",
     fontSize: 36,
@@ -282,6 +359,13 @@ const styles = StyleSheet.create({
     color: "#E85D3A",
     textAlign: "center",
   },
+  resentText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    color: "#4CAF50",
+    textAlign: "center",
+    marginBottom: 4,
+  },
   divider: {
     flexDirection: "row",
     alignItems: "center",
@@ -309,5 +393,46 @@ const styles = StyleSheet.create({
     fontFamily: "DmSans_500Medium",
     fontSize: 15,
     color: MUTED,
+  },
+  verifyContainer: {
+    flex: 1,
+    paddingHorizontal: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  verifyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: CARD,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  verifyTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 28,
+    color: "#FFFDF9",
+    textAlign: "center",
+  },
+  verifyBody: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 15,
+    color: MUTED,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  verifyEmail: {
+    fontFamily: "DmSans_600SemiBold",
+    color: "#FFFDF9",
+  },
+  verifyHint: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    color: MUTED,
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 8,
   },
 });
