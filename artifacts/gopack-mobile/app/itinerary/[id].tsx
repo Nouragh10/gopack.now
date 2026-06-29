@@ -126,7 +126,7 @@ function buildItineraryHTML(
                 ${act.fromWish ? '<span class="wish-badge">★ Wish</span>' : ""}
               </div>
               <div class="act-name">${act.name}</div>
-              ${act.suggester ? `<div class="act-suggester">${act.fromWish ? `✦ ${act.suggester}'s wish` : `✦ ${act.suggester}`}</div>` : ""}
+              ${act.suggester ? `<div class="act-suggester">${act.fromWish ? `✦ ${act.suggester}'s wish` : act.matchedVibe ? `✦ AI pick · ${act.matchedVibe}` : `✦ AI pick`}</div>` : ""}
               <div class="act-desc">${act.description}</div>
               ${act.estimatedCost > 0 ? `<div class="act-cost">~$${act.estimatedCost} per person</div>` : ""}
             </div>
@@ -402,7 +402,11 @@ function ActivityCard({
         <Text style={[styles.actName, { color: colors.foreground }]}>{activity.name}</Text>
         {activity.suggester ? (
           <Text style={[styles.actSuggester, { color: colors.primary }]}>
-            {activity.fromWish ? `✦ ${activity.suggester}'s wish` : `✦ ${activity.suggester}`}
+            {activity.fromWish
+              ? `✦ ${activity.suggester}'s wish`
+              : activity.matchedVibe
+              ? `✦ AI pick · ${activity.matchedVibe}`
+              : `✦ AI pick`}
           </Text>
         ) : null}
         <Text style={[styles.actDesc, { color: colors.mutedForeground }]} numberOfLines={3}>

@@ -127,6 +127,7 @@ export interface Activity {
   tag: string;
   fromWish: boolean;
   suggester: string;
+  matchedVibe?: string | null;
   estimatedCost: number;
   labels: string[];
   nearPrevious: boolean;

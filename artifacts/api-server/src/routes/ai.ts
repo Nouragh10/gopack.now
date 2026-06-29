@@ -104,10 +104,12 @@ ${vibeGuide}
 1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
 2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
-4. Every activity "name" must be a real venue's official name within ${destination} (e.g. "Sagrada Família" not "Famous Cathedral").
-5. Descriptions: ONE sentence, max 15 words.
-6. Do not repeat the same venue or the same activity type more than once per day.
-7. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
+4. Every activity "name" must be a SPECIFIC, real venue's official name within ${destination} — e.g. "Sagrada Família" not "Famous Cathedral", "Nobu Malibu" not "Nice Restaurant", "Central Park Rowboating" not "Outdoor Activity". Generic titles are forbidden.
+5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. If unsure, choose a well-known alternative.
+6. Descriptions: ONE sentence, max 15 words.
+7. Do not repeat the same venue or the same activity type more than once per day.
+8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
+9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -125,6 +127,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
           "tag": "${vibes[0]?.toLowerCase() ?? "culture"}",
           "fromWish": true,
           "suggester": "member name or 'AI pick'",
+          "matchedVibe": "culture",
           "estimatedCost": 25,
           "labels": ["Must-try"],
           "nearPrevious": false
