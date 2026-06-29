@@ -720,6 +720,9 @@ export default function Itinerary() {
                                         {act.suggester && act.suggester !== "AI pick" && (
                                           <span className="text-xs text-muted-foreground/70 italic ml-1">by {act.suggester}</span>
                                         )}
+                                        {!act.fromWish && act.matchedVibe && (
+                                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">✦ {act.matchedVibe}</span>
+                                        )}
                                         <div className="ml-auto flex items-center gap-1.5">
                                           <a href={`https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${act.name} ${day.city || trip?.destination || ""}`)}`}
                                             target="_blank" rel="noopener noreferrer"
@@ -779,6 +782,9 @@ export default function Itinerary() {
                                         ))}
                                         {act.suggester && act.suggester !== "AI pick" && (
                                           <span style={{fontSize:11,color:"#9ca3af"}}>by {act.suggester}</span>
+                                        )}
+                                        {!act.fromWish && act.matchedVibe && (
+                                          <span style={{fontSize:11,color:"#E85D3A",fontWeight:500}}>✦ {act.matchedVibe}</span>
                                         )}
                                       </div>
                                     </div>
