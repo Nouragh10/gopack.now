@@ -2,6 +2,7 @@ import { getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
+  deleteUser,
   getAuth,
   inMemoryPersistence,
   initializeAuth,
@@ -74,5 +75,10 @@ export const signUpWithEmail = async (
 
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);
+export const deleteAccount = async () => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("No user signed in");
+  await deleteUser(currentUser);
+};
 
 export { equalTo, get, onValue, orderByChild, push, query, ref, set, update };

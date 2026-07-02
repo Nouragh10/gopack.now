@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   Alert,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -15,8 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { signOut } from "@/lib/firebase";
+import { signOut, deleteAccount } from "@/lib/firebase";
 import { Trip, deleteTrip, leaveTrip, useTrips } from "@/hooks/useFirebase";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -25,6 +27,7 @@ export default function ProfileScreen() {
   const { trips, refetch } = useTrips(user?.uid);
   const router = useRouter();
   const [tripsExpanded, setTripsExpanded] = useState(false);
+  const [upgradeVisible, setUpgradeVisible] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -44,6 +47,34 @@ export default function ProfileScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await signOut();
     router.replace("/sign-in");
+  };
+
+  const handleDeleteAccount = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account and all your data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAccount();
+              router.replace("/sign-in");
+            } catch (e: any) {
+              Alert.alert(
+                "Error",
+                e?.message?.includes("requires-recent-login")
+                  ? "Please sign out and sign back in before deleting your account."
+                  : "Failed to delete account. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleDeleteTrip = (trip: Trip) => {
@@ -156,6 +187,17 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Upgrade to Pack Plus */}
+        <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setUpgradeVisible(true); }}
+            style={[styles.upgradeBtn, { backgroundColor: colors.primary }]}
+          >
+            <Feather name="zap" size={18} color="#fff" />
+            <Text style={styles.upgradeBtnText}>Upgrade to Pack Plus</Text>
+          </Pressable>
+        </View>
+
         {/* Sign out */}
         <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
           <Pressable
@@ -166,7 +208,31 @@ export default function ProfileScreen() {
             <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign out</Text>
           </Pressable>
         </View>
+
+        {/* Legal links */}
+        <View style={styles.legalRow}>
+          <Pressable onPress={() => Linking.openURL("https://gopacknow.com/privacy")}>
+            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Privacy Policy</Text>
+          </Pressable>
+          <Text style={[styles.legalDot, { color: colors.mutedForeground }]}>·</Text>
+          <Pressable onPress={() => Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}>
+            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Terms of Use</Text>
+          </Pressable>
+        </View>
+
+        {/* Delete account */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <Pressable onPress={handleDeleteAccount} style={styles.deleteAccountBtn}>
+            <Text style={[styles.deleteAccountText, { color: colors.destructive }]}>Delete account</Text>
+          </Pressable>
+        </View>
       </ScrollView>
+
+      <UpgradeModal
+        visible={upgradeVisible}
+        tripId=""
+        onClose={() => setUpgradeVisible(false)}
+      />
     </View>
   );
 }
@@ -210,9 +276,22 @@ const styles = StyleSheet.create({
   },
   tripName: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
   tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  upgradeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 10, borderRadius: 14, paddingVertical: 14,
+  },
+  upgradeBtnText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
   signOutBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 10, borderWidth: 1, borderRadius: 14, paddingVertical: 14,
   },
   signOutText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  legalRow: {
+    flexDirection: "row", justifyContent: "center", alignItems: "center",
+    gap: 8, marginTop: 16, marginBottom: 8,
+  },
+  legalLink: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  legalDot: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  deleteAccountBtn: { alignItems: "center", paddingVertical: 10 },
+  deleteAccountText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
 });
