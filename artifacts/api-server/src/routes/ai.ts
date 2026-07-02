@@ -140,7 +140,8 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 8000,
+      max_tokens: 16000,
+      system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Never start your response with words — start directly with the opening brace {.",
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -148,6 +149,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
     const data = await (response as unknown as globalThis.Response).json() as {
       content?: Array<{ type: string; text?: string }>;
       error?: { message: string };
+      stop_reason?: string;
     };
 
     if (!(response as unknown as globalThis.Response).ok) {
@@ -160,6 +162,10 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
+
+    if (data.stop_reason === "max_tokens") {
+      req.log.warn({ chars: allText.length }, "Itinerary response truncated at max_tokens");
+    }
 
     const cleanJson = extractJson(allText);
     const itinerary = JSON.parse(cleanJson);
@@ -204,7 +210,8 @@ Respond with ONLY valid JSON (no markdown):
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 1500,
+      max_tokens: 4000,
+      system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Start directly with {.",
       messages: [{ role: "user", content: prompt }],
     };
 
