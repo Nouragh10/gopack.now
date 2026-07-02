@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
+import { jsonrepair } from "jsonrepair";
 
 const router: IRouter = Router();
 
@@ -26,12 +27,17 @@ async function callAnthropic(body: object, retries = 3): Promise<Response> {
   throw new Error("Rate limit exceeded after retries. Please try again in a minute.");
 }
 
-function extractJson(text: string): string {
+function extractAndParseJson(text: string): unknown {
   const stripped = text
     .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
     .trim();
   const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-  return jsonMatch ? jsonMatch[0] : stripped;
+  const raw = jsonMatch ? jsonMatch[0] : stripped;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return JSON.parse(jsonrepair(raw));
+  }
 }
 
 router.post("/itinerary", async (req: Request, res: Response): Promise<void> => {
@@ -104,8 +110,8 @@ ${vibeGuide}
 1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
 2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
-4. Every activity "name" must be a SPECIFIC, real venue's official name within ${destination} — e.g. "Sagrada Família" not "Famous Cathedral", "Nobu Malibu" not "Nice Restaurant", "Central Park Rowboating" not "Outdoor Activity". Generic titles are forbidden.
-5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. If unsure, choose a well-known alternative.
+4. REAL VENUES ONLY — Every activity "name" must be a real, verifiable place that actually exists in ${destination} and can be found on Google Maps. Only use venues you are highly confident exist: famous landmarks, well-known restaurants, major museums, established bars, popular parks. If you are not certain a specific venue exists, use a well-known category anchor instead (e.g. "Mercado de San Miguel" not an invented market name). Never invent a venue name. Generic titles are also forbidden — "Famous Cathedral" is as bad as a made-up name.
+5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. If unsure, choose a well-known alternative that you are confident about.
 6. Descriptions: ONE sentence, max 15 words.
 7. Do not repeat the same venue or the same activity type more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
@@ -167,8 +173,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       req.log.warn({ chars: allText.length }, "Itinerary response truncated at max_tokens");
     }
 
-    const cleanJson = extractJson(allText);
-    const itinerary = JSON.parse(cleanJson);
+    const itinerary = extractAndParseJson(allText);
     res.json(itinerary);
   } catch (err) {
     req.log.error({ err }, "Failed to generate itinerary");
@@ -232,8 +237,7 @@ Respond with ONLY valid JSON (no markdown):
       .map((b) => b.text ?? "")
       .join("");
 
-    const cleanJson = extractJson(allText);
-    const packingResult = JSON.parse(cleanJson);
+    const packingResult = extractAndParseJson(allText);
     res.json(packingResult);
   } catch (err) {
     req.log.error({ err }, "Failed to generate packing list");
@@ -452,8 +456,7 @@ Respond with ONLY valid JSON, no markdown:
       .map((b) => b.text ?? "")
       .join("");
 
-    const cleanJson = extractJson(allText);
-    const result = JSON.parse(cleanJson);
+    const result = extractAndParseJson(allText);
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to suggest destinations");
@@ -559,8 +562,7 @@ Respond with ONLY valid JSON, no markdown:
       .map((b) => b.text ?? "")
       .join("");
 
-    const cleanJson = extractJson(allText);
-    const result = JSON.parse(cleanJson);
+    const result = extractAndParseJson(allText);
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to suggest accommodations");
@@ -716,7 +718,7 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
       return;
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
-    const result = JSON.parse(extractJson(allText));
+    const result = extractAndParseJson(allText) as any;
 
     // Fallback photos by accommodation type when og:image extraction yields nothing.
     // These are stable Unsplash photo IDs representing each category.
@@ -776,8 +778,7 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
     };
 
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
-    const cleanJson = extractJson(allText);
-    const result = JSON.parse(cleanJson);
+    const result = extractAndParseJson(allText);
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to pick accommodation");
@@ -868,8 +869,7 @@ Respond with ONLY valid JSON (no markdown):
       return;
     }
     const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
-    const cleanJson = extractJson(allText);
-    const newActivity = JSON.parse(cleanJson);
+    const newActivity = extractAndParseJson(allText);
     res.json({ activity: newActivity });
   } catch (err) {
     req.log.error({ err }, "Failed to redo activity");
