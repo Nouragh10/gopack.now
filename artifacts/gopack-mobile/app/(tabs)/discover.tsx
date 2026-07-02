@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { usePublicReviews } from "@/hooks/useFirebase";
+
+const CARD_WIDTH = Dimensions.get("window").width - 40;
 
 const VIBES = [
   { label: "Culture", icon: "book", color: "#9C5544" },
@@ -62,7 +65,7 @@ function BestThisMonth({ colors }: { colors: any }) {
           style={bStyles.image}
           contentFit="cover"
           transition={400}
-          placeholder="#2a2a2a"
+          placeholder="L02{U700~q-;_3-;M{xu00xu00xu"
         />
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.82)"]}
@@ -99,7 +102,7 @@ const bStyles = StyleSheet.create({
   root: { paddingHorizontal: 20, marginBottom: 28 },
   sectionLabel: { fontFamily: "DmSans_500Medium", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 },
   card: { borderRadius: 20, overflow: "hidden", height: 300, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
-  image: { ...StyleSheet.absoluteFillObject },
+  image: { position: "absolute", top: 0, left: 0, width: CARD_WIDTH, height: 300 },
   gradient: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between", padding: 16 },
   badgeRow: { flexDirection: "row" },
   badge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.22)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
