@@ -62,8 +62,9 @@ For EVERY activity, scrutinize the "name" field against your knowledge:
 - FLAG it if it is not a real, specific, verifiable place in ${destination} (e.g. you are not confident it exists / it sounds invented or generic).
 - FLAG it if it is permanently closed, demolished, out of business, or no longer operating.
 - FLAG it if it is a duplicate of another activity's venue elsewhere in the itinerary.
+- FLAG it if it is NOT located in the same city/area as the day's declared "city" field, or if it is far enough from the other activities that same day (a different neighborhood, suburb, or a long drive away) that it breaks a realistic, walkable-or-short-transit day plan.
 
-For every flagged activity, REPLACE it with a different, well-known, currently-operating real venue in ${destination} that fits the same "tag" and time slot — prefer iconic, long-established, famous places you are highly confident about over obscure ones. Keep every other field (time, tag, fromWish, suggester, matchedVibe, estimatedCost, labels, nearPrevious) unless it directly references the old name.
+For every flagged activity, REPLACE it with a different, well-known, currently-operating real venue that IS located in the day's declared "city" and close to the day's other activities, and fits the same "tag" and time slot — prefer iconic, long-established, famous places you are highly confident about over obscure ones. Keep every other field (time, tag, fromWish, suggester, matchedVibe, estimatedCost, labels, nearPrevious) unless it directly references the old name.
 
 Do NOT change anything about activities that already pass the checks — keep them byte-for-byte identical.
 
@@ -173,6 +174,7 @@ ${vibeGuide}
 
 ━━━ STRICT RULES ━━━
 0. LOCATION LOCK — Every single activity, restaurant, venue, and experience MUST be physically located in or immediately around ${destination}. Do NOT suggest activities in other cities, regions, or countries, even as a day trip. If a wish mentions a place outside ${destination}, adapt the spirit of it to something available in ${destination} instead.
+0b. SAME-AREA CLUSTERING — All activities within a SINGLE day must be in the same city and reasonably close to each other (same neighborhood/district, or at most a short taxi/metro ride apart — never a multi-hour drive or a trip requiring leaving the metro area). Order the day's activities so they flow geographically (e.g. don't bounce from the north side of town to the south and back). Every activity's "city" for that day must exactly match the day's declared "city" field — never mix venues from a different town, suburb, or region into a day assigned to another city.
 1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
 2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
@@ -903,6 +905,7 @@ ${task}
 
 Keep the same time slot (${activity.time}).
 Name: must be a real, specific venue that you are highly confident actually exists in ${city} and can be found on Google Maps — NOT generic like "a nice restaurant", and NOT invented. Prefer iconic, well-known, long-established places over obscure guesses.
+SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
 Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
 Cost: realistic USD per person estimate.
