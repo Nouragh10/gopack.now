@@ -107,15 +107,22 @@ Respond with ONLY the corrected, complete itinerary JSON in the exact same shape
   }
 }
 
-function findDuplicateSlots(itinerary: ItineraryShape): Array<{ dayNumber: unknown; time: unknown; name: string; tag: string }> {
+function findDuplicateSlots(itinerary: ItineraryShape): Array<{ dayNumber: unknown; time: unknown; name: string; tag: string; city: unknown; otherActivityNames: string[] }> {
   const seen = new Set<string>();
-  const dupes: Array<{ dayNumber: unknown; time: unknown; name: string; tag: string }> = [];
+  const dupes: Array<{ dayNumber: unknown; time: unknown; name: string; tag: string; city: unknown; otherActivityNames: string[] }> = [];
   for (const day of itinerary.days) {
     for (const activity of day.activities) {
       const key = (activity.name ?? "").toString().trim().toLowerCase();
       if (!key) continue;
       if (seen.has(key)) {
-        dupes.push({ dayNumber: (day as Record<string, unknown>).dayNumber, time: activity.time, name: activity.name, tag: activity.tag });
+        dupes.push({
+          dayNumber: (day as Record<string, unknown>).dayNumber,
+          time: activity.time,
+          name: activity.name,
+          tag: activity.tag,
+          city: (day as Record<string, unknown>).city,
+          otherActivityNames: day.activities.map((a) => (a.name ?? "").toString()).filter((n) => n && n.trim().toLowerCase() !== key),
+        });
       } else {
         seen.add(key);
       }
@@ -134,18 +141,20 @@ async function dedupeItineraryVenues(
 
   const usedNames = [...new Set(itinerary.days.flatMap((d) => d.activities.map((a) => (a.name ?? "").toString())))];
 
-  const repairPrompt = `This travel itinerary for ${destination} has duplicate venues — the same venue name was used more than once across different days. Below are the SPECIFIC duplicate slots that need a brand-new replacement venue (identified by day number + time + current name):
+  const repairPrompt = `This travel itinerary for ${destination} has duplicate venues — the same venue name was used more than once across different days. Below are the SPECIFIC duplicate slots that need a brand-new replacement venue (identified by day number + time + current name + that day's declared city + the day's other activities for location context):
 
-${dupes.map((d) => `- Day ${String(d.dayNumber)}, ${String(d.time)}: "${d.name}" (tag: ${d.tag})`).join("\n")}
+${dupes.map((d) => `- Day ${String(d.dayNumber)}, ${String(d.time)}: "${d.name}" (tag: ${d.tag}). This day's city is "${String(d.city)}". Other activities that same day (the replacement must be in the same neighborhood/area as these): ${d.otherActivityNames.length > 0 ? d.otherActivityNames.map((n) => `"${n}"`).join(", ") : "(none)"}`).join("\n")}
 
 All venue names already used anywhere in this itinerary (do NOT reuse any of these for the replacements):
 ${usedNames.map((n) => `- ${n}`).join("\n")}
 
-For each duplicate slot listed above, pick ONE new, different venue in ${destination} that fits the same tag and is in the same city/area as that day's other activities. The replacement MUST meet ALL of these:
+For each duplicate slot listed above, pick ONE new, different venue that fits the same tag. The replacement MUST meet ALL of these:
+- LOCATION LOCK — physically located in the exact city named for that slot (not just somewhere in ${destination} broadly — ${destination} may span multiple cities/towns/regions). Never place it in a different city, suburb, or region than the one declared for that day.
+- SAME-AREA — close to that day's other listed activities (same neighborhood/district, or at most a short taxi/metro ride) so the day stays geographically realistic. Do not pick something requiring a long drive or a trip out of the metro area from the other activities.
 - REAL and verifiable — a specific, well-known place you are highly confident actually exists (findable on Google Maps). Never invent a name.
 - CURRENTLY OPEN AND OPERATING as of 2025 — do NOT pick anything permanently closed, demolished, under indefinite closure, or out of business.
 - If the tag is "food" or "restaurant"-like, strongly prefer iconic, long-established, well-known institutions (10+ years operating) over trendy, small, or recently-opened spots — small restaurants close far more often and you are less likely to have reliable knowledge of their current status.
-- If you are not certain a specific venue exists and is open, use a well-known category anchor instead (e.g. a famous, long-running market or landmark) rather than a specific small business you're unsure about.
+- If you are not certain a specific venue exists, is open, and is in the right city, use a well-known category anchor instead (e.g. a famous, long-running market or landmark in that exact city) rather than a specific small business you're unsure about.
 
 Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER as listed above, each with just: {"dayNumber": <number>, "time": "<same time>", "name": "<new venue name>"}. No markdown, no explanation.`;
 
