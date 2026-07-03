@@ -141,7 +141,11 @@ ${dupes.map((d) => `- Day ${String(d.dayNumber)}, ${String(d.time)}: "${d.name}"
 All venue names already used anywhere in this itinerary (do NOT reuse any of these for the replacements):
 ${usedNames.map((n) => `- ${n}`).join("\n")}
 
-For each duplicate slot listed above, pick ONE new, different, real, currently-operating, well-known venue in ${destination} that fits the same tag and is in the same city/area as that day's other activities.
+For each duplicate slot listed above, pick ONE new, different venue in ${destination} that fits the same tag and is in the same city/area as that day's other activities. The replacement MUST meet ALL of these:
+- REAL and verifiable — a specific, well-known place you are highly confident actually exists (findable on Google Maps). Never invent a name.
+- CURRENTLY OPEN AND OPERATING as of 2025 — do NOT pick anything permanently closed, demolished, under indefinite closure, or out of business.
+- If the tag is "food" or "restaurant"-like, strongly prefer iconic, long-established, well-known institutions (10+ years operating) over trendy, small, or recently-opened spots — small restaurants close far more often and you are less likely to have reliable knowledge of their current status.
+- If you are not certain a specific venue exists and is open, use a well-known category anchor instead (e.g. a famous, long-running market or landmark) rather than a specific small business you're unsure about.
 
 Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER as listed above, each with just: {"dayNumber": <number>, "time": "<same time>", "name": "<new venue name>"}. No markdown, no explanation.`;
 
@@ -262,7 +266,7 @@ ${vibeGuide}
 2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
 4. REAL VENUES ONLY — Every activity "name" must be a real, verifiable place that actually exists in ${destination} and can be found on Google Maps. Only use venues you are highly confident exist: famous landmarks, well-known restaurants, major museums, established bars, popular parks. If you are not certain a specific venue exists, use a well-known category anchor instead (e.g. "Mercado de San Miguel" not an invented market name). Never invent a venue name. Generic titles are also forbidden — "Famous Cathedral" is as bad as a made-up name.
-5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. If unsure, choose a well-known alternative that you are confident about.
+5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. Restaurants and cafes close far more often than museums or landmarks — for any "food" or dining-related activity, strongly prefer iconic, long-established institutions (10+ years operating) that you are highly confident are still open, rather than trendy, small, or recently-opened spots you're less certain about. If unsure, choose a well-known alternative that you are confident about.
 6. Descriptions: ONE sentence, max 15 words.
 7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
