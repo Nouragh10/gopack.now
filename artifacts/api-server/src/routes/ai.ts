@@ -6,11 +6,12 @@ const router: IRouter = Router();
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function callAnthropic(body: object, retries = 3): Promise<Response> {
+async function callAnthropic(body: object, retries = 3, extraHeaders: Record<string, string> = {}): Promise<Response> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
     "anthropic-version": "2023-06-01",
+    ...extraHeaders,
   };
 
   for (let i = 0; i < retries; i++) {
@@ -56,31 +57,42 @@ async function verifyItineraryVenues(
   const venueNames = itinerary.days.flatMap((d) => d.activities.map((a) => a.name)).filter(Boolean);
   if (venueNames.length === 0) return itinerary;
 
-  const verifyPrompt = `You are a fact-checker reviewing a travel itinerary for ${destination}. Below is the full itinerary JSON.
+  const activityList = itinerary.days.flatMap((d) =>
+    d.activities.map((a) => `- "${a.name}" — Day ${String((d as Record<string, unknown>).dayNumber)}, declared city "${String((d as Record<string, unknown>).city)}", tag "${a.tag}"`),
+  ).join("\n");
 
-For EVERY activity, scrutinize the "name" field against your knowledge:
-- FLAG it if it is not a real, specific, verifiable place in ${destination} (e.g. you are not confident it exists / it sounds invented or generic).
-- FLAG it if it is permanently closed, demolished, out of business, or no longer operating.
-- FLAG it if it is a duplicate of another activity's venue elsewhere in the itinerary.
-- FLAG it if it is NOT located in the same city/area as the day's declared "city" field, or if it is far enough from the other activities that same day (a different neighborhood, suburb, or a long drive away) that it breaks a realistic, walkable-or-short-transit day plan.
+  const verifyPrompt = `You are a fact-checker reviewing a travel itinerary for ${destination}. You have access to a web_search tool — USE IT to check real, current information. Do not rely only on your training data, since venues open and close over time and your knowledge may be outdated.
 
-For every flagged activity, REPLACE it with a different, well-known, currently-operating real venue that IS located in the day's declared "city" and close to the day's other activities, and fits the same "tag" and time slot — prefer iconic, long-established, famous places you are highly confident about over obscure ones. Keep every other field (time, tag, fromWish, suggester, matchedVibe, estimatedCost, labels, nearPrevious) unless it directly references the old name.
+Here is the full list of activities in this itinerary:
+${activityList}
 
-Do NOT change anything about activities that already pass the checks — keep them byte-for-byte identical.
+For EVERY activity listed above, perform these checks:
+1. SEARCH THE WEB for each venue (especially anything tagged "food" or restaurant/cafe/bar-like — these close far more often than museums or landmarks) to confirm:
+   - It is a REAL, specific, existing place in ${destination} (not invented or generic).
+   - It is CURRENTLY OPEN AND OPERATING — not permanently closed, demolished, or out of business. Search things like "<venue name> <city> permanently closed" or "<venue name> <city> hours" to check.
+   - It is physically located in the exact declared city for that day, not a different city/suburb/region.
+2. Also flag (no search needed) if:
+   - It is a duplicate of another activity's venue elsewhere in the itinerary.
+   - It is far enough from the other activities that same day (different neighborhood, suburb, or a long drive) that it breaks a realistic, walkable-or-short-transit day plan.
+
+For every flagged activity (failed a check above, or you found evidence it's closed, or you could not verify it exists), REPLACE it with a different, well-known, currently-operating real venue that IS located in the day's declared city and close to the day's other activities, and fits the same "tag" and time slot. Prefer iconic, long-established, famous places you can verify via search over obscure ones.
+
+Do NOT change anything about activities that already pass all checks — keep them byte-for-byte identical.
+
+After you finish researching, respond with ONLY the corrected, complete itinerary JSON in the exact same shape as the input below (no markdown, no explanation, no preamble in your FINAL message — your final message must start directly with {).
 
 Itinerary JSON:
-${JSON.stringify(itinerary)}
-
-Respond with ONLY the corrected, complete itinerary JSON in the exact same shape (no markdown, no explanation, no preamble — start directly with {).`;
+${JSON.stringify(itinerary)}`;
 
   try {
     const body = {
-      model: "claude-haiku-4-5",
+      model: "claude-sonnet-4-5",
       max_tokens: 16000,
-      system: "You are a JSON API. Always respond with only valid JSON matching the input shape. No preamble, no explanation, no markdown code blocks. Start directly with {.",
+      system: "You are a fact-checking JSON API with web search access. Investigate using web search first, then your FINAL response must be only valid JSON matching the input shape — no preamble, no explanation, no markdown code blocks, starting directly with {.",
       messages: [{ role: "user", content: verifyPrompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 25 }],
     };
-    const response = await callAnthropic(body);
+    const response = await callAnthropic(body, 3, { "anthropic-beta": "web-search-2025-03-05" });
     const data = await (response as unknown as globalThis.Response).json() as {
       content?: Array<{ type: string; text?: string }>;
       error?: { message: string };
@@ -90,7 +102,8 @@ Respond with ONLY the corrected, complete itinerary JSON in the exact same shape
       log.warn({ data }, "Venue verification pass failed, keeping original itinerary");
       return itinerary;
     }
-    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const textBlocks = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "");
+    const allText = textBlocks[textBlocks.length - 1] ?? "";
     if (data.stop_reason === "max_tokens") {
       log.warn({ chars: allText.length }, "Venue verification response truncated, keeping original itinerary");
       return itinerary;
@@ -338,9 +351,9 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
     }
 
     const itinerary = extractAndParseJson(allText) as ItineraryShape;
-    const verifiedItinerary = await verifyItineraryVenues(itinerary, destination, req.log);
-    const dedupedItinerary = await dedupeItineraryVenues(verifiedItinerary, destination, req.log);
-    res.json(dedupedItinerary);
+    const dedupedItinerary = await dedupeItineraryVenues(itinerary, destination, req.log);
+    const verifiedItinerary = await verifyItineraryVenues(dedupedItinerary, destination, req.log);
+    res.json(verifiedItinerary);
   } catch (err) {
     req.log.error({ err }, "Failed to generate itinerary");
     res.status(500).json({ error: (err as Error).message || "Failed to generate itinerary" });
