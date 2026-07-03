@@ -107,6 +107,89 @@ Respond with ONLY the corrected, complete itinerary JSON in the exact same shape
   }
 }
 
+function findDuplicateSlots(itinerary: ItineraryShape): Array<{ dayNumber: unknown; time: unknown; name: string; tag: string }> {
+  const seen = new Set<string>();
+  const dupes: Array<{ dayNumber: unknown; time: unknown; name: string; tag: string }> = [];
+  for (const day of itinerary.days) {
+    for (const activity of day.activities) {
+      const key = (activity.name ?? "").toString().trim().toLowerCase();
+      if (!key) continue;
+      if (seen.has(key)) {
+        dupes.push({ dayNumber: (day as Record<string, unknown>).dayNumber, time: activity.time, name: activity.name, tag: activity.tag });
+      } else {
+        seen.add(key);
+      }
+    }
+  }
+  return dupes;
+}
+
+async function dedupeItineraryVenues(
+  itinerary: ItineraryShape,
+  destination: string,
+  log: { warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void },
+): Promise<ItineraryShape> {
+  const dupes = findDuplicateSlots(itinerary);
+  if (dupes.length === 0) return itinerary;
+
+  const usedNames = [...new Set(itinerary.days.flatMap((d) => d.activities.map((a) => (a.name ?? "").toString())))];
+
+  const repairPrompt = `This travel itinerary for ${destination} has duplicate venues — the same venue name was used more than once across different days. Below are the SPECIFIC duplicate slots that need a brand-new replacement venue (identified by day number + time + current name):
+
+${dupes.map((d) => `- Day ${String(d.dayNumber)}, ${String(d.time)}: "${d.name}" (tag: ${d.tag})`).join("\n")}
+
+All venue names already used anywhere in this itinerary (do NOT reuse any of these for the replacements):
+${usedNames.map((n) => `- ${n}`).join("\n")}
+
+For each duplicate slot listed above, pick ONE new, different, real, currently-operating, well-known venue in ${destination} that fits the same tag and is in the same city/area as that day's other activities.
+
+Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER as listed above, each with just: {"dayNumber": <number>, "time": "<same time>", "name": "<new venue name>"}. No markdown, no explanation.`;
+
+  try {
+    const body = {
+      model: "claude-haiku-4-5",
+      max_tokens: 2000,
+      system: "You are a JSON API. Always respond with only a valid JSON array. No preamble, no explanation, no markdown code blocks.",
+      messages: [{ role: "user", content: repairPrompt }],
+    };
+    const response = await callAnthropic(body);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+    };
+    if (!(response as unknown as globalThis.Response).ok) {
+      log.warn({ data }, "Dedup repair pass failed, keeping itinerary with duplicates");
+      return itinerary;
+    }
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const replacements = extractAndParseJson(allText) as Array<{ dayNumber: unknown; time: unknown; name: string }>;
+    if (!Array.isArray(replacements)) {
+      log.warn({}, "Dedup repair returned non-array, keeping itinerary with duplicates");
+      return itinerary;
+    }
+
+    const replacementQueue = [...replacements];
+    for (const day of itinerary.days) {
+      for (const activity of day.activities) {
+        const key = (activity.name ?? "").toString().trim().toLowerCase();
+        const dupeIndex = dupes.findIndex(
+          (d) => d.dayNumber === (day as Record<string, unknown>).dayNumber && d.time === activity.time && d.name.toString().trim().toLowerCase() === key,
+        );
+        if (dupeIndex !== -1) {
+          const replacement = replacementQueue.shift();
+          if (replacement?.name) {
+            activity.name = replacement.name;
+          }
+        }
+      }
+    }
+    return itinerary;
+  } catch (err) {
+    log.error({ err }, "Dedup repair pass threw, keeping itinerary with duplicates");
+    return itinerary;
+  }
+}
+
 router.post("/itinerary", async (req: Request, res: Response): Promise<void> => {
   const parsed = GenerateItineraryBody.safeParse(req.body);
   if (!parsed.success) {
@@ -181,7 +264,7 @@ ${vibeGuide}
 4. REAL VENUES ONLY — Every activity "name" must be a real, verifiable place that actually exists in ${destination} and can be found on Google Maps. Only use venues you are highly confident exist: famous landmarks, well-known restaurants, major museums, established bars, popular parks. If you are not certain a specific venue exists, use a well-known category anchor instead (e.g. "Mercado de San Miguel" not an invented market name). Never invent a venue name. Generic titles are also forbidden — "Famous Cathedral" is as bad as a made-up name.
 5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. If unsure, choose a well-known alternative that you are confident about.
 6. Descriptions: ONE sentence, max 15 words.
-7. Do not repeat the same venue or the same activity type more than once per day.
+7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
 
@@ -243,7 +326,8 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
     const itinerary = extractAndParseJson(allText) as ItineraryShape;
     const verifiedItinerary = await verifyItineraryVenues(itinerary, destination, req.log);
-    res.json(verifiedItinerary);
+    const dedupedItinerary = await dedupeItineraryVenues(verifiedItinerary, destination, req.log);
+    res.json(dedupedItinerary);
   } catch (err) {
     req.log.error({ err }, "Failed to generate itinerary");
     res.status(500).json({ error: (err as Error).message || "Failed to generate itinerary" });
@@ -856,13 +940,14 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
 });
 
 router.post("/redo-activity", async (req: Request, res: Response): Promise<void> => {
-  const { activity, city, theme, destination, redoType, otherActivities } = req.body as {
+  const { activity, city, theme, destination, redoType, otherActivities, allTripActivities } = req.body as {
     activity: { name: string; description: string; tag: string; time: string; estimatedCost: number };
     city: string;
     theme: string;
     destination: string;
     redoType: "same_type" | "whole";
     otherActivities: string[];
+    allTripActivities?: string[];
   };
 
   if (!activity || !city || !destination || !redoType) {
@@ -872,6 +957,11 @@ router.post("/redo-activity", async (req: Request, res: Response): Promise<void>
 
   const others = (otherActivities ?? []).length > 0
     ? `\nActivities already on this day — do NOT repeat these:\n${(otherActivities ?? []).map((a: string) => `- ${a}`).join("\n")}`
+    : "";
+
+  const usedElsewhere = [...new Set(allTripActivities ?? [])];
+  const tripWide = usedElsewhere.length > 0
+    ? `\nVenues already used elsewhere in this trip (on OTHER days too) — do NOT reuse any of these:\n${usedElsewhere.map((a) => `- ${a}`).join("\n")}`
     : "";
 
   const sameTypeHint: Record<string, string> = {
@@ -900,6 +990,7 @@ Destination: ${destination}
 City: ${city}
 Day theme: ${theme}
 ${others}
+${tripWide}
 
 ${task}
 

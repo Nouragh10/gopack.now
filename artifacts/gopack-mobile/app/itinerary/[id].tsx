@@ -567,6 +567,7 @@ export default function ItineraryScreen() {
         try {
           const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
           const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
+          const allTripActivities = days.flatMap((d) => d.activities.map((a) => a.name)).filter((n) => n !== act.name);
           const resp = await fetch(`${baseUrl}/api/redo-activity`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -577,6 +578,7 @@ export default function ItineraryScreen() {
               destination: trip?.destination ?? "",
               redoType,
               otherActivities,
+              allTripActivities,
             }),
           });
           if (resp.ok) {
