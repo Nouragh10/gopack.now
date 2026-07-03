@@ -3,13 +3,16 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,7 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { signOut, deleteAccount } from "@/lib/firebase";
-import { Trip, deleteTrip, leaveTrip, useTrips } from "@/hooks/useFirebase";
+import { Trip, deleteTrip, leaveTrip, useTrips, wipeUserData } from "@/hooks/useFirebase";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 export default function ProfileScreen() {
@@ -28,6 +31,10 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [tripsExpanded, setTripsExpanded] = useState(false);
   const [upgradeVisible, setUpgradeVisible] = useState(false);
+  const [passwordPromptVisible, setPasswordPromptVisible] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -49,6 +56,30 @@ export default function ProfileScreen() {
     router.replace("/sign-in");
   };
 
+  const finishDeleteAccount = async (password?: string) => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteAccount(password, () => wipeUserData(uid));
+      setPasswordPromptVisible(false);
+      setDeletePassword("");
+      router.replace("/sign-in");
+    } catch (e: any) {
+      if (e?.code === "auth/needs-password") {
+        setPasswordPromptVisible(true);
+      } else if (e?.code === "auth/wrong-password" || e?.code === "auth/invalid-credential") {
+        setDeleteError("Incorrect password. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to delete account. Please try again.");
+        setPasswordPromptVisible(false);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
@@ -59,22 +90,18 @@ export default function ProfileScreen() {
         {
           text: "Delete Account",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteAccount();
-              router.replace("/sign-in");
-            } catch (e: any) {
-              Alert.alert(
-                "Error",
-                e?.message?.includes("requires-recent-login")
-                  ? "Please sign out and sign back in before deleting your account."
-                  : "Failed to delete account. Please try again.",
-              );
-            }
-          },
+          onPress: () => finishDeleteAccount(),
         },
       ],
     );
+  };
+
+  const handleConfirmPasswordDelete = () => {
+    if (!deletePassword.trim()) {
+      setDeleteError("Please enter your password.");
+      return;
+    }
+    finishDeleteAccount(deletePassword.trim());
   };
 
   const handleDeleteTrip = (trip: Trip) => {
@@ -233,6 +260,51 @@ export default function ProfileScreen() {
         tripId=""
         onClose={() => setUpgradeVisible(false)}
       />
+
+      <Modal
+        visible={passwordPromptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setPasswordPromptVisible(false); setDeletePassword(""); setDeleteError(""); }}
+      >
+        <View style={styles.passwordOverlay}>
+          <View style={[styles.passwordCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.passwordTitle, { color: colors.foreground }]}>Confirm your password</Text>
+            <Text style={[styles.passwordSubtitle, { color: colors.mutedForeground }]}>
+              For your security, please re-enter your password to permanently delete your account.
+            </Text>
+            <TextInput
+              style={[styles.passwordInput, { borderColor: colors.border, color: colors.foreground }]}
+              placeholder="Password"
+              placeholderTextColor={colors.mutedForeground}
+              secureTextEntry
+              autoFocus
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              onSubmitEditing={handleConfirmPasswordDelete}
+            />
+            {!!deleteError && <Text style={styles.passwordError}>{deleteError}</Text>}
+            <Pressable
+              onPress={handleConfirmPasswordDelete}
+              disabled={deleting}
+              style={[styles.passwordConfirmBtn, { backgroundColor: colors.destructive, opacity: deleting ? 0.7 : 1 }]}
+            >
+              {deleting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.passwordConfirmText}>Delete my account</Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => { setPasswordPromptVisible(false); setDeletePassword(""); setDeleteError(""); }}
+              style={styles.passwordCancelBtn}
+              disabled={deleting}
+            >
+              <Text style={[styles.passwordCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -294,4 +366,22 @@ const styles = StyleSheet.create({
   legalDot: { fontFamily: "DmSans_400Regular", fontSize: 12 },
   deleteAccountBtn: { alignItems: "center", paddingVertical: 10 },
   deleteAccountText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  passwordOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center",
+    alignItems: "center", paddingHorizontal: 28,
+  },
+  passwordCard: { width: "100%", borderRadius: 20, padding: 22 },
+  passwordTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 6 },
+  passwordSubtitle: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18, marginBottom: 16 },
+  passwordInput: {
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    fontFamily: "DmSans_400Regular", fontSize: 15, marginBottom: 8,
+  },
+  passwordError: { fontFamily: "DmSans_400Regular", fontSize: 13, color: "#ef4444", marginBottom: 8 },
+  passwordConfirmBtn: {
+    borderRadius: 12, paddingVertical: 14, alignItems: "center", justifyContent: "center", marginTop: 4,
+  },
+  passwordConfirmText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
+  passwordCancelBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
+  passwordCancelText: { fontFamily: "DmSans_400Regular", fontSize: 14 },
 });

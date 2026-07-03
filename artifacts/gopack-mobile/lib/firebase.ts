@@ -3,10 +3,12 @@ import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   deleteUser,
+  EmailAuthProvider,
   getAuth,
   inMemoryPersistence,
   initializeAuth,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendEmailVerification,
   signInAnonymously,
   signInWithEmailAndPassword,
@@ -75,10 +77,59 @@ export const signUpWithEmail = async (
 
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);
-export const deleteAccount = async () => {
+
+async function isSessionRecent(user: User): Promise<boolean> {
+  try {
+    const tokenResult = await user.getIdTokenResult();
+    const authTime = new Date(tokenResult.authTime).getTime();
+    return Date.now() - authTime < 4 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Deletes the signed-in user's Firebase Auth account.
+ *
+ * Firebase requires a "recent" sign-in for this sensitive operation. If the
+ * session is stale and the account uses email/password, this throws
+ * `auth/needs-password` so the caller can prompt for a password and retry
+ * with it (which reauthenticates before deleting). Anonymous sessions have
+ * no credential to reauthenticate with, so a stale anonymous session just
+ * gets signed out after `wipeData` runs — the record holds no personal data
+ * and can never be signed back into.
+ *
+ * `wipeData` (if provided) runs only after we're confident deletion will
+ * proceed (session confirmed recent, or reauthentication just succeeded),
+ * and always before the account is actually removed/signed out.
+ */
+export const deleteAccount = async (password?: string, wipeData?: () => Promise<void>) => {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("No user signed in");
-  await deleteUser(currentUser);
+
+  const recent = await isSessionRecent(currentUser);
+
+  if (!recent && currentUser.email) {
+    if (!password) {
+      const needsPassword = new Error("Password required to confirm deletion");
+      (needsPassword as any).code = "auth/needs-password";
+      throw needsPassword;
+    }
+    const credential = EmailAuthProvider.credential(currentUser.email, password);
+    await reauthenticateWithCredential(currentUser, credential);
+  }
+
+  if (wipeData) await wipeData();
+
+  try {
+    await deleteUser(currentUser);
+  } catch (e: any) {
+    if (e?.code === "auth/requires-recent-login" && currentUser.isAnonymous) {
+      await firebaseSignOut(auth);
+      return;
+    }
+    throw e;
+  }
 };
 
 export { equalTo, get, onValue, orderByChild, push, query, ref, set, update };

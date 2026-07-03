@@ -840,6 +840,44 @@ export async function leaveTrip(tripId: string, uid: string) {
   try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
 }
 
+/**
+ * Permanently removes all trip data associated with a user before their
+ * account is deleted: trips they host are deleted entirely, trips they've
+ * only joined have their membership removed, and the userTrips index is
+ * cleared. Best-effort — failures on individual trips are swallowed so one
+ * bad record can't block the rest of account deletion.
+ */
+export async function wipeUserData(uid: string) {
+  let firebaseIds: string[] = [];
+  try {
+    const snap = await get(ref(db, `userTrips/${uid}`));
+    if (snap.exists()) {
+      firebaseIds = Object.keys(snap.val() as Record<string, unknown>);
+    }
+  } catch {}
+
+  const localIds = await getLocalTripIds(uid);
+  const tripIds = [...new Set([...firebaseIds, ...localIds])];
+
+  await Promise.all(
+    tripIds.map(async (tripId) => {
+      try {
+        const tripSnap = await get(ref(db, `trips/${tripId}`));
+        if (!tripSnap.exists()) return;
+        const trip = tripSnap.val() as Trip;
+        if (trip.hostMemberId === uid) {
+          await deleteTrip(tripId, uid);
+        } else {
+          await leaveTrip(tripId, uid);
+        }
+      } catch {}
+    }),
+  );
+
+  try { await set(ref(db, `userTrips/${uid}`), null); } catch {}
+  try { await AsyncStorage.removeItem(storageKey(uid)); } catch {}
+}
+
 export async function confirmPack(tripId: string) {
   await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
 }
