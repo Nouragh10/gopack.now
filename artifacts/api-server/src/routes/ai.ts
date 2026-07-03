@@ -40,6 +40,72 @@ function extractAndParseJson(text: string): unknown {
   }
 }
 
+type ItineraryActivity = {
+  name: string;
+  tag: string;
+  [key: string]: unknown;
+};
+type ItineraryDay = { activities: ItineraryActivity[]; [key: string]: unknown };
+type ItineraryShape = { days: ItineraryDay[]; [key: string]: unknown };
+
+async function verifyItineraryVenues(
+  itinerary: ItineraryShape,
+  destination: string,
+  log: { warn: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void },
+): Promise<ItineraryShape> {
+  const venueNames = itinerary.days.flatMap((d) => d.activities.map((a) => a.name)).filter(Boolean);
+  if (venueNames.length === 0) return itinerary;
+
+  const verifyPrompt = `You are a fact-checker reviewing a travel itinerary for ${destination}. Below is the full itinerary JSON.
+
+For EVERY activity, scrutinize the "name" field against your knowledge:
+- FLAG it if it is not a real, specific, verifiable place in ${destination} (e.g. you are not confident it exists / it sounds invented or generic).
+- FLAG it if it is permanently closed, demolished, out of business, or no longer operating.
+- FLAG it if it is a duplicate of another activity's venue elsewhere in the itinerary.
+
+For every flagged activity, REPLACE it with a different, well-known, currently-operating real venue in ${destination} that fits the same "tag" and time slot — prefer iconic, long-established, famous places you are highly confident about over obscure ones. Keep every other field (time, tag, fromWish, suggester, matchedVibe, estimatedCost, labels, nearPrevious) unless it directly references the old name.
+
+Do NOT change anything about activities that already pass the checks — keep them byte-for-byte identical.
+
+Itinerary JSON:
+${JSON.stringify(itinerary)}
+
+Respond with ONLY the corrected, complete itinerary JSON in the exact same shape (no markdown, no explanation, no preamble — start directly with {).`;
+
+  try {
+    const body = {
+      model: "claude-haiku-4-5",
+      max_tokens: 16000,
+      system: "You are a JSON API. Always respond with only valid JSON matching the input shape. No preamble, no explanation, no markdown code blocks. Start directly with {.",
+      messages: [{ role: "user", content: verifyPrompt }],
+    };
+    const response = await callAnthropic(body);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message: string };
+      stop_reason?: string;
+    };
+    if (!(response as unknown as globalThis.Response).ok) {
+      log.warn({ data }, "Venue verification pass failed, keeping original itinerary");
+      return itinerary;
+    }
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    if (data.stop_reason === "max_tokens") {
+      log.warn({ chars: allText.length }, "Venue verification response truncated, keeping original itinerary");
+      return itinerary;
+    }
+    const verified = extractAndParseJson(allText) as ItineraryShape;
+    if (!verified?.days || !Array.isArray(verified.days)) {
+      log.warn({}, "Venue verification returned malformed shape, keeping original itinerary");
+      return itinerary;
+    }
+    return verified;
+  } catch (err) {
+    log.error({ err }, "Venue verification pass threw, keeping original itinerary");
+    return itinerary;
+  }
+}
+
 router.post("/itinerary", async (req: Request, res: Response): Promise<void> => {
   const parsed = GenerateItineraryBody.safeParse(req.body);
   if (!parsed.success) {
@@ -173,8 +239,9 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       req.log.warn({ chars: allText.length }, "Itinerary response truncated at max_tokens");
     }
 
-    const itinerary = extractAndParseJson(allText);
-    res.json(itinerary);
+    const itinerary = extractAndParseJson(allText) as ItineraryShape;
+    const verifiedItinerary = await verifyItineraryVenues(itinerary, destination, req.log);
+    res.json(verifiedItinerary);
   } catch (err) {
     req.log.error({ err }, "Failed to generate itinerary");
     res.status(500).json({ error: (err as Error).message || "Failed to generate itinerary" });
@@ -835,7 +902,8 @@ ${others}
 ${task}
 
 Keep the same time slot (${activity.time}).
-Name: must be a real, specific venue or place — NOT generic like "a nice restaurant".
+Name: must be a real, specific venue that you are highly confident actually exists in ${city} and can be found on Google Maps — NOT generic like "a nice restaurant", and NOT invented. Prefer iconic, well-known, long-established places over obscure guesses.
+Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
 Cost: realistic USD per person estimate.
 
