@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Pressable,
   StyleSheet,
@@ -168,6 +169,26 @@ export function UpgradeModal({ visible, reason, onClose, onPurchaseSuccess }: Pr
             )}
           </Pressable>
 
+          <Text style={[styles.disclosureText, { color: colors.mutedForeground }]}>
+            {selectedPlan === "yearly"
+              ? "Pack Plus (Yearly) — $19.99 per year, billed annually."
+              : "Pack Plus (Monthly) — $9.99 per month, billed monthly."}{" "}
+            Subscription automatically renews unless auto-renew is turned off at least 24 hours
+            before the end of the current period. Your account will be charged for renewal within
+            24 hours prior to the end of the current period. Manage or cancel anytime in your
+            device's Account Settings.
+          </Text>
+
+          <View style={styles.legalRow}>
+            <Pressable onPress={() => Linking.openURL("https://gopacknow.com/privacy")}>
+              <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Privacy Policy</Text>
+            </Pressable>
+            <Text style={[styles.legalDot, { color: colors.mutedForeground }]}>·</Text>
+            <Pressable onPress={() => Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}>
+              <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Terms of Use (EULA)</Text>
+            </Pressable>
+          </View>
+
           <Pressable onPress={handleRestore} disabled={isLoading} style={styles.restore}>
             <Text style={[styles.restoreText, { color: colors.mutedForeground }]}>Restore purchases</Text>
           </Pressable>
@@ -223,4 +244,8 @@ const styles = StyleSheet.create({
   restoreText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
   dismiss: { alignItems: "center", paddingVertical: 8 },
   dismissText: { fontFamily: "DmSans_400Regular", fontSize: 14 },
+  disclosureText: { fontFamily: "DmSans_400Regular", fontSize: 11, lineHeight: 15, marginBottom: 12, textAlign: "center" },
+  legalRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 8 },
+  legalLink: { fontFamily: "DmSans_400Regular", fontSize: 12, textDecorationLine: "underline" },
+  legalDot: { fontFamily: "DmSans_400Regular", fontSize: 12 },
 });
