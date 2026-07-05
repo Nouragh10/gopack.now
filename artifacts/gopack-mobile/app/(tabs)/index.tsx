@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useTrips, usePacks, deletePack } from "@/hooks/useFirebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
+import { Mascot } from "@/components/Mascot";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -134,6 +135,19 @@ export default function DashboardScreen() {
             Plan your next group trip — everyone wishes, everyone votes, AI builds the itinerary.
           </Text>
         </View>
+
+        {/* No trips yet — Backpack Buddy welcome */}
+        {trips.length === 0 && (
+          <View style={styles.emptyStateWrap}>
+            <Mascot name="backpack-buddy" size={140} />
+            <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>
+              No trips yet — let's fix that!
+            </Text>
+            <Text style={[styles.emptyStateSub, { color: colors.mutedForeground }]}>
+              Start a new trip or join one your pack already created.
+            </Text>
+          </View>
+        )}
 
         {/* Active trip pill */}
         {mostRecentTrip && (
@@ -308,6 +322,24 @@ const styles = StyleSheet.create({
   greetingText: { fontFamily: "DmSans_400Regular", fontSize: 14, marginBottom: 6 },
   heroTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30, lineHeight: 38, marginBottom: 8 },
   heroSub: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20 },
+  emptyStateWrap: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingBottom: 24,
+    gap: 4,
+  },
+  emptyStateTitle: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 17,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  emptyStateSub: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
   activeCard: {
     marginHorizontal: 20,
     borderRadius: 14,

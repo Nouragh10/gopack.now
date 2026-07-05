@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { usePacks, renamePack, removePackMember } from "@/hooks/useFirebase";
+import { Mascot } from "@/components/Mascot";
 
 const AVATAR_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -133,6 +134,11 @@ export default function GroupDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+        {/* Luggage Crew — group identity */}
+        <View style={styles.mascotRow}>
+          <Mascot name="luggage-crew" size={96} />
+        </View>
+
         {/* Stats */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -248,6 +254,7 @@ const styles = StyleSheet.create({
   headerName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, letterSpacing: -0.3 },
   editBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginTop: 6 },
 
+  mascotRow: { alignItems: "center", paddingTop: 12 },
   statsRow: { flexDirection: "row", padding: 16, gap: 10 },
   statCard: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12, alignItems: "center" },
   statNum: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },

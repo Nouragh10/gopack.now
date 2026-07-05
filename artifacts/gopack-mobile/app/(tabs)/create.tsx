@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { createTrip, joinTrip, setCollectingPreferences, usePacks, invitePackToTrip, Pack } from "@/hooks/useFirebase";
+import { Mascot } from "@/components/Mascot";
 
 const VIBES = [
   "Adventure", "Culture", "Food", "Beach",
@@ -417,6 +418,9 @@ export default function CreateScreen() {
           <View style={{ flex: 1 }} />
           <View style={[styles.inviteSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.inviteHandle, { backgroundColor: colors.border }]} />
+            <View style={{ alignItems: "center", marginBottom: 4 }}>
+              <Mascot name="luggage-crew" size={80} />
+            </View>
             <Text style={[styles.inviteTitle, { color: colors.foreground }]}>Invite your Pack</Text>
             <Text style={[styles.inviteSub, { color: colors.mutedForeground }]}>
               Tap a pack to send everyone an in-app invite instantly.

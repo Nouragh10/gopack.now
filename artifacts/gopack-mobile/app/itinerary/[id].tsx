@@ -38,6 +38,7 @@ import {
   setTripPremium,
   useTrip,
 } from "@/hooks/useFirebase";
+import { Mascot } from "@/components/Mascot";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useSubscription } from "@/lib/revenuecat";
 
@@ -710,8 +711,8 @@ export default function ItineraryScreen() {
   if (!trip || !itinerary) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Feather name="alert-circle" size={36} color={colors.mutedForeground} />
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No itinerary yet.</Text>
+        <Mascot name="map-mate" size={130} />
+        <Text style={[styles.emptyText, { color: colors.mutedForeground, marginTop: 8 }]}>No itinerary yet.</Text>
         <Pressable onPress={() => router.back()} style={[styles.backLink, { borderColor: colors.border }]}>
           <Text style={[styles.backLinkText, { color: colors.foreground }]}>Go back</Text>
         </Pressable>
@@ -1198,10 +1199,10 @@ export default function ItineraryScreen() {
         onPurchaseSuccess={async () => { if (id) await setTripPremium(id); }}
       />
 
-      {/* Pack saved toast */}
+      {/* Pack saved toast — Ticket Pal celebrates the win */}
       {packSavedName ? (
         <View style={[styles.savedToast, { backgroundColor: colors.primary }]} pointerEvents="none">
-          <Feather name="check-circle" size={16} color="#fff" />
+          <Mascot name="ticket-pal" size={40} style={{ marginRight: -4 }} />
           <Text style={styles.savedToastText}>"{packSavedName}" saved as a Pack!</Text>
         </View>
       ) : null}

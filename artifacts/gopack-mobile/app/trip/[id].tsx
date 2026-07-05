@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { GoPackIcon } from "@/components/GoPackLogo";
+import { Mascot } from "@/components/Mascot";
 import {
   addWish,
   lockVotes,
@@ -1101,6 +1102,9 @@ export default function TripHubScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowInvite(false)}>
           <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <View style={{ alignItems: "center", marginBottom: 4 }}>
+              <Mascot name="luggage-crew" size={80} />
+            </View>
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Invite the pack</Text>
               <Pressable onPress={() => setShowInvite(false)}>
