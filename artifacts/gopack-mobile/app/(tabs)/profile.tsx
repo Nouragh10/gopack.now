@@ -45,6 +45,22 @@ export default function ProfileScreen() {
     }, [refetch]),
   );
 
+  // Dev-only hook to force-render account deletion UI states for screenshots/demos
+  // WITHOUT ever calling the real deleteAccount() flow. Never wire this to real deletion.
+  React.useEffect(() => {
+    if (!__DEV__ || Platform.OS !== "web") return;
+    const params = new URLSearchParams(window.location.search);
+    const state = params.get("e2eDeleteState");
+    if (state === "password") {
+      setPasswordPromptVisible(true);
+    } else if (state === "deleting") {
+      setPasswordPromptVisible(true);
+      setDeletePassword("••••••••");
+      setDeleting(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const displayName = user?.displayName ?? (user?.isAnonymous ? "Guest" : "Explorer");
   const initial = displayName[0].toUpperCase();
   const totalDays = trips.reduce((sum, t) => sum + (t.days ?? 0), 0);

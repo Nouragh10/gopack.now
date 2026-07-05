@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/account-deletion-demo/"
+title = "GoPackNow Account Deletion Demo"
+version = "1.0.0"
+id = "artifacts/gopack-account-deletion-demo"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/account-deletion-demo/" ]
+localPort = 26265
+
+[services.development]
+run = "pnpm --filter @workspace/gopack-account-deletion-demo run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gopack-account-deletion-demo", "run", "build" ]
+publicDir = "artifacts/gopack-account-deletion-demo/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26265"
+BASE_PATH = "/account-deletion-demo/"
