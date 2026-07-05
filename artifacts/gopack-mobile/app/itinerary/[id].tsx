@@ -482,6 +482,16 @@ export default function ItineraryScreen() {
   const [savePackError, setSavePackError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!__DEV__ || Platform.OS !== "web") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("e2eUpgrade") === "1") {
+      setUpgradeReason(params.get("e2eUpgradeReason") ?? "You've used your free redo for this trip.");
+      setShowUpgrade(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!trip?.itinerary || !user || !id) return;
     const isHost = trip.hostMemberId === user.uid;
     const memberCount = Object.keys(trip.members ?? {}).length;

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -34,6 +34,32 @@ export default function SignInScreen() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resent, setResent] = useState(false);
+
+  useEffect(() => {
+    if (!__DEV__ || Platform.OS !== "web") return;
+    const params = new URLSearchParams(window.location.search);
+    const devEmail = params.get("e2eEmail");
+    const devPassword = params.get("e2ePassword");
+    if (!devEmail || !devPassword) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const cred = await signInWithEmail(devEmail, devPassword);
+        if (!cred.user.emailVerified) {
+          setEmail(devEmail);
+          setPassword(devPassword);
+          setMode("verify");
+        } else {
+          router.replace("/(tabs)");
+        }
+      } catch (e: any) {
+        setError(e?.message ?? "Dev auto-login failed.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
