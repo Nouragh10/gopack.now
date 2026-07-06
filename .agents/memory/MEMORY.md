@@ -5,3 +5,4 @@
 - [expo-clipboard version for SDK 54](expo-clipboard-sdk54.md) — expo-clipboard for Expo SDK 54 is ~8.0.8; plain `pnpm add expo-clipboard` installs wrong major; pin explicitly
 - [AI venue verification needs live web search](ai-venue-verification.md) — LLM training data can't know current open/closed status; prompt-only fixes fail, must use real search tool
 - [Stale git lock files block bash git ops](git-lock-workaround.md) — bash tool blocks any write touching `.git/*.lock`; clear + git add/commit/push via the code_execution sandbox instead
+- [Firebase anonymous auth disabled](firebase-anon-auth-disabled.md) — gopack's "Continue as guest" fails with ADMIN_ONLY_OPERATION; blocks e2e tests needing login

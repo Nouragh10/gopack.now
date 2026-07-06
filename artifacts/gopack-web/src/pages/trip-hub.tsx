@@ -69,6 +69,10 @@ export default function TripHub() {
 
   const handleGenerateItinerary = () => {
     if (!trip) return;
+    if (!trip.destination) {
+      setItineraryError("A destination hasn't been decided for this trip yet.");
+      return;
+    }
     if (!canGenerateItinerary) {
       setUpgradeReason("You've used your free itinerary generations");
       setShowUpgrade(true);
@@ -91,6 +95,10 @@ export default function TripHub() {
 
   const handleGeneratePacking = () => {
     if (!trip) return;
+    if (!trip.destination) {
+      setPackingError("A destination hasn't been decided for this trip yet.");
+      return;
+    }
     if (!canGeneratePacking) {
       setUpgradeReason("You've used your free packing list generations");
       setShowUpgrade(true);
@@ -324,8 +332,43 @@ export default function TripHub() {
               </motion.div>
             )}
 
+            {/* ── DESTINATION GATE — a destination must be decided before the wishlist unlocks ── */}
+            {trip.packConfirmed && !trip.destination && (
+              <motion.div key="destination-gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-6 text-center">
+                <div className="w-20 h-20 rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                  <Compass size={40} className="text-violet-500" />
+                </div>
+                <div className="max-w-sm">
+                  <h2 className="font-serif text-2xl font-bold mb-2">Where's the pack headed?</h2>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    Decide on a destination before wishing, voting, or building the itinerary — that way everyone plans for the same trip.
+                  </p>
+                </div>
+
+                {trip.destinationSuggestions?.length > 0 ? (
+                  <Link
+                    href={`/trip/${tripId}/destination-vote`}
+                    className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
+                    data-testid="link-go-destination-vote"
+                  >
+                    <Compass size={18} />
+                    Vote on the destination
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/trip/${tripId}/destination-preferences`}
+                    className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
+                    data-testid="link-go-destination-preferences"
+                  >
+                    <Compass size={18} />
+                    {trip.collectingPreferences || trip.memberPreferences ? "Continue deciding destination" : "Decide on a destination"}
+                  </Link>
+                )}
+              </motion.div>
+            )}
+
             {/* ── TAB 1: WISH ── */}
-            {trip.packConfirmed && activeTab === "wish" && (
+            {trip.packConfirmed && trip.destination && activeTab === "wish" && (
               <motion.div key="wish" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="flex items-end justify-between mb-6">
                   <div>
@@ -419,7 +462,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 2: VOTE ── */}
-            {trip.packConfirmed && activeTab === "vote" && (
+            {trip.packConfirmed && trip.destination && activeTab === "vote" && (
               <motion.div key="vote" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <div className="mb-6">
                   <h1 className="font-serif text-3xl font-bold">Top wishes rising</h1>
@@ -501,7 +544,7 @@ export default function TripHub() {
             )}
 
             {/* ── TAB 3: GO ── */}
-            {trip.packConfirmed && activeTab === "go" && (
+            {trip.packConfirmed && trip.destination && activeTab === "go" && (
               <motion.div key="go" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.18 }}>
                 <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Ready when you are</p>
                 <h1 className="font-serif text-3xl font-bold mb-2">Build the itinerary</h1>
