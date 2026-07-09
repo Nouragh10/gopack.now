@@ -293,6 +293,9 @@ ${vibeGuide}
 7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
+10. COST ACCURACY — "estimatedCost" is the realistic per-person cost in USD for that specific activity in ${destination}. Use the budget level as your guide:
+${budget === "budget" ? `  - Budget trip: free/cheap activities $0–10, paid attractions $5–20, meals $5–15, tours $10–30. Most activities should be free or under $15.` : budget === "luxury" ? `  - Luxury trip: fine dining $80–200, premium experiences $100–400, private tours $200–600, cocktail bars $30–60. Reflect the premium pricing of top-tier venues.` : `  - Midrange trip: standard admission $10–30, sit-down restaurants $20–60, group tours $30–80, bars $10–25. Match what a typical tourist pays at mid-tier venues.`}
+  Never use a round placeholder like 25 for every activity — costs must reflect the actual type and price tier of the specific venue. Free museums/parks get $0. A Michelin restaurant is not $25.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {

@@ -287,11 +287,16 @@ export default function Itinerary() {
     setEditingKey(null);
   };
 
-  const handleAddActivity = (di: number, activity: any) => {
+  const handleAddActivity = async (di: number, activity: any) => {
     const next = JSON.parse(JSON.stringify(localItinerary));
     next.days[di].activities.push(activity);
     setLocalItinerary(next);
     setAddingToDayIndex(null);
+    try {
+      await set(ref(db, `trips/${tripId}/itinerary`), next);
+    } catch (err) {
+      console.error("Failed to sync activity to Firebase:", err);
+    }
   };
 
   const handleExportPDF = () => {
