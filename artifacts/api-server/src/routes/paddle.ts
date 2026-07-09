@@ -37,14 +37,18 @@ router.post("/paddle/checkout", async (req, res) => {
       process.env.REPLIT_DOMAINS?.split(",")[0] ?? "localhost";
     const baseUrl = `https://${domain}`;
 
-    const session = await paddle.checkoutSessions.create({
+    const transaction = await paddle.transactions.create({
       items: [{ priceId, quantity: 1 }],
-      customData: { tripId, uid } as any,
-      customer: email ? { email } : undefined,
-      successUrl: returnUrl ?? `${baseUrl}/trip/${tripId}?upgraded=1`,
-    } as any);
+      customData: { tripId, uid },
+      checkout: { url: returnUrl ?? `${baseUrl}/trip/${tripId}?upgraded=1` },
+    });
 
-    res.json({ url: session.url });
+    const checkoutUrl = transaction.checkout?.url;
+    if (!checkoutUrl) {
+      res.status(500).json({ error: "Paddle did not return a checkout URL" });
+      return;
+    }
+    res.json({ url: checkoutUrl });
   } catch (err: any) {
     logger.error({ err }, "paddle checkout error");
     res.status(500).json({ error: err.message ?? "Checkout failed" });
