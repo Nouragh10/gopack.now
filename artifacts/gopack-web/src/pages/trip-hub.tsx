@@ -5,7 +5,7 @@ import {
   Send, Copy, Check, Loader2, MapPin, Calendar,
   ChevronUp, Sparkles, Package, ArrowLeft,
   AlertCircle, ChevronRight, Users, ArrowRight, MessageSquare, UserCircle,
-  Star, Bell, Home, Compass
+  Star, Bell, Home, Compass, Lock
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrip, startCollectingPreferences, confirmPack, incrementAiUsage } from "@/hooks/useFirebase";
@@ -190,26 +190,36 @@ export default function TripHub() {
           </div>
         </div>
 
-        {/* Center: tab switcher — only shown once destination is decided */}
-        {trip.packConfirmed && !!trip.destination ? (
+        {/* Center: tab switcher — locked (visible but disabled) until destination is decided */}
+        {trip.packConfirmed ? (
           <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 border border-border shrink-0">
-            {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab
-                    ? "bg-background text-foreground shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                data-testid={`tab-${tab}`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                  activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                }`}>{i + 1}</span>
-                <span className="capitalize">{tab}</span>
-              </button>
-            ))}
+            {(["wish", "vote", "go"] as Tab[]).map((tab, i) => {
+              const tabLocked = !trip.destination;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => !tabLocked && setActiveTab(tab)}
+                  disabled={tabLocked}
+                  title={tabLocked ? "Decide on a destination first" : undefined}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    tabLocked
+                      ? "text-muted-foreground/40 cursor-not-allowed select-none"
+                      : activeTab === tab
+                      ? "bg-background text-foreground shadow-sm border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  data-testid={`tab-${tab}`}
+                >
+                  {tabLocked
+                    ? <Lock size={11} className="shrink-0 opacity-50" />
+                    : <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                      }`}>{i + 1}</span>
+                  }
+                  <span className="capitalize">{tab}</span>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="shrink-0" />
@@ -322,7 +332,7 @@ export default function TripHub() {
                 {/* Confirm button — host only */}
                 {isHost && (
                   <button
-                    onClick={() => confirmPack(tripId!)}
+                    onClick={() => confirmPack(tripId!, !trip.destination)}
                     className="flex items-center gap-2 px-8 py-3.5 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 transition-colors text-base"
                   >
                     <Check size={18} />
@@ -354,7 +364,7 @@ export default function TripHub() {
                   </div>
 
                   {/* Progress pill */}
-                  {(submittedCount > 0 || hasSuggestions) && (
+                  {(isHost || submittedCount > 0 || hasSuggestions) && (
                     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/8 border border-violet-300/30 text-xs text-violet-600 dark:text-violet-400">
                       <Users size={12} />
                       {hasSuggestions

@@ -546,8 +546,11 @@ export async function saveItinerary(tripId: string, itinerary: any) {
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
 
-export async function confirmPack(tripId: string) {
-  await update(ref(db, `trips/${tripId}`), { packConfirmed: true });
+export async function confirmPack(tripId: string, startCollecting = false) {
+  await update(ref(db, `trips/${tripId}`), {
+    packConfirmed: true,
+    ...(startCollecting ? { collectingPreferences: true } : {}),
+  });
 }
 
 /* ─── Premium management ─────────────────────────────────────────── */
