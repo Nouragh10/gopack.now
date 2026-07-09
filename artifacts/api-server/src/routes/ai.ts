@@ -293,9 +293,15 @@ ${vibeGuide}
 7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
-10. COST ACCURACY — "estimatedCost" is the realistic per-person cost in USD for that specific activity in ${destination}. Use the budget level as your guide:
-${budget === "budget" ? `  - Budget trip: free/cheap activities $0–10, paid attractions $5–20, meals $5–15, tours $10–30. Most activities should be free or under $15.` : budget === "luxury" ? `  - Luxury trip: fine dining $80–200, premium experiences $100–400, private tours $200–600, cocktail bars $30–60. Reflect the premium pricing of top-tier venues.` : `  - Midrange trip: standard admission $10–30, sit-down restaurants $20–60, group tours $30–80, bars $10–25. Match what a typical tourist pays at mid-tier venues.`}
-  Never use a round placeholder like 25 for every activity — costs must reflect the actual type and price tier of the specific venue. Free museums/parks get $0. A Michelin restaurant is not $25.
+10. COST ACCURACY — "estimatedCost" is the exact per-person cost in USD a tourist would actually pay, matching real booking-platform prices (Viator, GetYourGuide, etc.). Use these realistic ranges by activity type:
+  FREE (always $0): open-air landmarks, beaches, temples with no entry fee, public parks, viewpoints, self-guided walks, free markets
+  PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
+  GUIDED TOURS booked on Viator/GetYourGuide ($30–150): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
+  FOOD & DRINK per person: street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
+  NIGHTLIFE per person: local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
+  WELLNESS: spa / hammam session $40–120, yoga or fitness class $15–40, surf lesson $50–90
+  Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer free or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
+  NEVER output 25 as a default. Every activity must have a cost that honestly reflects what that specific venue/experience actually costs.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -314,7 +320,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
           "fromWish": true,
           "suggester": "member name or 'AI pick'",
           "matchedVibe": "culture",
-          "estimatedCost": 25,
+          "estimatedCost": 0,
           "labels": ["Must-try"],
           "nearPrevious": false
         }
@@ -1035,9 +1041,15 @@ Name: must be a real, specific venue that you are highly confident actually exis
 SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
 Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
-Cost: realistic USD per-person cost for this specific activity. Use budget level "${budgetTier}" as your guide:
-${budgetTier === "budget" ? "- Budget: free entry $0, cheap eats $5-15, paid sites $5-20, tours $10-30." : budgetTier === "luxury" ? "- Luxury: fine dining $80-200, premium experiences $100-400, cocktails $30-60." : "- Midrange: standard admission $10-30, restaurants $20-60, tours $30-80, bars $10-25."}
-Never use 25 as a generic placeholder — reflect the actual venue type and tier.
+Cost: exact per-person USD cost matching real booking-platform prices (Viator/GetYourGuide). Use the activity TYPE, not just budget tier:
+  FREE $0: open landmarks, temples/churches with no entry fee, public parks, beaches, viewpoints
+  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known admission price when possible)
+  GUIDED TOURS $30–150: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
+  FOOD per person: street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
+  NIGHTLIFE: local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
+  WELLNESS: spa/hammam $40–120, yoga class $15–40
+  Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
+  NEVER output 25 as a default — give the honest cost for this specific venue/experience.
 
 Respond with ONLY valid JSON (no markdown):
 {
