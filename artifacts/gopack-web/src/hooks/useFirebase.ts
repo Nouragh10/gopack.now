@@ -621,20 +621,51 @@ export function renameSavedPack(uid: string, packId: string, newName: string) {
 export function useNotifications() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [useServerFallback, setUseServerFallback] = useState(false);
 
+  // Primary: Firebase RTDB realtime listener
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || useServerFallback) return;
     const r = ref(db, `notifications/${user.uid}`);
-    const unsub = onValue(r, snap => {
-      if (!snap.exists()) { setNotifications([]); return; }
-      const list = Object.entries(snap.val())
-        .map(([id, v]: [string, any]) => ({ id, ...(v as object) }))
-        .filter((n: any) => n.status === "pending")
-        .sort((a: any, b: any) => b.createdAt - a.createdAt);
-      setNotifications(list);
-    });
+    const unsub = onValue(
+      r,
+      snap => {
+        if (!snap.exists()) { setNotifications([]); return; }
+        const list = Object.entries(snap.val())
+          .map(([id, v]: [string, any]) => ({ id, ...(v as object) }))
+          .filter((n: any) => n.status === "pending")
+          .sort((a: any, b: any) => b.createdAt - a.createdAt);
+        setNotifications(list);
+      },
+      () => {
+        // RTDB read denied by security rules — fall back to server polling
+        setUseServerFallback(true);
+      },
+    );
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, useServerFallback]);
+
+  // Fallback: server-side polling via Firebase Admin (bypasses RTDB rules)
+  useEffect(() => {
+    if (!user || !useServerFallback) return;
+
+    const fetchNotifs = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const resp = await fetch("/api/my-notifications", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json() as { notifications: any[] };
+          setNotifications(data.notifications);
+        }
+      } catch { /* silent */ }
+    };
+
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 20000);
+    return () => clearInterval(interval);
+  }, [user, useServerFallback]);
 
   return notifications;
 }

@@ -1,7 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
 import { jsonrepair } from "jsonrepair";
-import { getAdminDb } from "../lib/firebase-admin";
+import { getAdminDb, getAdminApp } from "../lib/firebase-admin";
+import { getAuth } from "firebase-admin/auth";
 
 const router: IRouter = Router();
 
@@ -1087,6 +1088,33 @@ Respond with ONLY valid JSON (no markdown):
   } catch (err) {
     req.log.error({ err }, "Failed to redo activity");
     res.status(500).json({ error: (err as Error).message || "Failed to redo activity" });
+  }
+});
+
+/* ─── Read user notifications via Admin SDK (bypasses RTDB read rules) ─── */
+router.get("/my-notifications", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const idToken = authHeader.slice(7);
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const db = getAdminDb();
+    const snap = await db.ref(`notifications/${uid}`).get();
+    if (!snap.exists()) {
+      res.json({ notifications: [] });
+      return;
+    }
+    const notifications = Object.entries(snap.val() as Record<string, unknown>)
+      .map(([id, v]) => ({ id, ...(v as object) }))
+      .filter((n: any) => n.status === "pending")
+      .sort((a: any, b: any) => b.createdAt - a.createdAt);
+    res.json({ notifications });
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
   }
 });
 

@@ -280,13 +280,13 @@ export default function Dashboard() {
             <Compass size={16} /> Explore
           </Link>
 
-          {/* Notification bell */}
-          <div className="relative">
+          {/* Trip invites bell */}
+          <div className="relative shrink-0">
             <button
               onClick={() => setNotifOpen(o => !o)}
               className="relative w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
               title="Trip invites"
-              data-testid="button-notifications"
+              aria-label="Trip invites"
             >
               <Bell size={15} />
               {notifications.length > 0 && (

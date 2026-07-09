@@ -1,13 +1,12 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
 import { getDatabase, type Database } from "firebase-admin/database";
 
-let db: Database | null = null;
+let _app: App | null = null;
 
-export function getAdminDb(): Database {
-  if (db) return db;
-
+export function getAdminApp(): App {
+  if (_app) return _app;
   const existing = getApps().find(a => a.name === "gopack-admin");
-  const app = existing ?? initializeApp(
+  _app = existing ?? initializeApp(
     {
       credential: cert({
         projectId: "gopacknow-83d54",
@@ -18,7 +17,9 @@ export function getAdminDb(): Database {
     },
     "gopack-admin",
   );
+  return _app;
+}
 
-  db = getDatabase(app);
-  return db;
+export function getAdminDb(): Database {
+  return getDatabase(getAdminApp());
 }
