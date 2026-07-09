@@ -325,7 +325,10 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       model: "claude-haiku-4-5",
       max_tokens: 16000,
       system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Never start your response with words — start directly with the opening brace {.",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "user", content: prompt },
+        { role: "assistant", content: "{" },
+      ],
     };
 
     const response = await callAnthropic(body);
@@ -341,7 +344,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       return;
     }
 
-    const allText = (data.content ?? [])
+    const allText = "{" + (data.content ?? [])
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
@@ -396,7 +399,10 @@ Respond with ONLY valid JSON (no markdown):
       model: "claude-haiku-4-5",
       max_tokens: 4000,
       system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Start directly with {.",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "user", content: prompt },
+        { role: "assistant", content: "{" },
+      ],
     };
 
     const response = await callAnthropic(body);
@@ -411,7 +417,7 @@ Respond with ONLY valid JSON (no markdown):
       return;
     }
 
-    const allText = (data.content ?? [])
+    const allText = "{" + (data.content ?? [])
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");

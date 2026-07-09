@@ -190,26 +190,30 @@ export default function TripHub() {
           </div>
         </div>
 
-        {/* Center: tab switcher — exact center of the nav */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 border border-border shrink-0">
-          {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid={`tab-${tab}`}
-            >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-              }`}>{i + 1}</span>
-              <span className="capitalize">{tab}</span>
-            </button>
-          ))}
-        </div>
+        {/* Center: tab switcher — only shown once destination is decided */}
+        {trip.packConfirmed && !!trip.destination ? (
+          <div className="flex items-center gap-0.5 bg-muted/50 rounded-xl p-1 border border-border shrink-0">
+            {(["wish", "vote", "go"] as Tab[]).map((tab, i) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={`tab-${tab}`}
+              >
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  activeTab === tab ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                }`}>{i + 1}</span>
+                <span className="capitalize">{tab}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="shrink-0" />
+        )}
 
         {/* Right: secondary actions — flex-1 + justify-end mirrors the left */}
         <div className="flex items-center justify-end gap-2 flex-1">
