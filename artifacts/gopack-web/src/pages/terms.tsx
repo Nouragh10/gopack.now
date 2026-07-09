@@ -11,13 +11,13 @@ export default function Terms() {
       <h1 style={{ fontSize: 28, marginBottom: 4 }}>Terms of Service</h1>
       <p style={{ color: "#777", fontSize: 14, marginBottom: 32 }}>Last updated: July 9, 2026</p>
 
-      <p>Welcome to GoPackNow ("we," "us," or "our"). By using our app or website at gopacknow.com (the "Service"), you agree to these Terms of Service. Please read them carefully.</p>
+      <p>Welcome to GoPackNow ("we," "us," or "our"). By using our app or website at gopack.now (the "Service"), you agree to these Terms of Service. Please read them carefully.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>1. Eligibility</h2>
       <p>You must be at least 13 years old to use the Service. By using GoPackNow you represent that you meet this requirement and that you have the legal capacity to enter into these Terms.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>2. Account</h2>
-      <p>You may sign in with Google or as a guest. You are responsible for all activity that occurs under your account. Notify us immediately at <a href="mailto:support@gopacknow.com" style={{ color: "#E85D3A" }}>support@gopacknow.com</a> if you suspect unauthorized use.</p>
+      <p>You may sign in with Google or as a guest. You are responsible for all activity that occurs under your account. Notify us immediately at <a href="mailto:support@gopack.now" style={{ color: "#E85D3A" }}>support@gopack.now</a> if you suspect unauthorized use.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>3. Subscriptions &amp; Payments</h2>
       <p>GoPackNow offers optional paid subscriptions ("GoPackNow Plus") processed by Paddle.com, our Merchant of Record. By subscribing you agree to Paddle's <a href="https://www.paddle.com/legal/checkout-buyer-terms" style={{ color: "#E85D3A" }} target="_blank" rel="noopener noreferrer">Buyer Terms</a>. Subscription fees are charged at the start of each billing period. You may cancel anytime; access continues until the end of the paid period. See our <a href="/refunds" style={{ color: "#E85D3A" }}>Refund Policy</a> for details.</p>
@@ -51,7 +51,7 @@ export default function Terms() {
       <div style={{ background: "#f7f7f7", borderRadius: 10, padding: "16px 20px", marginTop: 12 }}>
         <p style={{ margin: 0 }}>Questions? Reach us at:</p>
         <p style={{ margin: "4px 0 0" }}>
-          <a href="mailto:support@gopacknow.com" style={{ color: "#E85D3A" }}>support@gopacknow.com</a>
+          <a href="mailto:support@gopack.now" style={{ color: "#E85D3A" }}>support@gopack.now</a>
         </p>
       </div>
     </div>
