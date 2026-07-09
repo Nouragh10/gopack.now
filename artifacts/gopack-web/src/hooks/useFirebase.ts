@@ -362,9 +362,9 @@ export function useTrip(tripId: string) {
       text,
       author: user.displayName || "Guest",
       memberId: user.uid,
-      votes: 1,
+      votes: 0,
       timestamp: new Date().toISOString(),
-      votedBy: { [user.uid]: true },
+      votedBy: {},
     });
   };
 
@@ -551,6 +551,44 @@ export async function confirmPack(tripId: string, startCollecting = false) {
     packConfirmed: true,
     ...(startCollecting ? { collectingPreferences: true } : {}),
   });
+}
+
+/* ─── Saved Packs (localStorage) ─────────────────────────────────── */
+
+export interface SavedPack {
+  id: string;
+  name: string;
+  members: Array<{ uid: string; name: string }>;
+  savedAt: string;
+  tripId: string;
+}
+
+const savedPacksKey = (uid: string) => `gopack_saved_packs_${uid}`;
+
+export function getSavedPacks(uid: string): SavedPack[] {
+  try {
+    const raw = localStorage.getItem(savedPacksKey(uid));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePack(uid: string, pack: Omit<SavedPack, "id" | "savedAt">): SavedPack {
+  const packs = getSavedPacks(uid);
+  const newPack: SavedPack = {
+    ...pack,
+    id: `pack_${Date.now()}`,
+    savedAt: new Date().toISOString(),
+  };
+  const updated = [newPack, ...packs.filter(p => p.tripId !== pack.tripId)];
+  localStorage.setItem(savedPacksKey(uid), JSON.stringify(updated));
+  return newPack;
+}
+
+export function deleteSavedPack(uid: string, packId: string) {
+  const packs = getSavedPacks(uid).filter(p => p.id !== packId);
+  localStorage.setItem(savedPacksKey(uid), JSON.stringify(packs));
 }
 
 /* ─── Premium management ─────────────────────────────────────────── */

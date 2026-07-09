@@ -9,6 +9,7 @@ import {
 import { ref, onValue, set } from "firebase/database";
 import { db } from "@/lib/firebase";
 import { incrementAiUsage } from "@/hooks/useFirebase";
+import { useAuth } from "@/hooks/useAuth";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
 /* ─── constants ─────────────────────────────────────────────── */
@@ -179,8 +180,8 @@ function ActivityEditor({ activity, onSave, onCancel }: { activity: any; onSave:
 }
 
 /* ─── AddActivityForm ────────────────────────────────────────── */
-function AddActivityForm({ dayIndex, onAdd, onCancel }: { dayIndex: number; onAdd: (di: number, a: any) => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ name:"", time:"", description:"", estimatedCost:0, tag:"travel", labels:[], fromWish:false, suggester:"Manual" });
+function AddActivityForm({ dayIndex, onAdd, onCancel, userName }: { dayIndex: number; onAdd: (di: number, a: any) => void; onCancel: () => void; userName: string }) {
+  const [form, setForm] = useState({ name:"", time:"", description:"", estimatedCost:0, tag:"travel", labels:[], fromWish:false, suggester: userName || "Member" });
   const set_ = (k: string, v: any) => setForm(f=>({ ...f, [k]: v }));
   return (
     <div className="border-2 border-dashed border-primary/40 rounded-2xl p-5 bg-primary/5 flex flex-col gap-3">
@@ -212,6 +213,7 @@ function AddActivityForm({ dayIndex, onAdd, onCancel }: { dayIndex: number; onAd
 export default function Itinerary() {
   const [, params] = useRoute("/trip/:tripId/itinerary");
   const tripId = params?.tripId || "";
+  const { user } = useAuth();
   const [itinerary, setItinerary] = useState<any>(null);
   const [localItinerary, setLocalItinerary] = useState<any>(null);
   const [trip, setTrip] = useState<any>(null);
@@ -808,7 +810,7 @@ export default function Itinerary() {
 
                       {/* add activity */}
                       {addingToDayIndex === di ? (
-                        <AddActivityForm dayIndex={di} onAdd={handleAddActivity} onCancel={()=>setAddingToDayIndex(null)}/>
+                        <AddActivityForm dayIndex={di} onAdd={handleAddActivity} onCancel={()=>setAddingToDayIndex(null)} userName={user?.displayName || (trip?.members?.[user?.uid || ""]?.name) || "Member"}/>
                       ) : (
                         <button
                           onClick={()=>{setEditingKey(null);setAddingToDayIndex(di);}}

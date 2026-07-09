@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -6,7 +6,7 @@ import {
   Trash2, MapPin, Users, Calendar, Loader2, LogOut,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrips, deleteTrip } from "@/hooks/useFirebase";
+import { useTrips, deleteTrip, getSavedPacks, deleteSavedPack, type SavedPack } from "@/hooks/useFirebase";
 
 function getHour() {
   const h = new Date().getHours();
@@ -163,6 +163,17 @@ export default function Dashboard() {
 
   const firstName = user?.displayName?.split(" ")[0] || "traveller";
 
+  const [savedPacks, setSavedPacks] = useState<SavedPack[]>([]);
+  useEffect(() => {
+    if (user?.uid) setSavedPacks(getSavedPacks(user.uid));
+  }, [user?.uid]);
+
+  const handleDeletePack = (packId: string) => {
+    if (!user?.uid) return;
+    deleteSavedPack(user.uid, packId);
+    setSavedPacks(getSavedPacks(user.uid));
+  };
+
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (joinCode.trim()) {
@@ -279,6 +290,35 @@ export default function Dashboard() {
             </AnimatePresence>
           )}
         </motion.div>
+
+        {/* Saved packs */}
+        {savedPacks.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="mb-10">
+            <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Saved packs</p>
+            <div className="flex flex-col gap-2">
+              {savedPacks.map(pack => (
+                <div key={pack.id} className="flex items-center gap-3 border border-border rounded-2xl px-4 py-3 bg-muted/20">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Users size={16} className="text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{pack.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {pack.members.map(m => m.name).join(", ")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeletePack(pack.id)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                    title="Remove saved pack"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* How it works */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

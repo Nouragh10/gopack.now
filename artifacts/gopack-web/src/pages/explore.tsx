@@ -8,18 +8,18 @@ import {
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const MONTHLY_PICKS = [
-  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],    photo: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"],          photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],   photo: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"],         photo: "https://images.unsplash.com/photo-1534445867742-43195f401b6c?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",      tags: ["Adventure", "Nature"],  photo: "https://images.unsplash.com/photo-1531168556467-80aace0d0144?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],        photo: "https://images.unsplash.com/photo-1555990538-bbc2c5fdaee9?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",       tags: ["Nature", "Adventure"],   photo: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80&auto=format&fit=crop" },
-  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",    tags: ["City", "Culture", "Food"],          photo: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",            tags: ["Culture", "Nature"],     photo: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"],     photo: "https://images.unsplash.com/photo-1548013146-72479768bada?w=1200&q=80&auto=format&fit=crop" },
-  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"], photo: "https://images.unsplash.com/photo-1484950763426-56b5bf172dbb?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1526392060635-9d6019884377?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],      photo: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"], photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],      photo: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"], photo: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",     tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],       photo: "https://images.unsplash.com/photo-1601580880892-de5c7e13b0dd?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",      tags: ["Nature", "Adventure"],   photo: "https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=1200&q=80&auto=format&fit=crop" },
+  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",   tags: ["City", "Culture", "Food"], photo: "https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",           tags: ["Culture", "Nature"],     photo: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"], photo: "https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=1200&q=80&auto=format&fit=crop" },
+  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"],  photo: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1200&q=80&auto=format&fit=crop" },
 ];
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -247,6 +247,7 @@ export default function Explore() {
               src={monthlyPick.photo}
               alt={monthlyPick.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
             <div className="absolute top-4 left-4">

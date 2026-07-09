@@ -355,8 +355,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
     const itinerary = extractAndParseJson(allText) as ItineraryShape;
     const dedupedItinerary = await dedupeItineraryVenues(itinerary, destination, req.log);
-    const verifiedItinerary = await verifyItineraryVenues(dedupedItinerary, destination, req.log);
-    res.json(verifiedItinerary);
+    res.json(dedupedItinerary);
   } catch (err) {
     req.log.error({ err }, "Failed to generate itinerary");
     res.status(500).json({ error: (err as Error).message || "Failed to generate itinerary" });

@@ -8,7 +8,7 @@ import {
   Star, Bell, Home, Compass, Lock
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrip, startCollectingPreferences, confirmPack, incrementAiUsage } from "@/hooks/useFirebase";
+import { useTrip, startCollectingPreferences, confirmPack, incrementAiUsage, savePack, getSavedPacks } from "@/hooks/useFirebase";
 import { useGenerateItinerary, useGeneratePackingList } from "@workspace/api-client-react";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
@@ -124,6 +124,15 @@ export default function TripHub() {
     navigator.clipboard.writeText(`${window.location.origin}/join/${tripId}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const [packSaved, setPackSaved] = useState(false);
+  const handleSavePack = () => {
+    if (!user?.uid || !trip) return;
+    const memberList = Object.entries(trip.members ?? {}).map(([uid, m]: [string, any]) => ({ uid, name: m.name || "Member" }));
+    savePack(user.uid, { name: trip.name || trip.destination || "My Pack", members: memberList, tripId });
+    setPackSaved(true);
+    setTimeout(() => setPackSaved(false), 2500);
   };
 
   const tripEnded = (() => {
@@ -463,7 +472,7 @@ export default function TripHub() {
                                 by {(wish.memberId && trip?.members?.[wish.memberId]?.name) || wish.author}
                               </p>
                             </div>
-                            {i === 0 && wishes.length > 1 && (
+                            {i === 0 && wishes.length > 1 && wish.votes > 0 && wish.votes > (wishes[1]?.votes ?? 0) && (
                               <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 shrink-0">
                                 Top pick
                               </span>
@@ -746,6 +755,16 @@ export default function TripHub() {
               {copied ? "Copied!" : "Copy invite link"}
             </button>
             <p className="text-xs text-muted-foreground/60 mt-2 text-center truncate">/join/{tripId}</p>
+
+            {/* Save Pack */}
+            <button
+              onClick={handleSavePack}
+              className="w-full flex items-center justify-center gap-2 border border-border mt-2 py-2.5 rounded-full text-sm font-medium hover:bg-muted/50 transition-colors"
+              data-testid="button-save-pack"
+            >
+              {packSaved ? <Check size={14} className="text-green-500" /> : <Users size={14} />}
+              {packSaved ? "Pack saved!" : "Save this pack"}
+            </button>
           </div>
 
           {/* Pack Plus upgrade CTA */}
