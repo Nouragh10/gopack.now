@@ -80,18 +80,20 @@ function SuggestionCard({ suggestion, idx, tripId, uid, votes, members, isWinnin
         <div className="flex flex-col items-center gap-0.5 shrink-0">
           <button
             onClick={() => handleVote("up")}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "up" ? "bg-primary/20" : "hover:bg-muted"}`}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ backgroundColor: myVote === "up" ? "rgba(232,93,58,0.15)" : "transparent" }}
           >
-            <ArrowUp size={18} color={myVote === "up" ? "var(--primary)" : "var(--muted-foreground)"} />
+            <ArrowUp size={18} color={myVote === "up" ? "#E85D3A" : "#888"} strokeWidth={2.5} />
           </button>
-          <span className={`text-sm font-bold ${score > 0 ? "text-primary" : "text-muted-foreground"}`}>
+          <span className="text-sm font-bold" style={{ color: score > 0 ? "#E85D3A" : "#888" }}>
             {score > 0 ? `+${score}` : score}
           </span>
           <button
             onClick={() => handleVote("down")}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${myVote === "down" ? "bg-muted" : "hover:bg-muted"}`}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ backgroundColor: myVote === "down" ? "rgba(0,0,0,0.08)" : "transparent" }}
           >
-            <ArrowDown size={18} color={myVote === "down" ? "var(--foreground)" : "var(--muted-foreground)"} />
+            <ArrowDown size={18} color={myVote === "down" ? "#444" : "#888"} strokeWidth={2.5} />
           </button>
         </div>
       </div>
@@ -207,12 +209,19 @@ export default function DestinationVote() {
     }
   };
 
+  // Redirect ALL members (not just the confirming host) when destination is set
+  useEffect(() => {
+    if (trip?.destination) {
+      setLocation(`/trip/${tripId}`);
+    }
+  }, [trip?.destination, tripId]);
+
   const handleConfirm = async () => {
     if (!suggestions[winnerIdx]) return;
     setConfirming(true);
     try {
       await confirmDestination(tripId, suggestions[winnerIdx].name);
-      setLocation(`/trip/${tripId}`);
+      // setLocation is handled by the useEffect above for all users
     } finally {
       setConfirming(false);
     }
@@ -325,10 +334,10 @@ export default function DestinationVote() {
           onClick={handleToggleLock}
           disabled={locking}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold shrink-0 disabled:opacity-60 transition-colors"
-          style={{ backgroundColor: myLocked ? "#4CAF50" : "var(--primary)" }}
+          style={{ backgroundColor: myLocked ? "#4CAF50" : "#E85D3A" }}
         >
           {locking ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Lock size={13} />}
-          {myLocked ? "Locked" : "Lock in"}
+          {myLocked ? "Locked ✓" : "Lock in"}
         </button>
       </div>
 
