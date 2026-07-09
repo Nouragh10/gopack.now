@@ -722,13 +722,8 @@ export default function Itinerary() {
                                         )}
                                       </div>
 
-                                      {/* title + cost row — always visible, unaffected by hover buttons */}
-                                      <div className="flex items-start gap-2 mb-2 pr-20">
-                                        <h3 className="font-semibold text-base flex-1">{act.name}</h3>
-                                        <span className="flex items-center gap-0.5 text-xs font-semibold text-foreground/60 bg-muted/60 px-2 py-0.5 rounded-full border border-border/60 shrink-0 mt-0.5">
-                                          <DollarSign size={11}/>~${act.estimatedCost}
-                                        </span>
-                                      </div>
+                                      {/* title row */}
+                                      <h3 className="font-semibold text-base mb-2 pr-20">{act.name}</h3>
 
                                       {/* description */}
                                       <p className="text-sm text-muted-foreground leading-relaxed mb-4">{act.description}</p>
@@ -748,6 +743,10 @@ export default function Itinerary() {
                                           <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">✦ {act.matchedVibe}</span>
                                         )}
                                         <div className="ml-auto flex items-center gap-1.5">
+                                          {/* Cost — sits in the action row, same line as Reserve/Calendar/Maps */}
+                                          <span className="flex items-center gap-0.5 text-xs font-semibold text-foreground/60 bg-muted/60 px-2.5 py-1 rounded-full border border-border/60">
+                                            <DollarSign size={11}/>~${act.estimatedCost}
+                                          </span>
                                           <a href={`https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${act.name} ${day.city || trip?.destination || ""}`)}`}
                                             target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors"

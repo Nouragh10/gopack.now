@@ -78,14 +78,18 @@ export default function Create() {
           if (pack) {
             const others = pack.members.filter((m: any) => m.uid !== user.uid);
             if (others.length > 0) {
-              await sendPackInvites(
-                tripId,
-                destination.trim() || "Group trip",
-                user.displayName || "Your friend",
-                user.uid,
-                others,
-                pack.name,
-              );
+              try {
+                await sendPackInvites(
+                  tripId,
+                  destination.trim() || "Group trip",
+                  user.displayName || "Your friend",
+                  user.uid,
+                  others,
+                  pack.name,
+                );
+              } catch {
+                // Notification delivery failure is non-fatal — trip is still created
+              }
             }
           }
         }
