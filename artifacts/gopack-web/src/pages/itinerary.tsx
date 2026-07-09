@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Clock, DollarSign, Sparkles, Star, Loader2,
-  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye, EyeOff,
+  FileDown, CalendarPlus, Edit2, Plus, Check, X, MapPin, Users, Eye,
   RotateCcw, Trash2, Lock, Zap
 } from "lucide-react";
 import { ref, onValue, set } from "firebase/database";
@@ -505,44 +505,13 @@ export default function Itinerary() {
               go<span className="text-primary">pack</span>
             </Link>
           </div>
-          {canShowItinerary && (
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {isDirty && (
-                <button onClick={saveChanges} disabled={saving}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  data-testid="button-save-changes">
-                  {saving ? <Loader2 size={14} className="animate-spin"/> : saveSuccess ? <Check size={14}/> : null}
-                  {saving ? "Saving…" : saveSuccess ? "Saved!" : "Save changes"}
-                </button>
-              )}
-              <button
-                onClick={isPremium ? handleExportAllCalendar : () => { setUpgradeReason("Calendar export is a Pack Plus feature"); setShowUpgrade(true); }}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title={isPremium ? "Export all to Calendar" : "Pack Plus — Export to Calendar"}
-                data-testid="button-export-calendar">
-                <CalendarPlus size={15}/><span className="hidden sm:inline">Calendar</span>
-              </button>
-              <button onClick={handleOpenAllMaps}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title="All stops in Google Maps" data-testid="button-open-maps">
-                <MapPin size={15}/><span className="hidden sm:inline">Maps</span>
-              </button>
-              <button
-                onClick={isPremium ? togglePrintPreview : () => { setUpgradeReason("PDF export is a Pack Plus feature"); setShowUpgrade(true); }}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-full transition-colors ${printPreview && isPremium ? "bg-primary text-white border-primary" : "border-border hover:bg-muted/50"}`}
-                title={isPremium ? "Preview PDF layout" : "Pack Plus — PDF Preview"}
-                data-testid="button-preview-pdf">
-                {printPreview && isPremium ? <EyeOff size={15}/> : <Eye size={15}/>}
-                <span className="hidden sm:inline">{printPreview && isPremium ? "Close preview" : "Preview PDF"}</span>
-              </button>
-              <button
-                onClick={isPremium ? handleExportPDF : () => { setUpgradeReason("PDF export is a Pack Plus feature"); setShowUpgrade(true); }}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
-                title={isPremium ? "Export as PDF" : "Pack Plus — Export PDF"}
-                data-testid="button-export-pdf">
-                <FileDown size={15}/><span className="hidden sm:inline">PDF</span>
-              </button>
-            </div>
+          {canShowItinerary && isDirty && (
+            <button onClick={saveChanges} disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50"
+              data-testid="button-save-changes">
+              {saving ? <Loader2 size={14} className="animate-spin"/> : saveSuccess ? <Check size={14}/> : null}
+              {saving ? "Saving…" : saveSuccess ? "Saved!" : "Save changes"}
+            </button>
           )}
         </nav>
 
@@ -590,13 +559,22 @@ export default function Itinerary() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={handleExportAllCalendar} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                  <button
+                    onClick={isPremium ? handleExportAllCalendar : () => { setUpgradeReason("Calendar export is a Pack Plus feature"); setShowUpgrade(true); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
+                    title={isPremium ? "Export all to Calendar" : "Pack Plus — Export to Calendar"}>
                     <CalendarPlus size={14}/> Add all to Calendar
                   </button>
-                  <button onClick={handleOpenAllMaps} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                  <button
+                    onClick={isPremium ? handleOpenAllMaps : () => { setUpgradeReason("Full route in Maps is a Pack Plus feature"); setShowUpgrade(true); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
+                    title={isPremium ? "Full route in Google Maps" : "Pack Plus — Full route in Maps"}>
                     <MapPin size={14}/> Full route in Maps
                   </button>
-                  <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors">
+                  <button
+                    onClick={isPremium ? handleExportPDF : () => { setUpgradeReason("PDF export is a Pack Plus feature"); setShowUpgrade(true); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted/50 transition-colors"
+                    title={isPremium ? "Export as PDF" : "Pack Plus — Export PDF"}>
                     <FileDown size={14}/> Export PDF
                   </button>
                 </div>
