@@ -1,0 +1,65 @@
+Migrate my tested sandbox integration into my live Paddle account and finish configuring live so it's ready for verification. I may have already done some or all of this while switching to live, so start by checking what's already in place — then only do what's missing or broken. Do this once my sandbox integration has passed testing.
+
+Heads-up: this step gets my live account and code ready — it does NOT start verification or take a live payment. Those are the next two steps ("Verify your account", then "Test and go live"). Migrating points my code at live, but I can't take live payments until verification passes and my domains are approved, so don't open the live build to real customers yet — verify locally or in staging.
+
+I have two MCP servers:
+- `paddle-sandbox` — my sandbox account (source)
+- `paddle-live` — my live account (destination)
+
+## 1. Check what's already migrated
+
+Before changing anything, audit the current state and report what's done vs outstanding. I may have completed some of this already — don't redo work that's correct.
+- Catalog: compare my sandbox products, prices, and discounts against live (`paddle-sandbox` vs `paddle-live`). List what already exists in live and what's missing.
+- Credentials: check my env vars and code for live client-side tokens (`live_`), a live API key, and live notification destinations with a signing secret.
+- Code: check whether my code already points at live — live `pri_`/`pro_` IDs, `api.paddle.com`, no `Paddle.Environment.set('sandbox')`, and `pwCustomer` set for Retain.
+
+Give me a short summary of what's already done and what's left, then work through the remaining items below. Skip anything that's already correct; if something exists but looks wrong or partial, fix it.
+
+## 2. Recreate my catalog and credentials in live
+
+For anything missing from the audit:
+1. Read my products, prices, and discounts from sandbox and create equivalents in live with the `paddle-live` MCP. Skip test/junk items. Capture the sandbox → live ID mapping — I need it for step 3.
+2. Create new live client-side tokens (prefixed `live_`) with the `paddle-live` MCP if it supports it; prompt me to create a live API key in the dashboard. Read both from env vars; never hard-code them. Create/update `.env.example`.
+3. Create live notification destinations pointing at my live webhook URLs, and read back the new signing secret (`endpoint_secret_key`) — it can't be retrieved again. Update the secret my webhook handler uses.
+
+## 3. Swap my code over to live
+
+For anything not already pointing at live, find and replace every sandbox value with its live equivalent:
+- Every sandbox price ID (`pri_`) and discount ID → matching live IDs, across pricing page, checkout, upgrade/downgrade logic, and subscription lifecycle code.
+- Remove `Paddle.Environment.set('sandbox')` from the frontend (live is the default).
+- `sandbox-api.paddle.com` → `api.paddle.com` server-side.
+- For Paddle Retain, add `pwCustomer` to `Paddle.Initialize()` — the signed-in customer's Paddle customer ID, e.g. `pwCustomer: { id: 'ctm_...' }`. It must be the Paddle customer ID, not my internal ID or email.
+
+## 4. Finish configuring my live account
+
+Do these via `paddle-live` where you can; otherwise tell me exactly where to go in the dashboard:
+- Enable the payment methods I want under Checkout > Checkout settings > Payment methods.
+- Default payment link — this can only be set in the dashboard, so don't try to do it yourself: tell me to go to Checkout > Checkout settings and set my default payment link to my live checkout page. For live it must be a real, approved domain, not localhost, or live checkouts will fail.
+- Submit my domains for approval under Checkout > Request domain approval. Checkout won't run on live until a domain is approved (sandbox approves automatically; live does not). Submit now so approval can process while I verify.
+- Add my bank details under Business account > Payouts > Payout settings.
+
+For webhook security, fetch Paddle's current live IPs from https://api.paddle.com/ips (addresses are in `data.ipv4_cidrs`, as /32 CIDRs), allowlist them on my webhook server, and reject anything else. Don't hard-code the list — the endpoint is the source of truth and can change.
+
+## 5. Pre-verification readiness check
+
+Audit my app and report what's ready vs missing, so I'm set up to pass verification next:
+- Live, publicly accessible Terms & Conditions, Privacy Policy, and Refund/Cancellation Policy. List the URLs; flag any that 404 or redirect to a generic page.
+- A clear description of what my product does.
+- Contact details reachable from the homepage in two clicks or fewer.
+- Site pricing matches my live Paddle catalog. List discrepancies.
+- Every domain where I run Checkout resolves and serves my real product (not parked, 404, or placeholder).
+
+For each gap, suggest a specific fix. These are common verification checks — confirm exact current requirements against Paddle's verification guidance rather than treating any item as definitively required.
+
+When this is done, my live account and code are ready. Move on to "Verify your account" to complete business verification, then "Test and go live".
+
+## Guardrails — this is my LIVE account; destructive actions are off-limits
+
+Live entities may already have real customers, subscriptions, and payment history attached. Migration here is ADDITIVE and CODE-SIDE only. You must NOT delete, archive, deactivate, or recreate any live entity, and must NOT offer to do so as "cleanup." Specifically, never touch:
+
+- The live notification destination or its signing secret. Never delete or recreate one that already exists — recreating rotates endpoint_secret_key and silently breaks verification of every future delivery. If a live destination exists, reuse it; only CREATE one if none exists.
+- Live products, prices, or discounts — especially any with active subscriptions. Prices are immutable once used; "fixing" a wrong price means creating a NEW one and pointing code at it, never editing or deleting the old one.
+- Live customers, subscriptions, or transactions, and their mirrored DB rows.
+- My sandbox account. It is the source of truth for this migration — do not delete or modify any sandbox entity, and do not offer to "clean up sandbox" when done.
+
+"Fix if wrong or partial" (above) means: prefer update-in-place; if a genuine fix would require deleting or recreating any live entity, STOP, name the entity and the exact change, and ask me before doing anything. Default to leave-and-ask.
