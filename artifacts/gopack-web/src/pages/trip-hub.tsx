@@ -153,6 +153,9 @@ export default function TripHub() {
 
   const handleOpenReview = () => setLocation(`/trip/${tripId}/review`);
 
+  /* ── premium / tier — must be called before any early returns (Rules of Hooks) ── */
+  const isPremium = useTripPremium(trip);
+
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 size={24} className="animate-spin text-primary" />
@@ -170,9 +173,6 @@ export default function TripHub() {
   const isHost = user?.uid === trip.hostMemberId;
   const hostName = trip.hostMemberId && trip.members?.[trip.hostMemberId]?.name;
   const memberNames = members.map(([, m]: [string, any]) => m.name as string);
-
-  /* ── premium / tier ── */
-  const isPremium = useTripPremium(trip);
   const itineraryUsage = trip.aiUsage?.itinerary ?? 0;
   const packingUsage = trip.aiUsage?.packing ?? 0;
   const FREE_GEN_LIMIT = 2; // 1 generation + 1 redo for free tier
