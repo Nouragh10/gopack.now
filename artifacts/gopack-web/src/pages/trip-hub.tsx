@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrip, startCollectingPreferences, confirmPack, incrementAiUsage, savePack, getSavedPacks } from "@/hooks/useFirebase";
+import { useTripPremium } from "@/hooks/usePremium";
 import { useGenerateItinerary, useGeneratePackingList } from "@workspace/api-client-react";
 import { UpgradeModal } from "@/components/UpgradeModal";
 
@@ -171,7 +172,7 @@ export default function TripHub() {
   const memberNames = members.map(([, m]: [string, any]) => m.name as string);
 
   /* ── premium / tier ── */
-  const isPremium = true; // TEST MODE: all features unlocked
+  const isPremium = useTripPremium(trip);
   const itineraryUsage = trip.aiUsage?.itinerary ?? 0;
   const packingUsage = trip.aiUsage?.packing ?? 0;
   const FREE_GEN_LIMIT = 2; // 1 generation + 1 redo for free tier

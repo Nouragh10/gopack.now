@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, Check } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   open: boolean;
@@ -21,6 +22,7 @@ const FEATURES = [
 type Plan = "monthly" | "yearly";
 
 export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<Plan>("yearly");
@@ -29,16 +31,22 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/api/paddle/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tripId }),
+        body: JSON.stringify({
+          tripId,
+          plan,
+          uid: user?.uid ?? "",
+          email: user?.email ?? undefined,
+          returnUrl: `${window.location.origin}/trip/${tripId}?upgraded=1`,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Could not start checkout");
+        throw new Error((body as any).error || "Could not start checkout");
       }
-      const { url } = await res.json();
+      const { url } = await res.json() as { url: string };
       window.location.href = url;
     } catch (err: any) {
       setError(err.message || "Something went wrong");
@@ -91,7 +99,6 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                 🎉 One purchase unlocks for everyone on this trip
               </p>
 
-              {/* Plan selector */}
               <div className="grid grid-cols-2 gap-2.5 mb-5">
                 <button
                   onClick={() => setPlan("monthly")}
@@ -108,7 +115,7 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                   <span className="absolute -top-2.5 left-3 text-[9px] font-bold bg-primary text-white px-2 py-0.5 rounded-full tracking-wide">BEST VALUE</span>
                   <p className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1 mt-1">YEARLY</p>
                   <p className="text-xl font-serif font-bold">$19.99</p>
-                  <p className="text-xs text-muted-foreground">per year</p>
+                  <p className="text-xs text-muted-foreground">per year · save 83%</p>
                 </button>
               </div>
 
@@ -134,6 +141,9 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
               >
                 {loading ? "Loading…" : plan === "yearly" ? "Subscribe — $19.99/yr" : "Subscribe — $9.99/mo"}
               </button>
+              <p className="text-center text-[11px] text-muted-foreground mb-2">
+                Powered by Paddle · Cancel anytime
+              </p>
               <button
                 onClick={onClose}
                 className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
