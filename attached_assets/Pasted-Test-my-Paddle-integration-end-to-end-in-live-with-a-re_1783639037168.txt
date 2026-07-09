@@ -1,0 +1,45 @@
+Test my Paddle integration end-to-end in live, with a real checkout, before I open to customers.
+
+This mirrors the sandbox test but against real money — so we'll use a 100% discount to run a genuine checkout at zero cost, then clean it up. Use the `paddle-live` MCP to perform and verify every action against my live account. To check database state, use a database MCP if I have one connected (e.g. Supabase, or another Postgres/database MCP); otherwise verify through my app's data layer or tell me exactly what to confirm. Where you can't act via MCP, tell me what to do in the dashboard.
+
+## 1. Pre-flight checks
+
+Confirm all of these before testing — stop and fix anything that's off:
+- My integration points at live everywhere: live API key, `live_`-prefixed client-side token, live `pri_`/`pro_` IDs, server-side calls to `api.paddle.com` (not `sandbox-api.paddle.com`), and no leftover `Paddle.Environment.set('sandbox')`.
+- My domain is approved. List my checkout domains with the `paddle-live` MCP (or the Checkout Domains API: https://developer.paddle.com/api-reference/checkout-domains/list-checkout-domains/) and confirm the status is approved — checkout won't open on an unapproved domain.
+- Business and identity verification is complete. I confirm this in the Paddle dashboard; it's usually ~10 minutes but can take longer for more complex businesses. Checkout won't open until it's passed — ask me to confirm before continuing.
+- My app is deployed to the live domain. Ask me to confirm; checkout must run on the real approved domain, not localhost.
+
+## 2. Set up a safe, zero-cost test
+
+Create a 100% off discount with the `paddle-live` MCP and give me the code to apply at checkout. Tell me you're doing this and why: it lets us run a real end-to-end checkout — real card, real webhooks, real records — at zero cost, so there's nothing to refund afterwards. Paddle still creates a real transaction and subscription at a $0 total, so the rest of the test exercises the full flow.
+
+## 3. Hand over to me to complete the checkout
+
+Pause here and ask me to complete one real purchase myself — don't open a browser or try to pay on my behalf:
+- Open checkout on my live domain, apply the discount code from step 2, and complete the purchase with a real card.
+- When I confirm it's done, continue. If I hit any problems — checkout doesn't load, the discount doesn't apply, the price looks wrong — I'll tell you and we'll work through them together.
+
+## 4. Verify the result
+
+Once I've confirmed the purchase, verify each step as in the sandbox test:
+- Transaction status is `completed`.
+- My live webhook endpoint received the events and returned 2xx (check the `paddle-live` MCP or Developer tools > Notifications).
+- Customer and subscription records were created/updated in my database.
+- The access helper would unlock the right features for the plan.
+
+## 5. Exercise the subscription lifecycle
+
+Find the completed transaction and the subscription it created, then run the same three operations as the sandbox test with the `paddle-live` MCP. After each, confirm my handler processed the webhook and my database/access logic ended up correct:
+- (a) Plan upgrade applied immediately with no charge (proration billing mode `do_not_bill`).
+- (b) Scheduled cancellation at end of billing period (`effective_from: next_billing_period`) — status should still be `active` with a pending scheduled change, and access still granted.
+- (c) Immediate cancellation (`effective_from: immediately`) — status `canceled`, access denied.
+
+## 6. Clean up — this is real data, leave nothing live
+
+- Make sure the test subscription is canceled.
+- Archive the 100% discount with the `paddle-live` MCP so nobody else can use it.
+
+Confirm everything above passed before I open to customers. If anything fails at any step, stop, troubleshoot it the same way, and re-run.
+
+If a 100% discount isn't workable for my setup, the alternative is to pay with a real card and refund it by creating an adjustment with the `paddle-live` MCP. Avoid this if you can — refunds hurt my seller reputation and can raise my chargeback rate. Talk me through other options first, and only take the refund path if I explicitly choose it.
