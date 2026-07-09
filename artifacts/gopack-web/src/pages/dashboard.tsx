@@ -58,14 +58,9 @@ function NotifCard({ notif, user, onNavigate }: { notif: any; user: any; onNavig
     }
   };
 
-  const handleDecline = async () => {
-    setDeclining(true);
-    try {
-      await declineNotification(user.uid, notif.id);
-      setDone("declined");
-    } finally {
-      setDeclining(false);
-    }
+  const handleDecline = () => {
+    setDone("declined");
+    declineNotification(user.uid, notif.id).catch(() => {});
   };
 
   if (done === "declined") return null;

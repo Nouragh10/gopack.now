@@ -1118,6 +1118,36 @@ router.get("/my-notifications", async (req: Request, res: Response): Promise<voi
   }
 });
 
+/* ─── Accept trip invite via Admin SDK (bypasses RTDB member-write rules) ─── */
+router.post("/accept-invite", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const idToken = authHeader.slice(7);
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const { notifId, tripId, displayName } = req.body as {
+      notifId: string;
+      tripId: string;
+      displayName: string | null;
+    };
+    const db = getAdminDb();
+    await db.ref(`trips/${tripId}/members/${uid}`).set({
+      name: displayName || "Traveler",
+      joinedAt: new Date().toISOString(),
+      isHost: false,
+    });
+    try { await db.ref(`userTrips/${uid}/${tripId}`).set(true); } catch {}
+    await db.ref(`notifications/${uid}/${notifId}`).update({ status: "accepted" });
+    res.json({ ok: true, tripId });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message || "Failed to accept invite" });
+  }
+});
+
 /* ─── Send pack invites (server-side, bypasses client RTDB rules) ─── */
 router.post("/send-pack-invites", async (req: Request, res: Response): Promise<void> => {
   const { tripId, tripName, fromName, fromUid, members, packName } = req.body as {

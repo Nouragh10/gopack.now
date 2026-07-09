@@ -671,19 +671,23 @@ export function useNotifications() {
 }
 
 export async function acceptTripInvite(
-  user: { uid: string; displayName: string | null },
+  user: { uid: string; displayName: string | null; getIdToken: () => Promise<string> },
   notifId: string,
   tripId: string,
 ) {
-  await update(ref(db, `trips/${tripId}/members`), {
-    [user.uid]: {
-      name: user.displayName || "Traveler",
-      joinedAt: new Date().toISOString(),
-      isHost: false,
+  const idToken = await user.getIdToken();
+  const resp = await fetch("/api/accept-invite", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
     },
+    body: JSON.stringify({ notifId, tripId, displayName: user.displayName }),
   });
-  try { await set(ref(db, `userTrips/${user.uid}/${tripId}`), true); } catch {}
-  await update(ref(db, `notifications/${user.uid}/${notifId}`), { status: "accepted" });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || "Failed to accept invite");
+  }
 }
 
 export async function declineNotification(uid: string, notifId: string) {
