@@ -260,6 +260,9 @@ export default function Itinerary() {
   const PREMIUM_REDO_LIMIT = 20;
   const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
 
+  /* ── page-level guard: never expose itinerary data/controls for an undecided trip ── */
+  const canShowItinerary = !!trip?.destination && !!localItinerary;
+
   /* ── day locking ── */
   const totalDays = localItinerary?.days?.length ?? 0;
   const freeDayCount = totalDays <= 1 ? totalDays : Math.floor(totalDays / 2);
@@ -486,7 +489,7 @@ export default function Itinerary() {
               go<span className="text-primary">pack</span>
             </Link>
           </div>
-          {localItinerary && (
+          {canShowItinerary && (
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {isDirty && (
                 <button onClick={saveChanges} disabled={saving}
@@ -528,7 +531,7 @@ export default function Itinerary() {
         </nav>
 
         {/* print header */}
-        {localItinerary && (
+        {canShowItinerary && (
           <div className="print-only print-header">
             <div>
               <div className="print-header-logo">go<span>pack</span></div>
@@ -542,11 +545,15 @@ export default function Itinerary() {
         )}
 
         <div className="max-w-3xl mx-auto px-6 py-12 print-page print-content" ref={printRef}>
-          {!localItinerary ? (
+          {!canShowItinerary ? (
             <div className="text-center py-20 text-muted-foreground">
               <Sparkles size={32} className="mx-auto mb-4 opacity-30"/>
               <p className="font-medium mb-2">No itinerary yet</p>
-              <p className="text-sm mb-6">Go back to the trip hub and generate one.</p>
+              <p className="text-sm mb-6">
+                {!trip?.destination
+                  ? "This trip doesn't have a destination set yet. Head back to the trip hub to finish planning."
+                  : "Go back to the trip hub and generate one."}
+              </p>
               <Link href={`/trip/${tripId}`} className="bg-primary text-white font-medium px-6 py-3 rounded-full hover:bg-primary/90 transition-colors" data-testid="link-go-back">
                 Back to trip
               </Link>
@@ -838,7 +845,7 @@ export default function Itinerary() {
 
       {/* ── Print preview overlay ── */}
       <AnimatePresence>
-        {printPreview && localItinerary && (
+        {printPreview && canShowItinerary && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

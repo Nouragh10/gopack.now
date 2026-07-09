@@ -122,7 +122,9 @@ export default function Packing() {
     });
   };
 
-  const totalItems = packingList
+  const canShowPacking = !!trip?.destination && !!packingList;
+
+  const totalItems = canShowPacking
     ? SECTIONS.flatMap(s => packingList[s.key] || []).length
     : 0;
   const checkedCount = Object.values(checked).filter(Boolean).length;
@@ -191,7 +193,7 @@ export default function Packing() {
               <Cloud size={12} /> Saved
             </span>
           )}
-          {packingList && (
+          {canShowPacking && (
             <button
               onClick={() => downloadPackingList(trip, packingList, checked)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
@@ -203,7 +205,7 @@ export default function Packing() {
       </nav>
 
       <div className="max-w-2xl mx-auto px-6 py-10">
-        {!packingList ? (
+        {!canShowPacking ? (
           <div className="text-center py-20 text-muted-foreground">
             <Package size={32} className="mx-auto mb-4 opacity-30" />
             <p className="font-medium mb-2">No packing list yet</p>
