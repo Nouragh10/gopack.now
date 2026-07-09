@@ -3,10 +3,10 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, ChevronRight, Compass, X, Sparkles, ThumbsUp, Map,
-  Trash2, MapPin, Users, Calendar, Loader2, LogOut,
+  Trash2, MapPin, Users, Calendar, Loader2, LogOut, Bell, Check, Package,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrips, deleteTrip, getSavedPacks, deleteSavedPack, type SavedPack } from "@/hooks/useFirebase";
+import { useTrips, deleteTrip, getSavedPacks, deleteSavedPack, useNotifications, acceptTripInvite, declineNotification, type SavedPack } from "@/hooks/useFirebase";
 
 function getHour() {
   const h = new Date().getHours();
@@ -41,6 +41,72 @@ const HOW_IT_WORKS = [
     iconBg: "bg-primary",
   },
 ];
+
+function NotifCard({ notif, user, onNavigate }: { notif: any; user: any; onNavigate: (tripId: string) => void }) {
+  const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const [done, setDone] = useState<"accepted" | "declined" | null>(null);
+
+  const handleAccept = async () => {
+    setAccepting(true);
+    try {
+      await acceptTripInvite(user, notif.id, notif.tripId);
+      setDone("accepted");
+      setTimeout(() => onNavigate(notif.tripId), 800);
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    setDeclining(true);
+    try {
+      await declineNotification(user.uid, notif.id);
+      setDone("declined");
+    } finally {
+      setDeclining(false);
+    }
+  };
+
+  if (done === "declined") return null;
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start gap-2 mb-2">
+        <Package size={15} className="text-primary mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium leading-snug">
+            <span className="text-primary">{notif.fromName}</span> invited you to <span className="font-semibold">{notif.tripName || "a trip"}</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">via pack <span className="font-medium">{notif.packName}</span></p>
+        </div>
+      </div>
+      {done === "accepted" ? (
+        <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+          <Check size={12} /> Joined! Taking you there…
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAccept}
+            disabled={accepting || declining}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            {accepting ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            Accept
+          </button>
+          <button
+            onClick={handleDecline}
+            disabled={accepting || declining}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
+          >
+            {declining ? <Loader2 size={11} className="animate-spin" /> : "Decline"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TripCard({
   trip,
@@ -149,6 +215,8 @@ export default function Dashboard() {
   const [localTrips, setLocalTrips] = useState<any[] | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifications = useNotifications();
 
   const displayTrips = localTrips ?? trips;
 
@@ -194,6 +262,64 @@ export default function Dashboard() {
           <Link href="/explore" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-explore">
             <Compass size={16} /> Explore
           </Link>
+
+          {/* Notification bell */}
+          <div className="relative">
+            <button
+              onClick={() => setNotifOpen(o => !o)}
+              className="relative w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+              title="Trip invites"
+              data-testid="button-notifications"
+            >
+              <Bell size={15} />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {notifications.length > 9 ? "9+" : notifications.length}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-10 w-80 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5">
+                        <Bell size={13} className="text-primary" /> Trip invites
+                      </span>
+                      <button onClick={() => setNotifOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                        No pending invites
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                        {notifications.map(n => (
+                          <NotifCard
+                            key={n.id}
+                            notif={n}
+                            user={user}
+                            onNavigate={(tripId) => { setNotifOpen(false); setLocation(`/trip/${tripId}`); }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button
             onClick={() => setHelpOpen(true)}
             className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors text-sm font-semibold"

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrips } from "@/hooks/useFirebase";
-import { Loader2, ArrowLeft, Check, Users } from "lucide-react";
+import { useTrips, getSavedPacks, sendPackInvites, type SavedPack } from "@/hooks/useFirebase";
+import { Loader2, ArrowLeft, Check, Users, Package } from "lucide-react";
 
 const VIBES = [
   { id: "culture", label: "Culture" },
@@ -33,6 +33,12 @@ export default function Create() {
   const [startDate, setStartDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [savedPacks, setSavedPacks] = useState<SavedPack[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.uid) setSavedPacks(getSavedPacks(user.uid));
+  }, [user?.uid]);
 
   if (authLoading) return null;
   if (!user) {
@@ -66,7 +72,25 @@ export default function Create() {
       };
       if (decideWithGroup) tripData.collectingPreferences = true;
       const tripId = await createTrip(tripData);
-      if (tripId) setLocation(`/trip/${tripId}`);
+      if (tripId) {
+        if (selectedPackId && user) {
+          const pack = savedPacks.find(p => p.id === selectedPackId);
+          if (pack) {
+            const others = pack.members.filter((m: any) => m.uid !== user.uid);
+            if (others.length > 0) {
+              await sendPackInvites(
+                tripId,
+                destination.trim() || "Group trip",
+                user.displayName || "Your friend",
+                user.uid,
+                others,
+                pack.name,
+              );
+            }
+          }
+        }
+        setLocation(`/trip/${tripId}`);
+      }
     } catch {
       setError("Failed to create trip. Please try again.");
     } finally {
@@ -227,6 +251,46 @@ export default function Create() {
                 data-testid="input-start-date"
               />
             </div>
+
+            {/* Invite saved pack */}
+            {savedPacks.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground tracking-widest uppercase mb-3">
+                  Invite a saved pack <span className="normal-case font-normal">(optional)</span>
+                </label>
+                <div className="flex flex-col gap-2">
+                  {savedPacks.map(pack => {
+                    const selected = selectedPackId === pack.id;
+                    return (
+                      <button
+                        key={pack.id}
+                        type="button"
+                        onClick={() => setSelectedPackId(selected ? null : pack.id)}
+                        className={`flex items-center gap-3 px-5 py-3.5 rounded-xl border text-left transition-all ${
+                          selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          selected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                        }`}>
+                          {selected && <Check size={11} className="text-white" />}
+                        </div>
+                        <Package size={15} className={selected ? "text-primary" : "text-muted-foreground"} />
+                        <div>
+                          <div className="font-medium text-sm">{pack.name}</div>
+                          <div className="text-xs text-muted-foreground">{pack.members.length} {pack.members.length === 1 ? "member" : "members"}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedPackId && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                    <Users size={11} /> Pack members will get a trip invite notification
+                  </p>
+                )}
+              </div>
+            )}
 
             <button
               type="submit"

@@ -591,6 +591,73 @@ export function deleteSavedPack(uid: string, packId: string) {
   localStorage.setItem(savedPacksKey(uid), JSON.stringify(packs));
 }
 
+/* ─── Notifications ──────────────────────────────────────────────── */
+
+export async function sendPackInvites(
+  tripId: string,
+  tripName: string,
+  fromName: string,
+  fromUid: string,
+  members: Array<{ uid: string; name: string }>,
+  packName: string,
+) {
+  await Promise.all(
+    members.map(m =>
+      set(push(ref(db, `notifications/${m.uid}`)), {
+        type: "trip_invite",
+        tripId,
+        tripName,
+        fromName,
+        fromUid,
+        packName,
+        createdAt: Date.now(),
+        status: "pending",
+      })
+    )
+  );
+}
+
+export function useNotifications() {
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const r = ref(db, `notifications/${user.uid}`);
+    const unsub = onValue(r, snap => {
+      if (!snap.exists()) { setNotifications([]); return; }
+      const list = Object.entries(snap.val())
+        .map(([id, v]: [string, any]) => ({ id, ...(v as object) }))
+        .filter((n: any) => n.status === "pending")
+        .sort((a: any, b: any) => b.createdAt - a.createdAt);
+      setNotifications(list);
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  return notifications;
+}
+
+export async function acceptTripInvite(
+  user: { uid: string; displayName: string | null },
+  notifId: string,
+  tripId: string,
+) {
+  await update(ref(db, `trips/${tripId}/members`), {
+    [user.uid]: {
+      name: user.displayName || "Traveler",
+      joinedAt: new Date().toISOString(),
+      isHost: false,
+    },
+  });
+  try { await set(ref(db, `userTrips/${user.uid}/${tripId}`), true); } catch {}
+  await update(ref(db, `notifications/${user.uid}/${notifId}`), { status: "accepted" });
+}
+
+export async function declineNotification(uid: string, notifId: string) {
+  await update(ref(db, `notifications/${uid}/${notifId}`), { status: "declined" });
+}
+
 /* ─── Premium management ─────────────────────────────────────────── */
 
 export async function setTripPremium(tripId: string) {

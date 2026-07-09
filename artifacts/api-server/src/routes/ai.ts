@@ -974,15 +974,17 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
 });
 
 router.post("/redo-activity", async (req: Request, res: Response): Promise<void> => {
-  const { activity, city, theme, destination, redoType, otherActivities, allTripActivities } = req.body as {
+  const { activity, city, theme, destination, budget, redoType, otherActivities, allTripActivities } = req.body as {
     activity: { name: string; description: string; tag: string; time: string; estimatedCost: number };
     city: string;
     theme: string;
     destination: string;
+    budget?: string;
     redoType: "same_type" | "whole";
     otherActivities: string[];
     allTripActivities?: string[];
   };
+  const budgetTier = budget ?? "midrange";
 
   if (!activity || !city || !destination || !redoType) {
     res.status(400).json({ error: "Missing required fields." });
@@ -1033,7 +1035,9 @@ Name: must be a real, specific venue that you are highly confident actually exis
 SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
 Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
-Cost: realistic USD per person estimate.
+Cost: realistic USD per-person cost for this specific activity. Use budget level "${budgetTier}" as your guide:
+${budgetTier === "budget" ? "- Budget: free entry $0, cheap eats $5-15, paid sites $5-20, tours $10-30." : budgetTier === "luxury" ? "- Luxury: fine dining $80-200, premium experiences $100-400, cocktails $30-60." : "- Midrange: standard admission $10-30, restaurants $20-60, tours $30-80, bars $10-25."}
+Never use 25 as a generic placeholder — reflect the actual venue type and tier.
 
 Respond with ONLY valid JSON (no markdown):
 {
@@ -1043,7 +1047,7 @@ Respond with ONLY valid JSON (no markdown):
   "tag": "${redoType === "same_type" ? activity.tag : "culture"}",
   "fromWish": false,
   "suggester": "AI pick",
-  "estimatedCost": 25,
+  "estimatedCost": 0,
   "labels": [],
   "nearPrevious": false
 }`;

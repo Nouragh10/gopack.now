@@ -8,18 +8,18 @@ import {
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const MONTHLY_PICKS = [
-  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://picsum.photos/seed/machu-picchu/1200/500" },
-  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],      photo: "https://picsum.photos/seed/rio-brazil/1200/500" },
-  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"], photo: "https://picsum.photos/seed/tokyo-japan/1200/500" },
-  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],      photo: "https://picsum.photos/seed/santorini-greece/1200/500" },
-  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"], photo: "https://picsum.photos/seed/amalfi-italy/1200/500" },
-  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",     tags: ["Adventure", "Nature"],   photo: "https://picsum.photos/seed/reykjavik-iceland/1200/500" },
-  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],       photo: "https://picsum.photos/seed/dubrovnik-croatia/1200/500" },
-  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",      tags: ["Nature", "Adventure"],   photo: "https://picsum.photos/seed/scottish-highlands/1200/500" },
-  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",   tags: ["City", "Culture", "Food"], photo: "https://picsum.photos/seed/new-york-city/1200/500" },
-  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",           tags: ["Culture", "Nature"],     photo: "https://picsum.photos/seed/kyoto-japan/1200/500" },
-  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"], photo: "https://picsum.photos/seed/marrakech-morocco/1200/500" },
-  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"],  photo: "https://picsum.photos/seed/rovaniemi-finland/1200/500" },
+  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://loremflickr.com/1200/500/machu-picchu,peru?lock=11" },
+  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],      photo: "https://loremflickr.com/1200/500/rio-de-janeiro,brazil?lock=22" },
+  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"], photo: "https://loremflickr.com/1200/500/tokyo,japan?lock=33" },
+  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],      photo: "https://loremflickr.com/1200/500/santorini,greece?lock=44" },
+  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"], photo: "https://loremflickr.com/1200/500/amalfi,italy?lock=55" },
+  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",     tags: ["Adventure", "Nature"],   photo: "https://loremflickr.com/1200/500/reykjavik,iceland?lock=66" },
+  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],       photo: "https://loremflickr.com/1200/500/dubrovnik,croatia?lock=77" },
+  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",      tags: ["Nature", "Adventure"],   photo: "https://loremflickr.com/1200/500/scotland,highlands?lock=88" },
+  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",   tags: ["City", "Culture", "Food"], photo: "https://loremflickr.com/1200/500/new-york,manhattan?lock=99" },
+  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",           tags: ["Culture", "Nature"],     photo: "https://loremflickr.com/1200/500/kyoto,japan?lock=110" },
+  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"], photo: "https://loremflickr.com/1200/500/marrakech,morocco?lock=121" },
+  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"],  photo: "https://loremflickr.com/1200/500/lapland,finland?lock=132" },
 ];
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];

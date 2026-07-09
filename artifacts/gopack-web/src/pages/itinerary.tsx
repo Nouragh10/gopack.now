@@ -334,6 +334,10 @@ export default function Itinerary() {
     setRedoLoading(key);
     const day = localItinerary.days[di];
     const otherActivities = day.activities.filter((_: any, i: number) => i !== ai).map((a: any) => a.name);
+    const allTripActivities = (localItinerary?.days || [])
+      .flatMap((d: any) => d.activities || [])
+      .map((a: any) => a.name)
+      .filter((n: string) => n !== act.name);
     try {
       const resp = await fetch("/api/redo-activity", {
         method: "POST",
@@ -343,8 +347,10 @@ export default function Itinerary() {
           city: day.city,
           theme: day.theme,
           destination: trip?.destination,
+          budget: trip?.budget || "midrange",
           redoType,
           otherActivities,
+          allTripActivities,
         }),
       });
       if (resp.ok) {
@@ -352,6 +358,9 @@ export default function Itinerary() {
         const next = JSON.parse(JSON.stringify(localItinerary));
         next.days[di].activities[ai] = { ...newAct, time: act.time };
         setLocalItinerary(next);
+        // Save to Firebase BEFORE incrementing usage — incrementAiUsage triggers
+        // onValue which resets localItinerary to server state if we haven't saved yet
+        await set(ref(db, `trips/${tripId}/itinerary`), next);
         await incrementAiUsage(tripId, "activityRedos");
       }
     } finally {
@@ -711,14 +720,15 @@ export default function Itinerary() {
                                             <Star size={11} className="fill-primary/30"/> From a wish
                                           </span>
                                         )}
-                                        <div className="ml-auto flex items-center gap-1 text-sm font-semibold text-foreground/70">
-                                          <DollarSign size={13}/>
-                                          <span>~${act.estimatedCost}</span>
-                                        </div>
                                       </div>
 
-                                      {/* title */}
-                                      <h3 className="font-semibold text-base mb-2 pr-6">{act.name}</h3>
+                                      {/* title + cost row — always visible, unaffected by hover buttons */}
+                                      <div className="flex items-start gap-2 mb-2 pr-20">
+                                        <h3 className="font-semibold text-base flex-1">{act.name}</h3>
+                                        <span className="flex items-center gap-0.5 text-xs font-semibold text-foreground/60 bg-muted/60 px-2 py-0.5 rounded-full border border-border/60 shrink-0 mt-0.5">
+                                          <DollarSign size={11}/>~${act.estimatedCost}
+                                        </span>
+                                      </div>
 
                                       {/* description */}
                                       <p className="text-sm text-muted-foreground leading-relaxed mb-4">{act.description}</p>
