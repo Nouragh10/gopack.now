@@ -24,6 +24,9 @@ import AccommodationVote from "@/pages/accommodation-vote";
 import Building from "@/pages/building";
 import Notifications from "@/pages/notifications";
 import Privacy from "@/pages/privacy";
+import Terms from "@/pages/terms";
+import Refunds from "@/pages/refunds";
+import Pricing from "@/pages/pricing";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +79,9 @@ function Router() {
         <Route path="/profile" component={Profile} />
         <Route path="/notifications" component={Notifications} />
         <Route path="/privacy" component={Privacy} />
+        <Route path="/terms" component={Terms} />
+        <Route path="/refunds" component={Refunds} />
+        <Route path="/pricing" component={Pricing} />
         <Route component={NotFound} />
       </Switch>
     </>

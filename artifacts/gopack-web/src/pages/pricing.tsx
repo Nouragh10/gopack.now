@@ -1,0 +1,202 @@
+import { useState } from "react";
+import { Check } from "lucide-react";
+import { useLocation } from "wouter";
+
+const FREE_FEATURES = [
+  "Up to 5 trip members",
+  "Shared wishlist & voting",
+  "2 AI itinerary generations",
+  "2 AI packing list generations",
+  "Realtime group chat",
+];
+
+const PLUS_FEATURES = [
+  "Up to 20 trip members",
+  "Unlimited AI itinerary generations",
+  "Unlimited AI packing list regenerations",
+  "One purchase unlocks for your whole trip group",
+  "Realtime group chat",
+  "Priority support",
+];
+
+export default function Pricing() {
+  const [, setLocation] = useLocation();
+  const [billing, setBilling] = useState<"monthly" | "yearly">("yearly");
+
+  return (
+    <div style={{
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      minHeight: "100vh",
+      background: "#faf9f7",
+      color: "#1a1a1a",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "60px 20px 80px" }}>
+
+        <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.12em", color: "#E85D3A", textTransform: "uppercase", marginBottom: 12 }}>
+            Pricing
+          </p>
+          <h1 style={{ fontSize: 42, fontWeight: 800, margin: "0 0 16px", lineHeight: 1.15 }}>
+            Simple, group-friendly pricing
+          </h1>
+          <p style={{ fontSize: 18, color: "#555", margin: 0 }}>
+            One person pays. Everyone on the trip gets Plus.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 48 }}>
+          <div style={{
+            display: "inline-flex",
+            background: "#ece9e3",
+            borderRadius: 999,
+            padding: 4,
+            gap: 4,
+          }}>
+            <button
+              onClick={() => setBilling("monthly")}
+              style={{
+                padding: "8px 22px",
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 14,
+                background: billing === "monthly" ? "#fff" : "transparent",
+                color: billing === "monthly" ? "#1a1a1a" : "#666",
+                boxShadow: billing === "monthly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBilling("yearly")}
+              style={{
+                padding: "8px 22px",
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 14,
+                background: billing === "yearly" ? "#fff" : "transparent",
+                color: billing === "yearly" ? "#1a1a1a" : "#666",
+                boxShadow: billing === "yearly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              Yearly&nbsp;&nbsp;<span style={{ background: "#E85D3A", color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>Save 83%</span>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: 20,
+            border: "2px solid #e8e4dd",
+            padding: "36px 32px",
+          }}>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#888", marginBottom: 8 }}>Free</p>
+            <p style={{ fontSize: 40, fontWeight: 800, margin: "0 0 4px" }}>$0</p>
+            <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>Forever free</p>
+            <button
+              onClick={() => setLocation("/login")}
+              style={{
+                width: "100%",
+                padding: "14px 0",
+                borderRadius: 999,
+                border: "2px solid #e8e4dd",
+                background: "transparent",
+                fontWeight: 700,
+                fontSize: 15,
+                cursor: "pointer",
+                marginBottom: 28,
+                color: "#1a1a1a",
+              }}
+            >
+              Get started free
+            </button>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+              {FREE_FEATURES.map(f => (
+                <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#333" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#f0ede7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Check size={11} color="#888" strokeWidth={3} />
+                  </span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div style={{
+            background: "#1a1a1a",
+            borderRadius: 20,
+            border: "2px solid #1a1a1a",
+            padding: "36px 32px",
+            position: "relative",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 20,
+              right: 20,
+              background: "#E85D3A",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              padding: "4px 10px",
+              borderRadius: 999,
+            }}>
+              Popular
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#E85D3A", marginBottom: 8 }}>Plus</p>
+            <p style={{ fontSize: 40, fontWeight: 800, margin: "0 0 4px", color: "#fff" }}>
+              {billing === "yearly" ? "$19.99" : "$9.99"}
+            </p>
+            <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>
+              {billing === "yearly" ? "per year · ~$1.67/mo" : "per month"}
+            </p>
+            <button
+              onClick={() => setLocation("/login")}
+              style={{
+                width: "100%",
+                padding: "14px 0",
+                borderRadius: 999,
+                border: "none",
+                background: "#E85D3A",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+                cursor: "pointer",
+                marginBottom: 28,
+              }}
+            >
+              Start planning
+            </button>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+              {PLUS_FEATURES.map(f => (
+                <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#ccc" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#E85D3A22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Check size={11} color="#E85D3A" strokeWidth={3} />
+                  </span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 48, color: "#888", fontSize: 14 }}>
+          <p>All payments processed securely by <strong>Paddle</strong> · Cancel anytime · <a href="/refunds" style={{ color: "#E85D3A" }}>14-day money-back guarantee</a></p>
+          <p style={{ marginTop: 8 }}>
+            <a href="/terms" style={{ color: "#888", marginRight: 16 }}>Terms of Service</a>
+            <a href="/privacy" style={{ color: "#888", marginRight: 16 }}>Privacy Policy</a>
+            <a href="/refunds" style={{ color: "#888" }}>Refund Policy</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

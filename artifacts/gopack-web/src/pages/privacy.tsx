@@ -29,7 +29,7 @@ export default function Privacy() {
       <p>This information is visible to other members of the same trip, since the app is designed for group collaboration.</p>
 
       <h3 style={{ fontSize: 16, marginTop: 20, marginBottom: 6 }}>Purchase Information</h3>
-      <p>If you unlock a trip, subscribe to Plus, or subscribe to Pro, your purchase is processed through Apple's In-App Purchase system and managed by RevenueCat, our subscription management provider. RevenueCat receives a device/user identifier and transaction details (product purchased, price, renewal status) to verify your purchase and manage your entitlements. We do not see or store your payment card details — these are handled entirely by Apple.</p>
+      <p>If you subscribe to GoPackNow Plus, your purchase is processed by <strong>Paddle.com</strong>, our Merchant of Record. Paddle receives your payment details and transaction information to process your subscription. We do not see or store your payment card details — these are handled entirely by Paddle. We store your subscription status (active/canceled) and renewal date in our database to manage your access to premium features.</p>
 
       <h3 style={{ fontSize: 16, marginTop: 20, marginBottom: 6 }}>Device &amp; Diagnostic Information</h3>
       <p>We may collect basic technical information such as app version, device type, and crash/error logs to help us fix bugs and improve the app.</p>
@@ -46,8 +46,7 @@ export default function Privacy() {
       <p>We do not sell your personal information. We share data only with the service providers necessary to run the app:</p>
       <ul style={{ paddingLeft: 22 }}>
         <li><strong>Firebase (Google)</strong> — authentication and data storage</li>
-        <li><strong>RevenueCat</strong> — subscription and purchase management</li>
-        <li><strong>Apple</strong> — payment processing for in-app purchases</li>
+        <li><strong>Paddle</strong> — subscription billing and payment processing (Merchant of Record)</li>
         <li><strong>Anthropic</strong> — trip details are sent to generate AI itineraries and packing lists; this data is used only to generate your results and is not used to train AI models</li>
       </ul>
       <p>Trip content (wishlist items, votes, chat, itinerary) is shared with the other members of that specific trip, since that's the point of the app.</p>
