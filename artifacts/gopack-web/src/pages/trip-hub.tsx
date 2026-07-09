@@ -130,7 +130,11 @@ export default function TripHub() {
   const handleSavePack = () => {
     if (!user?.uid || !trip) return;
     const memberList = Object.entries(trip.members ?? {}).map(([uid, m]: [string, any]) => ({ uid, name: m.name || "Member" }));
-    savePack(user.uid, { name: trip.name || trip.destination || "My Pack", members: memberList, tripId });
+    const firstNames = memberList.map((m: { name: string }) => m.name.split(" ")[0]).filter(Boolean);
+    const nameStr = firstNames.length > 3
+      ? `${firstNames.slice(0, 3).join(", ")} +${firstNames.length - 3}`
+      : firstNames.join(", ");
+    savePack(user.uid, { name: nameStr || "My Pack", members: memberList, tripId });
     setPackSaved(true);
     setTimeout(() => setPackSaved(false), 2500);
   };

@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
 import { jsonrepair } from "jsonrepair";
+import { getAdminDb } from "../lib/firebase-admin";
 
 const router: IRouter = Router();
 
@@ -1086,6 +1087,45 @@ Respond with ONLY valid JSON (no markdown):
   } catch (err) {
     req.log.error({ err }, "Failed to redo activity");
     res.status(500).json({ error: (err as Error).message || "Failed to redo activity" });
+  }
+});
+
+/* ─── Send pack invites (server-side, bypasses client RTDB rules) ─── */
+router.post("/send-pack-invites", async (req: Request, res: Response): Promise<void> => {
+  const { tripId, tripName, fromName, fromUid, members, packName } = req.body as {
+    tripId: string;
+    tripName: string;
+    fromName: string;
+    fromUid: string;
+    members: Array<{ uid: string; name: string }>;
+    packName: string;
+  };
+
+  if (!tripId || !members?.length) {
+    res.status(400).json({ error: "tripId and members are required" });
+    return;
+  }
+
+  try {
+    const db = getAdminDb();
+    await Promise.all(
+      members.map(m =>
+        db.ref(`notifications/${m.uid}`).push({
+          type: "trip_invite",
+          tripId,
+          tripName: tripName || "a trip",
+          fromName: fromName || "Someone",
+          fromUid,
+          packName: packName || "a pack",
+          createdAt: Date.now(),
+          status: "pending",
+        })
+      )
+    );
+    res.json({ ok: true, sent: members.length });
+  } catch (err) {
+    req.log.error({ err }, "Failed to send pack invites");
+    res.status(500).json({ error: (err as Error).message || "Failed to send invites" });
   }
 });
 

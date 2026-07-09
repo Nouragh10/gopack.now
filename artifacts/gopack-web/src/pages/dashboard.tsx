@@ -3,10 +3,10 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, ChevronRight, Compass, X, Sparkles, ThumbsUp, Map,
-  Trash2, MapPin, Users, Calendar, Loader2, LogOut, Bell, Check, Package,
+  Trash2, MapPin, Users, Calendar, Loader2, LogOut, Bell, Check, Package, Pencil,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrips, deleteTrip, getSavedPacks, deleteSavedPack, useNotifications, acceptTripInvite, declineNotification, type SavedPack } from "@/hooks/useFirebase";
+import { useTrips, deleteTrip, getSavedPacks, deleteSavedPack, renameSavedPack, useNotifications, acceptTripInvite, declineNotification, type SavedPack } from "@/hooks/useFirebase";
 
 function getHour() {
   const h = new Date().getHours();
@@ -232,6 +232,8 @@ export default function Dashboard() {
   const firstName = user?.displayName?.split(" ")[0] || "traveller";
 
   const [savedPacks, setSavedPacks] = useState<SavedPack[]>([]);
+  const [editingPackId, setEditingPackId] = useState<string | null>(null);
+  const [editingPackName, setEditingPackName] = useState("");
   useEffect(() => {
     if (user?.uid) setSavedPacks(getSavedPacks(user.uid));
   }, [user?.uid]);
@@ -240,6 +242,21 @@ export default function Dashboard() {
     if (!user?.uid) return;
     deleteSavedPack(user.uid, packId);
     setSavedPacks(getSavedPacks(user.uid));
+  };
+
+  const handleStartRename = (pack: SavedPack) => {
+    setEditingPackId(pack.id);
+    setEditingPackName(pack.name);
+  };
+
+  const handleSaveRename = () => {
+    if (!user?.uid || !editingPackId) return;
+    const trimmed = editingPackName.trim();
+    if (trimmed) {
+      renameSavedPack(user.uid, editingPackId, trimmed);
+      setSavedPacks(getSavedPacks(user.uid));
+    }
+    setEditingPackId(null);
   };
 
   const handleJoin = (e: React.FormEvent) => {
@@ -428,11 +445,29 @@ export default function Dashboard() {
                     <Users size={16} className="text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{pack.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
+                    {editingPackId === pack.id ? (
+                      <input
+                        autoFocus
+                        value={editingPackName}
+                        onChange={e => setEditingPackName(e.target.value)}
+                        onBlur={handleSaveRename}
+                        onKeyDown={e => { if (e.key === "Enter") handleSaveRename(); if (e.key === "Escape") setEditingPackId(null); }}
+                        className="w-full text-sm font-medium bg-background border border-primary/40 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    ) : (
+                      <p className="font-medium text-sm truncate">{pack.name}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {pack.members.map(m => m.name).join(", ")}
                     </p>
                   </div>
+                  <button
+                    onClick={() => handleStartRename(pack)}
+                    className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                    title="Rename pack"
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <button
                     onClick={() => handleDeletePack(pack.id)}
                     className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg transition-colors"

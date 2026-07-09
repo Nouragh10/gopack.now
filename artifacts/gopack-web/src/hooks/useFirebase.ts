@@ -601,20 +601,21 @@ export async function sendPackInvites(
   members: Array<{ uid: string; name: string }>,
   packName: string,
 ) {
-  await Promise.all(
-    members.map(m =>
-      set(push(ref(db, `notifications/${m.uid}`)), {
-        type: "trip_invite",
-        tripId,
-        tripName,
-        fromName,
-        fromUid,
-        packName,
-        createdAt: Date.now(),
-        status: "pending",
-      })
-    )
-  );
+  // Route through server-side Firebase Admin to bypass client RTDB rules
+  const resp = await fetch("/api/send-pack-invites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tripId, tripName, fromName, fromUid, members, packName }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? "Failed to send invites");
+  }
+}
+
+export function renameSavedPack(uid: string, packId: string, newName: string) {
+  const packs = getSavedPacks(uid).map(p => p.id === packId ? { ...p, name: newName } : p);
+  localStorage.setItem(savedPacksKey(uid), JSON.stringify(packs));
 }
 
 export function useNotifications() {
