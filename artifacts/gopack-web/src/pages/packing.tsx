@@ -67,6 +67,7 @@ export default function Packing() {
   const [packingList, setPackingList] = useState<any>(null);
   const [trip, setTrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,14 +76,21 @@ export default function Packing() {
   useEffect(() => {
     if (!tripId) return;
     const tripRef = ref(db, `trips/${tripId}`);
-    const unsub = onValue(tripRef, snap => {
-      const data = snap.val();
-      if (data) {
-        setTrip(data);
-        setPackingList(data.packingList || null);
-      }
-      setLoading(false);
-    });
+    const unsub = onValue(
+      tripRef,
+      snap => {
+        const data = snap.val();
+        if (data) {
+          setTrip(data);
+          setPackingList(data.packingList || null);
+        }
+        setLoading(false);
+      },
+      () => {
+        setPermissionError(true);
+        setLoading(false);
+      },
+    );
     return () => unsub();
   }, [tripId]);
 
@@ -124,6 +132,34 @@ export default function Packing() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 size={24} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (permissionError || !trip) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 text-center px-6">
+        <Package size={32} className="text-muted-foreground opacity-30" />
+        <p className="font-medium">Trip not found</p>
+        <p className="text-sm text-muted-foreground">You may not have access to this trip.</p>
+        <Link href="/dashboard" className="bg-primary text-white font-medium px-6 py-2.5 rounded-full hover:bg-primary/90 transition-colors text-sm">
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (!trip.destination) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 text-center px-6">
+        <Package size={32} className="text-muted-foreground opacity-30" />
+        <p className="font-medium">No destination yet</p>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          The group hasn't decided on a destination yet. Decide one first, then come back to generate the packing list.
+        </p>
+        <Link href={`/trip/${tripId}`} className="bg-primary text-white font-medium px-6 py-2.5 rounded-full hover:bg-primary/90 transition-colors text-sm" data-testid="link-go-back">
+          Back to trip
+        </Link>
       </div>
     );
   }
@@ -171,7 +207,7 @@ export default function Packing() {
           <div className="text-center py-20 text-muted-foreground">
             <Package size={32} className="mx-auto mb-4 opacity-30" />
             <p className="font-medium mb-2">No packing list yet</p>
-            <p className="text-sm mb-6">Go back to the trip hub and generate one.</p>
+            <p className="text-sm mb-6">Go back to the trip hub and generate one from the Go tab.</p>
             <Link href={`/trip/${tripId}`} className="bg-primary text-white font-medium px-6 py-3 rounded-full hover:bg-primary/90 transition-colors" data-testid="link-go-back">
               Back to trip
             </Link>

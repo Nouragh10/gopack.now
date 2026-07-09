@@ -337,39 +337,68 @@ export default function TripHub() {
             )}
 
             {/* ── DESTINATION GATE — a destination must be decided before the wishlist unlocks ── */}
-            {trip.packConfirmed && !trip.destination && (
-              <motion.div key="destination-gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-6 text-center">
-                <div className="w-20 h-20 rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                  <Compass size={40} className="text-violet-500" />
-                </div>
-                <div className="max-w-sm">
-                  <h2 className="font-serif text-2xl font-bold mb-2">Where's the pack headed?</h2>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
-                    Decide on a destination before wishing, voting, or building the itinerary — that way everyone plans for the same trip.
-                  </p>
-                </div>
+            {trip.packConfirmed && !trip.destination && (() => {
+              const submittedCount = Object.keys(trip.memberPreferences || {}).length;
+              const hasSuggestions = (trip.destinationSuggestions?.length ?? 0) > 0;
+              const votedCount = Object.keys(trip.destinationVotes?.[0] || {}).length;
+              return (
+                <motion.div key="destination-gate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-20 gap-6 text-center">
+                  <div className="w-20 h-20 rounded-3xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                    <Compass size={40} className="text-violet-500" />
+                  </div>
+                  <div className="max-w-sm">
+                    <h2 className="font-serif text-2xl font-bold mb-2">Where's the pack headed?</h2>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      Decide on a destination before wishing, voting, or building the itinerary — that way everyone plans for the same trip.
+                    </p>
+                  </div>
 
-                {trip.destinationSuggestions?.length > 0 ? (
-                  <Link
-                    href={`/trip/${tripId}/destination-vote`}
-                    className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
-                    data-testid="link-go-destination-vote"
-                  >
-                    <Compass size={18} />
-                    Vote on the destination
-                  </Link>
-                ) : (
-                  <Link
-                    href={`/trip/${tripId}/destination-preferences`}
-                    className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
-                    data-testid="link-go-destination-preferences"
-                  >
-                    <Compass size={18} />
-                    {trip.collectingPreferences || trip.memberPreferences ? "Continue deciding destination" : "Decide on a destination"}
-                  </Link>
-                )}
-              </motion.div>
-            )}
+                  {/* Progress pill */}
+                  {(submittedCount > 0 || hasSuggestions) && (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/8 border border-violet-300/30 text-xs text-violet-600 dark:text-violet-400">
+                      <Users size={12} />
+                      {hasSuggestions
+                        ? votedCount > 0
+                          ? `${votedCount} of ${memberCount} voted · ready to lock in`
+                          : `Destinations ready · ${memberCount} ${memberCount === 1 ? "member" : "members"} to vote`
+                        : `${submittedCount} of ${memberCount} submitted preferences`}
+                    </div>
+                  )}
+
+                  {hasSuggestions ? (
+                    <Link
+                      href={`/trip/${tripId}/destination-vote`}
+                      className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
+                      data-testid="link-go-destination-vote"
+                    >
+                      <Compass size={18} />
+                      Vote on the destination
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/trip/${tripId}/destination-preferences`}
+                      className="flex items-center gap-2 px-8 py-3.5 bg-violet-500 text-white rounded-full font-semibold hover:bg-violet-600 transition-colors text-base"
+                      data-testid="link-go-destination-preferences"
+                    >
+                      <Compass size={18} />
+                      {submittedCount > 0
+                        ? isHost
+                          ? submittedCount === memberCount
+                            ? "Generate destination suggestions"
+                            : `Waiting on ${memberCount - submittedCount} more — view preferences`
+                          : "Submit your preferences"
+                        : isHost ? "Start destination finder" : "Submit your preferences"}
+                    </Link>
+                  )}
+
+                  {!isHost && submittedCount === 0 && (
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      Submit your travel preferences and the host will generate destination options for the group to vote on.
+                    </p>
+                  )}
+                </motion.div>
+              );
+            })()}
 
             {/* ── TAB 1: WISH ── */}
             {trip.packConfirmed && trip.destination && activeTab === "wish" && (
