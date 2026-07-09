@@ -8,18 +8,18 @@ import {
 import { usePublicReviews, useGlobalStats } from "@/hooks/useFirebase";
 
 const MONTHLY_PICKS = [
-  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://loremflickr.com/1200/500/machu-picchu,peru?lock=11" },
-  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],      photo: "https://loremflickr.com/1200/500/rio-de-janeiro,brazil?lock=22" },
-  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"], photo: "https://loremflickr.com/1200/500/tokyo,japan?lock=33" },
-  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],      photo: "https://loremflickr.com/1200/500/santorini,greece?lock=44" },
-  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"], photo: "https://loremflickr.com/1200/500/amalfi,italy?lock=55" },
-  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",     tags: ["Adventure", "Nature"],   photo: "https://loremflickr.com/1200/500/reykjavik,iceland?lock=66" },
-  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],       photo: "https://loremflickr.com/1200/500/dubrovnik,croatia?lock=77" },
-  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",      tags: ["Nature", "Adventure"],   photo: "https://loremflickr.com/1200/500/scotland,highlands?lock=88" },
-  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",   tags: ["City", "Culture", "Food"], photo: "https://loremflickr.com/1200/500/new-york,manhattan?lock=99" },
-  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",           tags: ["Culture", "Nature"],     photo: "https://loremflickr.com/1200/500/kyoto,japan?lock=110" },
-  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"], photo: "https://loremflickr.com/1200/500/marrakech,morocco?lock=121" },
-  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"],  photo: "https://loremflickr.com/1200/500/lapland,finland?lock=132" },
+  { name: "Machu Picchu, Peru",      why: "Dry season perfection — clear trails and stunning Andean views.",        tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Rio de Janeiro, Brazil",  why: "Carnival season — the world's greatest street party is in full swing.",  tags: ["Culture", "Beach"],      photo: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Tokyo, Japan",            why: "Cherry blossom season turns the city into a pink wonderland.",           tags: ["Culture", "Food", "City"], photo: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Santorini, Greece",       why: "Spring warmth arrives before the summer crowds — perfect timing.",       tags: ["Beach", "Culture"],      photo: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Amalfi Coast, Italy",     why: "Perfect Mediterranean weather and lemon groves in full bloom.",          tags: ["Beach", "Food", "Culture"], photo: "https://images.unsplash.com/photo-1499678681-5f6b29f88e7b?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Reykjavik, Iceland",      why: "Midnight sun and endless daylight — hike, kayak, or just stay up.",     tags: ["Adventure", "Nature"],   photo: "https://images.unsplash.com/photo-1529963183134-61a90db47eaf?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Dubrovnik, Croatia",      why: "Peak Adriatic summer — crystal water, city walls, and island day trips.", tags: ["Beach", "City"],       photo: "https://images.unsplash.com/photo-1600623471616-8c73a86c4c93?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Scottish Highlands, UK",  why: "Warm summer days and purple heather rolling across the moorland.",      tags: ["Nature", "Adventure"],   photo: "https://images.unsplash.com/photo-1550159930-40066082a4fc?w=1200&h=500&fit=crop&auto=format" },
+  { name: "New York City, USA",      why: "Fall foliage hits Central Park and the city energy peaks in autumn.",   tags: ["City", "Culture", "Food"], photo: "https://images.unsplash.com/photo-1490644658840-3f2e3f8c5625?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Kyoto, Japan",            why: "Autumn leaves turn the temples and bamboo groves into fire.",           tags: ["Culture", "Nature"],     photo: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Marrakech, Morocco",      why: "Cool dry desert air — ideal for the souks, riads, and Atlas day trips.", tags: ["Culture", "Adventure", "Food"], photo: "https://images.unsplash.com/photo-1539020140153-e479b8f22986?w=1200&h=500&fit=crop&auto=format" },
+  { name: "Rovaniemi, Finland",      why: "Northern lights, reindeer, and deep snow — Christmas as it should be.", tags: ["Nature", "Adventure"],  photo: "https://images.unsplash.com/photo-1474440692490-2e83ae13ba29?w=1200&h=500&fit=crop&auto=format" },
 ];
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -240,14 +240,15 @@ export default function Explore() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative rounded-2xl overflow-hidden h-64 cursor-pointer group"
+            className="relative rounded-2xl overflow-hidden h-64 cursor-pointer group bg-slate-700"
             onClick={() => window.location.href = "/create"}
           >
             <img
               src={monthlyPick.photo}
               alt={monthlyPick.name}
+              loading="eager"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={e => { (e.target as HTMLImageElement).style.opacity = "0"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
             <div className="absolute top-4 left-4">
