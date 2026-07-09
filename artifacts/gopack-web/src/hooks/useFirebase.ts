@@ -597,15 +597,20 @@ export async function sendPackInvites(
   tripId: string,
   tripName: string,
   fromName: string,
-  fromUid: string,
+  _fromUid: string,
   members: Array<{ uid: string; name: string }>,
   packName: string,
+  idToken: string,
 ) {
   // Route through server-side Firebase Admin to bypass client RTDB rules
+  // fromUid is derived server-side from the verified ID token — not trusted from client
   const resp = await fetch("/api/send-pack-invites", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tripId, tripName, fromName, fromUid, members, packName }),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ tripId, tripName, fromName, members, packName }),
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({})) as { error?: string };

@@ -79,6 +79,7 @@ export default function Create() {
             const others = pack.members.filter((m: any) => m.uid !== user.uid);
             if (others.length > 0) {
               try {
+                const idToken = await user.getIdToken();
                 await sendPackInvites(
                   tripId,
                   destination.trim() || "Group trip",
@@ -86,6 +87,7 @@ export default function Create() {
                   user.uid,
                   others,
                   pack.name,
+                  idToken,
                 );
               } catch {
                 // Notification delivery failure is non-fatal — trip is still created

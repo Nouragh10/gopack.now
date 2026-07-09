@@ -1150,11 +1150,25 @@ router.post("/accept-invite", async (req: Request, res: Response): Promise<void>
 
 /* ─── Send pack invites (server-side, bypasses client RTDB rules) ─── */
 router.post("/send-pack-invites", async (req: Request, res: Response): Promise<void> => {
-  const { tripId, tripName, fromName, fromUid, members, packName } = req.body as {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const idToken = authHeader.slice(7);
+  let fromUid: string;
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(idToken);
+    fromUid = decoded.uid;
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+
+  const { tripId, tripName, fromName, members, packName } = req.body as {
     tripId: string;
     tripName: string;
     fromName: string;
-    fromUid: string;
     members: Array<{ uid: string; name: string }>;
     packName: string;
   };
