@@ -151,12 +151,15 @@ export default function Pricing() {
             }}>
               Popular
             </div>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#E85D3A", marginBottom: 8 }}>Plus</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#E85D3A", marginBottom: 8 }}>GoPackNow Plus</p>
             <p style={{ fontSize: 40, fontWeight: 800, margin: "0 0 4px", color: "#fff" }}>
               {billing === "yearly" ? "$19.99" : "$9.99"}
             </p>
-            <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>
-              {billing === "yearly" ? "per year · ~$1.67/mo" : "per month"}
+            <p style={{ color: "#888", fontSize: 14, marginBottom: 4 }}>
+              {billing === "yearly" ? "per year, billed annually · ~$1.67/mo" : "per month, billed monthly"}
+            </p>
+            <p style={{ color: "#666", fontSize: 12, marginBottom: 28 }}>
+              Renews at {billing === "yearly" ? "$19.99/year" : "$9.99/month"} until cancelled
             </p>
             <button
               onClick={() => setLocation("/login")}
@@ -190,6 +193,9 @@ export default function Pricing() {
 
         <div style={{ textAlign: "center", marginTop: 48, color: "#888", fontSize: 14 }}>
           <p>All payments processed securely by <strong>Paddle</strong> · Cancel anytime · <a href="/refunds" style={{ color: "#E85D3A" }}>14-day money-back guarantee</a></p>
+          <p style={{ marginTop: 8, fontSize: 13, color: "#aaa" }}>
+            Taxes may apply and will be calculated at checkout.
+          </p>
           <p style={{ marginTop: 8 }}>
             <a href="/terms" style={{ color: "#888", marginRight: 16 }}>Terms of Service</a>
             <a href="/privacy" style={{ color: "#888", marginRight: 16 }}>Privacy Policy</a>

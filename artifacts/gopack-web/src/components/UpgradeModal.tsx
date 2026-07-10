@@ -106,7 +106,7 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                 >
                   <p className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1">MONTHLY</p>
                   <p className="text-xl font-serif font-bold">$9.99</p>
-                  <p className="text-xs text-muted-foreground">per month</p>
+                  <p className="text-xs text-muted-foreground">per month, renews monthly</p>
                 </button>
                 <button
                   onClick={() => setPlan("yearly")}
@@ -115,7 +115,7 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
                   <span className="absolute -top-2.5 left-3 text-[9px] font-bold bg-primary text-white px-2 py-0.5 rounded-full tracking-wide">BEST VALUE</span>
                   <p className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1 mt-1">YEARLY</p>
                   <p className="text-xl font-serif font-bold">$19.99</p>
-                  <p className="text-xs text-muted-foreground">per year · save 83%</p>
+                  <p className="text-xs text-muted-foreground">per year, renews annually</p>
                 </button>
               </div>
 
@@ -141,8 +141,11 @@ export function UpgradeModal({ open, reason, tripId, onClose }: Props) {
               >
                 {loading ? "Loading…" : plan === "yearly" ? "Subscribe — $19.99/yr" : "Subscribe — $9.99/mo"}
               </button>
-              <p className="text-center text-[11px] text-muted-foreground mb-2">
+              <p className="text-center text-[11px] text-muted-foreground mb-1">
                 Powered by Paddle · Cancel anytime
+              </p>
+              <p className="text-center text-[10px] text-muted-foreground/70 mb-2">
+                Taxes may apply and will be calculated at checkout.
               </p>
               <button
                 onClick={onClose}
