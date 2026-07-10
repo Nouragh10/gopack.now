@@ -630,7 +630,7 @@ Respond with ONLY valid JSON, no markdown:
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 1200,
+      max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -650,6 +650,12 @@ Respond with ONLY valid JSON, no markdown:
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
+
+    if (!allText.trim()) {
+      req.log.error({ data }, "Empty response from Anthropic (suggest-destinations)");
+      res.status(500).json({ error: "AI returned an empty response. Please try again." });
+      return;
+    }
 
     const result = extractAndParseJson(allText);
     res.json(result);
