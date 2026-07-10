@@ -266,13 +266,13 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-border">
+      <nav className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-border">
         <Link href="/" className="font-display font-bold text-2xl" data-testid="link-logo">
           go<span className="text-primary">pack</span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/explore" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-explore">
-            <Compass size={16} /> Explore
+            <Compass size={16} /> <span className="hidden sm:inline">Explore</span>
           </Link>
 
           {/* Trip invites bell */}
@@ -300,7 +300,7 @@ export default function Dashboard() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-10 w-80 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+                    className="absolute right-0 top-10 w-72 sm:w-80 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
                   >
                     <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                       <span className="font-semibold text-sm flex items-center gap-1.5">
@@ -430,9 +430,16 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Saved packs */}
-        {savedPacks.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="mb-10">
-            <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Saved packs</p>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="mb-10">
+          <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase mb-3">Saved packs</p>
+          {savedPacks.length === 0 ? (
+            <div className="flex items-center gap-3 border border-dashed border-border rounded-2xl px-4 py-3 bg-muted/10">
+              <div className="w-9 h-9 rounded-full bg-muted/40 flex items-center justify-center shrink-0">
+                <Package size={16} className="text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">Save a packing list from any trip to reuse it here.</p>
+            </div>
+          ) : (
             <div className="flex flex-col gap-2">
               {savedPacks.map(pack => (
                 <div key={pack.id} className="flex items-center gap-3 border border-border rounded-2xl px-4 py-3 bg-muted/20">
@@ -473,8 +480,8 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          </motion.div>
-        )}
+          )}
+        </motion.div>
 
         {/* How it works */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
