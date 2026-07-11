@@ -1,12 +1,9 @@
-import Constants from "expo-constants";
 import React, { createContext, useContext } from "react";
-import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
-const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
+// GoPackNow is iOS-only — one public key covers all environments.
+const REVENUECAT_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pack_plus";
 export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock_299";
@@ -15,36 +12,15 @@ export const TRIP_UNLOCK_PACKAGE_IDENTIFIER = "trip_unlock";
 // Tracks whether configure() succeeded — guards all Purchases.* calls below.
 let revenueCatInitialized = false;
 
-function getRevenueCatApiKey(): string | null {
-  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    return null;
-  }
-
-  if (__DEV__ || Platform.OS === "web" || Constants.executionEnvironment === "storeClient") {
-    return REVENUECAT_TEST_API_KEY;
-  }
-
-  if (Platform.OS === "ios") {
-    return REVENUECAT_IOS_API_KEY;
-  }
-
-  if (Platform.OS === "android") {
-    return REVENUECAT_ANDROID_API_KEY;
-  }
-
-  return REVENUECAT_TEST_API_KEY;
-}
-
 export function initializeRevenueCat() {
-  const apiKey = getRevenueCatApiKey();
-  if (!apiKey) {
-    console.warn("RevenueCat: public API keys not configured — subscription features disabled.");
+  if (!REVENUECAT_API_KEY) {
+    console.warn("RevenueCat: EXPO_PUBLIC_REVENUECAT_IOS_API_KEY not set — subscription features disabled.");
     return;
   }
 
   try {
-    Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-    Purchases.configure({ apiKey });
+    Purchases.setLogLevel(__DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.ERROR);
+    Purchases.configure({ apiKey: REVENUECAT_API_KEY });
     revenueCatInitialized = true;
     console.log("RevenueCat configured successfully.");
   } catch (err) {

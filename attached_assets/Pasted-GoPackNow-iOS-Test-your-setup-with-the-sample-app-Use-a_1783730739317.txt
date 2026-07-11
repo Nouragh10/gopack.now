@@ -1,0 +1,85 @@
+GoPackNow iOS
+Test your setup with the sample app
+Use a pre-configured sample app to see how RevenueCat works out of the box. It includes all the necessary credentials and helpful defaults to get you started.
+
+App name
+Required
+GoPackNow iOS
+
+App Bundle ID
+Required
+com.gopacknow.app
+
+This is specified in your Xcode project
+Custom URL Scheme
+rc-cd42dff434
+
+Register this URL scheme in your app to enable deep linking for RevenueCat features such as paywall previews. Learn more.
+
+In-app purchase key configuration
+Required
+
+Required for the most accurate pricing and country-specific data for your App Store transactions. After uploading this key, you may see updates to your historical data. When using Purchases v5.x+ (i.e., StoreKit 2), transactions will fail to be recorded without this key being set. This can result in users not accessing the purchases they are entitled to. Learn more.
+
+P8 key file from App Store Connect
+846ZM8MCCB.p8
+Valid credentials
+
+Key ID
+Required
+846ZM8MCCB
+
+Issuer ID
+Required
+72205421-d427-4756-a4bf-bc64de10bfbe
+
+App Store Connect API
+An App Store Connect API key is required if you want to import products into RevenueCat, have product price changes automatically applied, and more. Learn more.
+
+P8 key file from App Store Connect
+Required
+Drop a file here, or click to select
+File name format should follow AuthKey_XXXXXXXXXX.p8
+
+
+Apple Server to Server notification settings
+Apple Server Notification URL
+No notifications received
+https://api.revenuecat.com/v1/incoming-webhooks/apple-server-to-server-notification/GNCHmOuTxoDogVuPuDrRXClelYfgOUWr
+
+Optionally send Apple server notifications directly to RevenueCat. More information
+
+Apple Server Notification Forwarding URL
+https://yourserver.com/revenuecat/apple-server-notifications
+
+Optionally forward Apple server notifications to your server. More information
+Track new purchases from server-to-server notifications
+Track purchases from server-to-server notifications not yet in RevenueCat. Learn more
+
+Refund request handling
+
+
+Apple Retention Messaging API settings (Preview)
+
+
+StoreKit Subscription Offer key
+
+
+StoreKit testing framework
+
+
+Apple Small Business Program
+
+
+App-specific shared secret (Legacy)
+
+
+Public API Key
+
+REST API Identifier
+
+appcd42dff434
+
+Delete app
+
+Deleting this app will remove its data and access for all collaborators. This action can’t be undone.
