@@ -14,7 +14,7 @@ import { setBaseUrl } from "@/lib/api-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { ActivityIndicator, Alert, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -23,11 +23,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
-try {
-  initializeRevenueCat();
-} catch (err: any) {
-  Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
-}
+// initializeRevenueCat handles missing keys and configure() errors internally —
+// it logs a warning and sets revenueCatInitialized=false so the SDK is never
+// called when not configured. No Alert needed here (Alert before mount is unsafe).
+initializeRevenueCat();
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`);
 

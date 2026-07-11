@@ -12,9 +12,12 @@ export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pack_plus";
 export const DAY_UNLOCK_PACKAGE_IDENTIFIER = "day_unlock_299";
 export const TRIP_UNLOCK_PACKAGE_IDENTIFIER = "trip_unlock";
 
-function getRevenueCatApiKey() {
+// Tracks whether configure() succeeded — guards all Purchases.* calls below.
+let revenueCatInitialized = false;
+
+function getRevenueCatApiKey(): string | null {
   if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    throw new Error("RevenueCat Public API Keys not found");
+    return null;
   }
 
   if (__DEV__ || Platform.OS === "web" || Constants.executionEnvironment === "storeClient") {
@@ -34,12 +37,19 @@ function getRevenueCatApiKey() {
 
 export function initializeRevenueCat() {
   const apiKey = getRevenueCatApiKey();
-  if (!apiKey) throw new Error("RevenueCat Public API Key not found");
+  if (!apiKey) {
+    console.warn("RevenueCat: public API keys not configured — subscription features disabled.");
+    return;
+  }
 
-  Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-  Purchases.configure({ apiKey });
-
-  console.log("Configured RevenueCat");
+  try {
+    Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+    Purchases.configure({ apiKey });
+    revenueCatInitialized = true;
+    console.log("RevenueCat configured successfully.");
+  } catch (err) {
+    console.warn("RevenueCat: configure() failed —", err);
+  }
 }
 
 function useSubscriptionContext() {
@@ -48,6 +58,7 @@ function useSubscriptionContext() {
     queryFn: async () => {
       return Purchases.getCustomerInfo();
     },
+    enabled: revenueCatInitialized,
     staleTime: 60 * 1000,
   });
 
@@ -56,12 +67,14 @@ function useSubscriptionContext() {
     queryFn: async () => {
       return Purchases.getOfferings();
     },
+    enabled: revenueCatInitialized,
     staleTime: 0,
     retry: 3,
   });
 
   const purchaseMutation = useMutation({
     mutationFn: async (packageToPurchase: any) => {
+      if (!revenueCatInitialized) throw new Error("Purchases not available.");
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
       return customerInfo;
     },
@@ -70,12 +83,14 @@ function useSubscriptionContext() {
 
   const restoreMutation = useMutation({
     mutationFn: async () => {
+      if (!revenueCatInitialized) throw new Error("Purchases not available.");
       return Purchases.restorePurchases();
     },
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
   const isSubscribed =
+    revenueCatInitialized &&
     customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
 
   const packages = offeringsQuery.data?.current?.availablePackages ?? [];
@@ -86,11 +101,12 @@ function useSubscriptionContext() {
   const dayUnlockPackage = packages.find((p) => p.identifier === DAY_UNLOCK_PACKAGE_IDENTIFIER);
 
   return {
+    isRevenueCatAvailable: revenueCatInitialized,
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     isSubscribed,
-    isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
-    offeringsLoading: offeringsQuery.isLoading || offeringsQuery.isFetching,
+    isLoading: revenueCatInitialized && (customerInfoQuery.isLoading || offeringsQuery.isLoading),
+    offeringsLoading: revenueCatInitialized && (offeringsQuery.isLoading || offeringsQuery.isFetching),
     offeringsError: offeringsQuery.isError,
     refetchOfferings: offeringsQuery.refetch,
     purchase: purchaseMutation.mutateAsync,
