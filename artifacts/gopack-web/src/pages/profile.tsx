@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, LogOut, User, Mail, Edit2, Check, X, Loader2, MapPin, Users, ChevronDown } from "lucide-react";
+import { ArrowLeft, LogOut, User, Mail, Edit2, Check, X, Loader2, MapPin, Users, ChevronDown, CreditCard, FileText, Shield, RotateCcw, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrips } from "@/hooks/useFirebase";
+import { useUserPremium } from "@/hooks/usePremium";
 import { updateProfile } from "firebase/auth";
 import { ref, update } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
@@ -24,11 +25,13 @@ export default function Profile() {
   const { user, signOut } = useAuth();
   const [, setLocation] = useLocation();
   const { trips, loading: tripsLoading } = useTrips();
+  const { premium, loading: premiumLoading } = useUserPremium();
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.displayName || "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [tripsExpanded, setTripsExpanded] = useState(false);
+  const [subscriptionExpanded, setSubscriptionExpanded] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -242,6 +245,140 @@ export default function Profile() {
               </Link>
             </div>
           )}
+
+          {/* Subscription */}
+          {!isAnonymous && (
+            <div className="border border-border rounded-2xl overflow-hidden bg-background">
+              <button
+                onClick={() => setSubscriptionExpanded(e => !e)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors text-left"
+                data-testid="button-expand-subscription"
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard size={16} className="text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Manage subscription</p>
+                    <p className="text-xs text-muted-foreground">
+                      {premiumLoading ? "Loading…" : premium?.active ? (
+                        premium.cancelAtPeriodEnd
+                          ? `GoPackNow Plus · Cancels ${premium.currentPeriodEnd ? new Date(premium.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "at period end"}`
+                          : `GoPackNow Plus · Renews ${premium.currentPeriodEnd ? new Date(premium.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}`
+                      ) : "Free plan"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!premiumLoading && premium?.active && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary">Plus</span>
+                  )}
+                  <motion.div animate={{ rotate: subscriptionExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown size={16} className="text-muted-foreground" />
+                  </motion.div>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {subscriptionExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden border-t border-border"
+                  >
+                    <div className="px-5 py-5 flex flex-col gap-4">
+                      {premium?.active ? (
+                        <>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Current plan</span>
+                            <span className="font-medium">GoPackNow Plus</span>
+                          </div>
+                          {premium.currentPeriodEnd && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">{premium.cancelAtPeriodEnd ? "Access until" : "Next renewal"}</span>
+                              <span className="font-medium">
+                                {new Date(premium.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                              </span>
+                            </div>
+                          )}
+                          {premium.cancelAtPeriodEnd ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                              Your subscription is set to cancel. You&apos;ll keep Plus access until the date above.
+                            </div>
+                          ) : (
+                            <>
+                              <div className="bg-muted/40 rounded-xl p-4 text-sm">
+                                <p className="font-medium mb-2 text-foreground">How to cancel your subscription</p>
+                                <ol className="list-decimal list-inside flex flex-col gap-1.5 text-muted-foreground">
+                                  <li>Click <strong className="text-foreground">"Go to billing portal"</strong> below</li>
+                                  <li>Sign in with the email you used to subscribe</li>
+                                  <li>Find your GoPackNow Plus subscription and click <strong className="text-foreground">Cancel</strong></li>
+                                  <li>You&apos;ll keep Plus access until the end of the current period</li>
+                                </ol>
+                              </div>
+                              <a
+                                href="https://customer.paddle.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-2 w-full border border-border py-3 rounded-full text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+                                data-testid="link-paddle-portal"
+                              >
+                                <ExternalLink size={14} />
+                                Go to billing portal
+                              </a>
+                            </>
+                          )}
+                          <p className="text-xs text-muted-foreground text-center">
+                            Need help?{" "}
+                            <a href="mailto:support@gopack.now" className="text-primary underline">support@gopack.now</a>
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">You&apos;re on the free plan. Upgrade to GoPackNow Plus to unlock unlimited AI generations and up to 20 trip members.</p>
+                          <Link
+                            href="/pricing"
+                            className="flex items-center justify-center gap-2 w-full bg-primary text-white py-3 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
+                            data-testid="link-upgrade"
+                          >
+                            View Plus plans
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Legal links */}
+          <div className="border border-border rounded-2xl divide-y divide-border bg-background">
+            <Link
+              href="/terms"
+              className="flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+              data-testid="link-terms"
+            >
+              <FileText size={16} className="text-muted-foreground shrink-0" />
+              <span className="text-sm">Terms of Service</span>
+            </Link>
+            <Link
+              href="/privacy"
+              className="flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+              data-testid="link-privacy"
+            >
+              <Shield size={16} className="text-muted-foreground shrink-0" />
+              <span className="text-sm">Privacy Policy</span>
+            </Link>
+            <Link
+              href="/refunds"
+              className="flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+              data-testid="link-refunds"
+            >
+              <RotateCcw size={16} className="text-muted-foreground shrink-0" />
+              <span className="text-sm">Refund &amp; Cancellation Policy</span>
+            </Link>
+          </div>
 
           {/* Sign out */}
           <button
