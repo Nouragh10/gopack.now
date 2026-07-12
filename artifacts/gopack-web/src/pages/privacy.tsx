@@ -9,7 +9,7 @@ export default function Privacy() {
       color: "#1a1a1a",
     }}>
       <h1 style={{ fontSize: 28, marginBottom: 4 }}>Privacy Policy</h1>
-      <p style={{ color: "#777", fontSize: 14, marginBottom: 32 }}>Last updated: June 27, 2026</p>
+      <p style={{ color: "#777", fontSize: 14, marginBottom: 32 }}>Last updated: July 12, 2026</p>
 
       <p>gopack.now ("gopack," "we," "us," or "our") provides a collaborative group travel planning app. This policy explains what information we collect, how we use it, and your choices.</p>
 
@@ -29,7 +29,12 @@ export default function Privacy() {
       <p>This information is visible to other members of the same trip, since the app is designed for group collaboration.</p>
 
       <h3 style={{ fontSize: 16, marginTop: 20, marginBottom: 6 }}>Purchase Information</h3>
-      <p>If you subscribe to GoPackNow Plus, your purchase is processed by <strong>Paddle.com</strong>, our Merchant of Record. Paddle receives your payment details and transaction information to process your subscription. We do not see or store your payment card details — these are handled entirely by Paddle. We store your subscription status (active/canceled) and renewal date in our database to manage your access to premium features.</p>
+      <p>If you subscribe to GoPackNow Plus, your purchase is handled by one of the following processors depending on the platform you use:</p>
+      <ul style={{ paddingLeft: 22 }}>
+        <li><strong>Mobile app (iOS):</strong> In-app purchases are processed through Apple's App Store and managed by <strong>RevenueCat</strong>. RevenueCat receives transaction data from Apple on our behalf to verify and manage your subscription. We do not see or store your payment card details.</li>
+        <li><strong>Web (gopack.now):</strong> Subscriptions purchased on the website are processed by <strong>Paddle.com</strong>, our Merchant of Record. Paddle receives your payment details and transaction information. We do not see or store your payment card details — these are handled entirely by Paddle.</li>
+      </ul>
+      <p>In both cases, we store your subscription status (active/canceled) and renewal date in our database solely to manage your access to premium features.</p>
 
       <h3 style={{ fontSize: 16, marginTop: 20, marginBottom: 6 }}>Device &amp; Diagnostic Information</h3>
       <p>We may collect basic technical information such as app version, device type, and crash/error logs to help us fix bugs and improve the app.</p>
@@ -46,7 +51,8 @@ export default function Privacy() {
       <p>We do not sell your personal information. We share data only with the service providers necessary to run the app:</p>
       <ul style={{ paddingLeft: 22 }}>
         <li><strong>Firebase (Google)</strong> — authentication and data storage</li>
-        <li><strong>Paddle</strong> — subscription billing and payment processing (Merchant of Record)</li>
+        <li><strong>RevenueCat</strong> — mobile in-app purchase verification and subscription management (iOS app)</li>
+        <li><strong>Paddle</strong> — subscription billing and payment processing for the website (Merchant of Record)</li>
         <li><strong>Anthropic</strong> — trip details are sent to generate AI itineraries and packing lists; this data is used only to generate your results and is not used to train AI models</li>
       </ul>
       <p>Trip content (wishlist items, votes, chat, itinerary) is shared with the other members of that specific trip, since that's the point of the app.</p>
