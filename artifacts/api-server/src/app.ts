@@ -29,7 +29,9 @@ app.use(
 app.use(cors());
 
 // Paddle webhook must be registered BEFORE express.json() — needs raw body buffer
+// Both paths supported: /api/paddle/webhook (canonical) and /api/paddle-webhook (legacy alias)
 app.post("/api/paddle/webhook", express.raw({ type: "application/json" }), paddleWebhookHandler);
+app.post("/api/paddle-webhook", express.raw({ type: "application/json" }), paddleWebhookHandler);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
