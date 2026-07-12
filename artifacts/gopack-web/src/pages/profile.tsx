@@ -9,6 +9,20 @@ import { updateProfile } from "firebase/auth";
 import { ref, update } from "firebase/database";
 import { auth, db } from "@/lib/firebase";
 
+async function openBillingPortal(user: import("firebase/auth").User): Promise<void> {
+  const token = await user.getIdToken();
+  const res = await fetch("/api/paddle/portal", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? "Could not open billing portal");
+  }
+  const { url } = await res.json();
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 const AVATAR_COLORS = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517", "#C4448A"];
 const VIBE_LABELS: Record<string, string> = {
   culture: "Culture", food: "Foodie", adventure: "Adventure",
@@ -32,6 +46,8 @@ export default function Profile() {
   const [saveError, setSaveError] = useState("");
   const [tripsExpanded, setTripsExpanded] = useState(false);
   const [subscriptionExpanded, setSubscriptionExpanded] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState("");
 
   const handleSignOut = async () => {
     await signOut();
@@ -316,16 +332,28 @@ export default function Profile() {
                                   <li>You&apos;ll keep Plus access until the end of the current period</li>
                                 </ol>
                               </div>
-                              <a
-                                href="https://customer.paddle.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-center gap-2 w-full border border-border py-3 rounded-full text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
-                                data-testid="link-paddle-portal"
+                              <button
+                                onClick={async () => {
+                                  setPortalError("");
+                                  setPortalLoading(true);
+                                  try {
+                                    await openBillingPortal(user);
+                                  } catch (err: any) {
+                                    setPortalError(err.message ?? "Could not open billing portal");
+                                  } finally {
+                                    setPortalLoading(false);
+                                  }
+                                }}
+                                disabled={portalLoading}
+                                className="flex items-center justify-center gap-2 w-full border border-border py-3 rounded-full text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+                                data-testid="button-paddle-portal"
                               >
-                                <ExternalLink size={14} />
-                                Go to billing portal
-                              </a>
+                                {portalLoading ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={14} />}
+                                {portalLoading ? "Opening portal…" : "Go to billing portal"}
+                              </button>
+                              {portalError && (
+                                <p className="text-xs text-destructive text-center">{portalError}</p>
+                              )}
                             </>
                           )}
                           <p className="text-xs text-muted-foreground text-center">
