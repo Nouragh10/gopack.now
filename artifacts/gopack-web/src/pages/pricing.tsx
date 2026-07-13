@@ -22,12 +22,13 @@ const PLUS_FEATURES = [
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [billing, setBilling] = useState<"monthly" | "yearly">("yearly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubscribe = async () => {
+    if (authLoading) return; // wait for Firebase to resolve auth state
     if (!user) {
       sessionStorage.setItem("gopack_auth_redirect", "/pricing");
       setLocation("/login");
@@ -208,28 +209,28 @@ export default function Pricing() {
 
             <button
               onClick={handleSubscribe}
-              disabled={loading}
+              disabled={loading || authLoading}
               style={{
                 width: "100%",
                 padding: "14px 0",
                 borderRadius: 999,
                 border: "none",
-                background: loading ? "#c4472a" : "#E85D3A",
+                background: (loading || authLoading) ? "#c4472a" : "#E85D3A",
                 color: "#fff",
                 fontWeight: 700,
                 fontSize: 15,
-                cursor: loading ? "not-allowed" : "pointer",
+                cursor: (loading || authLoading) ? "not-allowed" : "pointer",
                 marginBottom: 8,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
-                opacity: loading ? 0.8 : 1,
+                opacity: (loading || authLoading) ? 0.8 : 1,
                 transition: "background 0.15s",
               }}
             >
-              {loading && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
-              {loading ? "Loading…" : "Start planning"}
+              {(loading || authLoading) && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+              {loading ? "Loading…" : authLoading ? "Loading…" : "Start planning"}
             </button>
             <p style={{ color: "#555", fontSize: 11, textAlign: "center", marginBottom: 28 }}>
               Taxes may apply and will be calculated at checkout.
