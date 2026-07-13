@@ -22,8 +22,8 @@ router.post("/paddle/checkout", async (req, res) => {
     returnUrl?: string;
   };
 
-  if (!tripId || !plan || !uid) {
-    res.status(400).json({ error: "tripId, plan, and uid are required" });
+  if (!plan || !uid) {
+    res.status(400).json({ error: "plan and uid are required" });
     return;
   }
 
@@ -40,10 +40,11 @@ router.post("/paddle/checkout", async (req, res) => {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "localhost";
     const baseUrl = `https://${domain}`;
 
+    const successUrl = returnUrl ?? (tripId ? `${baseUrl}/trip/${tripId}?upgraded=1` : `${baseUrl}/dashboard?upgraded=1`);
     const transaction = await paddle.transactions.create({
       items: [{ priceId, quantity: 1 }],
-      customData: { tripId, uid },
-      checkout: { url: returnUrl ?? `${baseUrl}/trip/${tripId}?upgraded=1` },
+      customData: { tripId: tripId ?? null, uid },
+      checkout: { url: successUrl },
     });
 
     const checkoutUrl = transaction.checkout?.url;

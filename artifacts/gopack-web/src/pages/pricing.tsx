@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 const FREE_FEATURES = [
   "Up to 5 trip members",
@@ -21,7 +22,44 @@ const PLUS_FEATURES = [
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const [billing, setBilling] = useState<"monthly" | "yearly">("yearly");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubscribe = async () => {
+    if (!user) {
+      sessionStorage.setItem("gopack_auth_redirect", "/pricing");
+      setLocation("/login");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/paddle/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: billing,
+          uid: user.uid,
+          email: user.email ?? undefined,
+          returnUrl: `${window.location.origin}/dashboard?upgraded=1`,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any).error || "Could not start checkout");
+      }
+
+      const { url } = await res.json() as { url: string };
+      window.location.href = url;
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={{
@@ -90,6 +128,7 @@ export default function Pricing() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
+          {/* Free tier */}
           <div style={{
             background: "#fff",
             borderRadius: 20,
@@ -100,7 +139,7 @@ export default function Pricing() {
             <p style={{ fontSize: 40, fontWeight: 800, margin: "0 0 4px" }}>$0</p>
             <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>Forever free</p>
             <button
-              onClick={() => setLocation("/login")}
+              onClick={() => setLocation(user ? "/dashboard" : "/login")}
               style={{
                 width: "100%",
                 padding: "14px 0",
@@ -128,6 +167,7 @@ export default function Pricing() {
             </ul>
           </div>
 
+          {/* Plus tier */}
           <div style={{
             background: "#1a1a1a",
             borderRadius: 20,
@@ -161,23 +201,40 @@ export default function Pricing() {
             <p style={{ color: "#666", fontSize: 12, marginBottom: 28 }}>
               Renews at {billing === "yearly" ? "$19.99/year" : "$9.99/month"} until cancelled
             </p>
+
+            {error && (
+              <p style={{ color: "#ff6b6b", fontSize: 13, marginBottom: 12, textAlign: "center" }}>{error}</p>
+            )}
+
             <button
-              onClick={() => setLocation("/login")}
+              onClick={handleSubscribe}
+              disabled={loading}
               style={{
                 width: "100%",
                 padding: "14px 0",
                 borderRadius: 999,
                 border: "none",
-                background: "#E85D3A",
+                background: loading ? "#c4472a" : "#E85D3A",
                 color: "#fff",
                 fontWeight: 700,
                 fontSize: 15,
-                cursor: "pointer",
-                marginBottom: 28,
+                cursor: loading ? "not-allowed" : "pointer",
+                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                opacity: loading ? 0.8 : 1,
+                transition: "background 0.15s",
               }}
             >
-              Start planning
+              {loading && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+              {loading ? "Loading…" : "Start planning"}
             </button>
+            <p style={{ color: "#555", fontSize: 11, textAlign: "center", marginBottom: 28 }}>
+              Taxes may apply and will be calculated at checkout.
+            </p>
+
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
               {PLUS_FEATURES.map(f => (
                 <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#ccc" }}>
