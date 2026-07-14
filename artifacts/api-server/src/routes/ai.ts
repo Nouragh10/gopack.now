@@ -1207,4 +1207,87 @@ router.post("/send-pack-invites", async (req: Request, res: Response): Promise<v
   }
 });
 
+// ── MultiMind Math: AI approach suggestion ─────────────────────────────────
+router.post("/ai/multimind/suggest", async (req, res) => {
+  const { question, mascot, personality } = req.body as {
+    question: string;
+    mascot: string;
+    personality: string;
+  };
+
+  if (!question || !mascot) {
+    res.status(400).json({ error: "question and mascot are required" });
+    return;
+  }
+
+  const systemPrompt = `You are a math learning assistant for children ages 5–10. Your job is to suggest the BEST learning approach for a child given their math problem and their chosen guide character's personality.
+
+The child's guide is **${mascot}** who is described as: "${personality}".
+
+Available learning approaches (pick exactly one as the primary recommendation):
+1. Get the idea
+2. Follow the steps
+3. See a picture
+4. Explain in words
+5. Do it hands-on
+6. Real-world example
+7. Spot the pattern
+8. Teach a friend
+9. Play a game
+
+Personality → approach guidelines:
+- Ziggy (Curious & Encouraging): Loves visual discovery → prefer "See a picture" or "Spot the pattern"
+- Pip (Calm & Patient): Methodical and thorough → prefer "Follow the steps" or "Explain in words"
+- Nova (Energetic & Fun): High energy, competitive → prefer "Play a game" or "Do it hands-on"
+- Bramble (Thoughtful & Wise): Deep thinker → prefer "Spot the pattern" or "Real-world example"
+- Echo (Logical & Clear): Precise and structured → prefer "Follow the steps" or "Get the idea"
+- Luna (Kind & Cheerful): Gentle encourager → prefer "See a picture" or "Teach a friend"
+
+Question type → approach guidelines:
+- Addition / subtraction: "See a picture" (number line) works great
+- Multiplication: "Spot the pattern" or "Real-world example"
+- Division: "Follow the steps" or "Do it hands-on"
+- Fractions: "See a picture" (pie chart) or "Real-world example"
+- Word problems: "Real-world example" or "Explain in words"
+- Large numbers: "Follow the steps" or "Get the idea"
+
+Always give the response in this exact JSON format (no markdown, no code fences):
+{
+  "approach": "<one of the 9 approach names above, exact match>",
+  "reason": "<one sentence explaining why this approach fits both the question type AND ${mascot}'s personality>",
+  "mascotMessage": "<a short encouraging message in ${mascot}'s voice, 1-2 sentences, warm and child-friendly>",
+  "tips": ["<actionable tip 1>", "<actionable tip 2>", "<actionable tip 3>"]
+}`;
+
+  try {
+    const response = await callAnthropic({
+      model: "claude-haiku-4-5",
+      max_tokens: 512,
+      system: systemPrompt,
+      messages: [{ role: "user", content: `Math question: "${question}"` }],
+    });
+
+    if (!response.ok) {
+      const text = await (response as unknown as globalThis.Response).text();
+      req.log.error({ status: response.status, text }, "Anthropic error for multimind suggest");
+      res.status(502).json({ error: "AI service error" });
+      return;
+    }
+
+    const data = await (response as unknown as globalThis.Response).json() as { content: Array<{ text: string }> };
+    const rawText = data.content[0]?.text ?? "{}";
+    const parsed = extractAndParseJson(rawText) as {
+      approach: string;
+      reason: string;
+      mascotMessage: string;
+      tips: string[];
+    };
+
+    res.json(parsed);
+  } catch (err) {
+    req.log.error({ err }, "multimind/suggest failed");
+    res.status(500).json({ error: (err as Error).message ?? "Unknown error" });
+  }
+});
+
 export default router;

@@ -42,10 +42,9 @@ export default function NumberLine() {
   };
 
   useEffect(() => {
-    if (celebrated) {
-      const t = setTimeout(() => setLocation("/step-complete"), 2200);
-      return () => clearTimeout(t);
-    }
+    if (!celebrated) return;
+    const t = setTimeout(() => setLocation("/step-complete"), 2200);
+    return () => clearTimeout(t);
   }, [celebrated, setLocation]);
 
   const ticks = Array.from({ length: MAX - MIN + 1 }, (_, i) => MIN + i);

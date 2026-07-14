@@ -3,16 +3,22 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { MascotByName, GUIDE_CONFIG } from "@/components/mascots/MascotSVG";
+import { useAuth } from "@/contexts/AuthContext";
+import { ref, update } from "firebase/database";
+import { db } from "@/lib/firebase";
 
 export default function ChooseGuide() {
   const [, setLocation] = useLocation();
   const [selected, setSelected] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  const handleContinue = () => {
-    if (selected) {
-      localStorage.setItem("multimind_guide", selected);
-      setLocation("/whose-turn");
+  const handleContinue = async () => {
+    if (!selected) return;
+    localStorage.setItem("multimind_guide", selected);
+    if (user && !user.isAnonymous) {
+      await update(ref(db, `multimind/users/${user.uid}/profile`), { guide: selected });
     }
+    setLocation("/hub");
   };
 
   return (

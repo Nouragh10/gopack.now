@@ -4,165 +4,175 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeX, Music, Music2, Type, Users, ChevronRight, Pencil, Flame, Star } from "lucide-react";
 import { MascotByName, GUIDE_CONFIG } from "@/components/mascots/MascotSVG";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProgress } from "@/contexts/ProgressContext";
+import { ref, update } from "firebase/database";
+import { db } from "@/lib/firebase";
 
-const AVATAR_COLORS = [
-  { id: "violet", label: "Violet", bg: "bg-violet-400" },
-  { id: "sky",    label: "Sky",    bg: "bg-sky-400" },
-  { id: "green",  label: "Green",  bg: "bg-green-400" },
-  { id: "amber",  label: "Amber",  bg: "bg-amber-400" },
-  { id: "pink",   label: "Pink",   bg: "bg-pink-400" },
-  { id: "orange", label: "Orange", bg: "bg-orange-400" },
-];
+const AVATAR_COLORS = ["bg-purple-500", "bg-blue-500", "bg-green-500", "bg-orange-500", "bg-pink-500", "bg-teal-500"];
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const [name, setName] = useState(localStorage.getItem("multimind_player_name") || "Explorer");
-  const [editingName, setEditingName] = useState(false);
-  const [tempName, setTempName] = useState(name);
-  const [avatar, setAvatar] = useState("violet");
-  const [soundOn, setSoundOn] = useState(true);
-  const [musicOn, setMusicOn] = useState(true);
-  const [largeText, setLargeText] = useState(false);
-  const guide = localStorage.getItem("multimind_guide") || "Ziggy";
-  const guideCfg = GUIDE_CONFIG.find(g => g.name === guide) ?? GUIDE_CONFIG[0];
-  const avatarColor = AVATAR_COLORS.find(a => a.id === avatar) ?? AVATAR_COLORS[0];
+  const { user, signOut } = useAuth();
+  const { progress } = useProgress();
 
-  const saveName = () => {
-    const n = tempName.trim() || "Explorer";
-    setName(n);
-    localStorage.setItem("multimind_player_name", n);
+  const guide = localStorage.getItem("multimind_guide") || "Ziggy";
+  const guideCfg = GUIDE_CONFIG.find((g) => g.name === guide) ?? GUIDE_CONFIG[0];
+
+  const defaultName = user?.isAnonymous ? "Guest" : (user?.displayName ?? "Learner");
+  const [displayName, setDisplayName] = useState(() => localStorage.getItem("mm_displayName") ?? defaultName);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(displayName);
+  const [avatarColor, setAvatarColor] = useState(() => localStorage.getItem("mm_avatarColor") ?? AVATAR_COLORS[0]);
+  const [soundEffects, setSoundEffects] = useState(true);
+  const [bgMusic, setBgMusic] = useState(false);
+  const [largeText, setLargeText] = useState(false);
+
+  const initial = displayName[0]?.toUpperCase() ?? "?";
+
+  const saveName = async () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
+    setDisplayName(trimmed);
+    localStorage.setItem("mm_displayName", trimmed);
     setEditingName(false);
+    if (user && !user.isAnonymous) {
+      await update(ref(db, `multimind/users/${user.uid}/profile`), { displayName: trimmed });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setLocation("/login");
   };
 
   return (
     <AppLayout>
-      <div className="p-6 md:p-8 max-w-2xl mx-auto">
-        <div className="mb-6">
-          <div className="text-xs font-extrabold text-primary uppercase tracking-wider mb-1">Profile</div>
-          <h1 className="text-3xl font-extrabold text-foreground mb-1">Avatar &amp; Profile</h1>
-        </div>
+      <div className="p-5 md:p-8 max-w-xl">
+        <div className="text-xs font-extrabold text-primary uppercase tracking-wider mb-1">Settings & Stats</div>
+        <h1 className="text-2xl font-extrabold mb-5">My Profile</h1>
 
         <div className="bg-card border-2 border-border rounded-3xl p-6 mb-4 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <div className={`w-24 h-24 ${avatarColor.bg} rounded-full flex items-center justify-center text-white text-3xl font-extrabold border-4 border-white shadow-lg`}>
-                {name[0]?.toUpperCase() ?? "E"}
+          <div className="flex items-center gap-4 mb-5">
+            {user?.photoURL && !user.isAnonymous ? (
+              <img src={user.photoURL} className="w-16 h-16 rounded-2xl object-cover" alt="avatar" />
+            ) : (
+              <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center`}>
+                <span className="text-2xl font-extrabold text-white">{initial}</span>
               </div>
-              <button
-                onClick={() => {}}
-                className="text-xs font-extrabold text-primary hover:underline"
-              >
-                Change Avatar
-              </button>
-            </div>
-            <div className="flex-1 text-center sm:text-left">
+            )}
+            <div className="flex-1">
               {editingName ? (
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2">
                   <input
-                    data-testid="input-player-name"
-                    autoFocus
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveName()}
-                    className="text-2xl font-extrabold bg-transparent border-b-2 border-primary outline-none w-full max-w-[200px]"
+                    className="text-lg font-extrabold bg-background border-2 border-primary rounded-xl px-3 py-1 outline-none w-full"
+                    autoFocus
                   />
-                  <Button data-testid="btn-save-name" onClick={saveName} size="sm" className="rounded-full">Save</Button>
+                  <Button size="sm" onClick={saveName} className="rounded-xl shrink-0">Save</Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 mb-2 justify-center sm:justify-start">
-                  <h2 className="text-2xl font-extrabold text-foreground">{name}</h2>
-                  <button
-                    data-testid="btn-edit-name"
-                    onClick={() => { setTempName(name); setEditingName(true); }}
-                    className="w-7 h-7 bg-muted rounded-full flex items-center justify-center hover:bg-primary/20 transition-colors"
-                  >
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-extrabold text-foreground">{displayName}</span>
+                  <button onClick={() => { setNameInput(displayName); setEditingName(true); }}
+                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 transition-colors">
                     <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
                 </div>
               )}
-              <div className="text-sm text-muted-foreground font-medium mb-3">Level 5 Math Explorer</div>
+              {user?.email && !user.isAnonymous && (
+                <div className="text-xs text-muted-foreground font-medium mt-0.5">{user.email}</div>
+              )}
+              {user?.isAnonymous && (
+                <div className="text-xs text-muted-foreground font-medium mt-0.5">Guest account</div>
+              )}
+            </div>
+          </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-muted rounded-xl p-2 text-center">
-                  <div className="font-extrabold text-foreground text-sm">183</div>
-                  <div className="text-[10px] font-bold text-muted-foreground">Problems</div>
-                </div>
-                <div className="bg-muted rounded-xl p-2 text-center">
-                  <div className="font-extrabold text-foreground text-sm">46</div>
-                  <div className="text-[10px] font-bold text-muted-foreground">Lessons</div>
-                </div>
-                <div className="bg-muted rounded-xl p-2 text-center">
-                  <div className="font-extrabold text-foreground text-sm">720</div>
-                  <div className="text-[10px] font-bold text-muted-foreground">Stars</div>
-                </div>
+          {!user?.photoURL && (
+            <div className="mb-4">
+              <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider mb-2">Avatar Color</div>
+              <div className="flex gap-2">
+                {AVATAR_COLORS.map((c) => (
+                  <button key={c} onClick={() => { setAvatarColor(c); localStorage.setItem("mm_avatarColor", c); }}
+                    className={`w-7 h-7 rounded-full ${c} transition-all ${avatarColor === c ? "scale-125 ring-2 ring-offset-1 ring-foreground/30" : ""}`} />
+                ))}
               </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3 py-4 border-y border-border">
+            <div className="text-center">
+              <div className="text-xl font-extrabold text-foreground">{progress?.totalProblems ?? 0}</div>
+              <div className="text-xs font-bold text-muted-foreground">Problems</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-extrabold text-foreground flex items-center justify-center gap-1">
+                <Flame className="w-4 h-4 text-orange-500" />{progress?.streakDays ?? 0}
+              </div>
+              <div className="text-xs font-bold text-muted-foreground">Day Streak</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-extrabold text-foreground flex items-center justify-center gap-1">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />{progress?.xp ?? 0}
+              </div>
+              <div className="text-xs font-bold text-muted-foreground">Stars</div>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border-2 border-border rounded-3xl p-5 mb-4 shadow-sm">
-          <h3 className="font-extrabold text-base text-foreground mb-3">Choose Color</h3>
-          <div className="flex gap-2.5 flex-wrap">
-            {AVATAR_COLORS.map((a) => (
-              <button
-                key={a.id}
-                data-testid={`avatar-${a.id}`}
-                onClick={() => setAvatar(a.id)}
-                className={`w-10 h-10 rounded-full ${a.bg} transition-all border-2 ${
-                  avatar === a.id ? "border-foreground scale-110 shadow-md" : "border-transparent"
-                }`}
-              />
-            ))}
-          </div>
+        <div className="bg-card border-2 border-border rounded-2xl p-4 mb-4">
+          <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider mb-3">Your Guide</div>
+          <button onClick={() => setLocation("/choose-guide")}
+            className="w-full flex items-center gap-3 hover:bg-muted p-2 rounded-xl transition-colors">
+            <MascotByName name={guide} size={40} />
+            <div className="text-left">
+              <div className="font-bold text-sm text-foreground">{guide}</div>
+              <div className={`text-xs font-medium ${guideCfg.textColor}`}>{guideCfg.personality}</div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
+          </button>
         </div>
 
-        <div
-          className={`bg-card border-2 rounded-3xl p-4 mb-4 shadow-sm flex items-center gap-3 cursor-pointer hover:border-primary/50 transition-colors ${guideCfg.border}`}
-          onClick={() => setLocation("/choose-guide")}
-          data-testid="btn-change-guide"
-        >
-          <MascotByName name={guide} size={48} />
-          <div className="flex-1">
-            <div className="font-extrabold text-foreground text-sm">My Guide</div>
-            <div className={`text-xs font-bold ${guideCfg.textColor}`}>{guide} — {guideCfg.personality}</div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground" />
-        </div>
-
-        <div className="bg-card border-2 border-border rounded-3xl p-5 mb-4 shadow-sm">
-          <h3 className="font-extrabold text-base text-foreground mb-4">Settings</h3>
-          <div className="space-y-4">
+        <div className="bg-card border-2 border-border rounded-2xl p-4 mb-4">
+          <div className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider mb-3">Settings</div>
+          <div className="space-y-3">
             {[
-              { label: "Sound Effects",      icon: soundOn  ? Volume2 : VolumeX, on: soundOn,    toggle: () => setSoundOn(!soundOn),    testId: "toggle-sound"     },
-              { label: "Background Music",   icon: musicOn  ? Music   : Music2,  on: musicOn,    toggle: () => setMusicOn(!musicOn),    testId: "toggle-music"     },
-              { label: "Large Text",         icon: Type,                          on: largeText,  toggle: () => setLargeText(!largeText),testId: "toggle-large-text" },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                  <s.icon className="w-4 h-4 text-muted-foreground" />
+              { icon: soundEffects ? Volume2 : VolumeX, label: "Sound Effects", value: soundEffects, set: setSoundEffects },
+              { icon: bgMusic ? Music : Music2, label: "Background Music", value: bgMusic, set: setBgMusic },
+              { icon: Type, label: "Large Text", value: largeText, set: setLargeText },
+            ].map((s) => {
+              const Icon = s.icon;
+              return (
+                <div key={s.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <span className="text-sm font-bold text-foreground">{s.label}</span>
+                  </div>
+                  <button onClick={() => s.set(!s.value)}
+                    className={`w-11 h-6 rounded-full transition-colors relative ${s.value ? "bg-primary" : "bg-muted"}`}>
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${s.value ? "translate-x-5" : "translate-x-0.5"}`} />
+                  </button>
                 </div>
-                <div className="flex-1 font-bold text-foreground text-sm">{s.label}</div>
-                <button
-                  data-testid={s.testId}
-                  onClick={s.toggle}
-                  className={`w-11 h-6 rounded-full transition-all relative flex-shrink-0 ${s.on ? "bg-primary" : "bg-muted"}`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${s.on ? "left-5" : "left-0.5"}`} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        <Button
-          data-testid="btn-switch-player"
-          variant="outline"
-          onClick={() => setLocation("/whose-turn")}
-          className="w-full rounded-2xl h-13 font-bold border-2 gap-3 text-sm"
-        >
-          <Users className="w-5 h-5" />
-          Switch Player
-        </Button>
+        <div className="space-y-2">
+          <Button variant="outline" onClick={() => setLocation("/whose-turn")}
+            className="w-full rounded-full border-2 font-bold gap-2 h-12">
+            <Users className="w-4 h-4" /> Switch Player
+          </Button>
+          <Button variant="outline" onClick={handleSignOut}
+            className="w-full rounded-full border-2 font-bold text-destructive border-destructive/30 hover:bg-destructive/10 h-12">
+            Sign Out
+          </Button>
+        </div>
       </div>
     </AppLayout>
   );
