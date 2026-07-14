@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -157,9 +158,12 @@ export default function BuildingScreen() {
       </View>
 
       {error && (
-        <Text style={styles.errorHint}>
-          {error}
-        </Text>
+        <>
+          <Text style={styles.errorHint}>{error}</Text>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>← Go back</Text>
+          </Pressable>
+        </>
       )}
     </View>
   );
@@ -198,5 +202,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#756C66",
     textAlign: "center",
+  },
+  backBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#4A4440",
+  },
+  backBtnText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 15,
+    color: "#FFFDF9",
   },
 });
