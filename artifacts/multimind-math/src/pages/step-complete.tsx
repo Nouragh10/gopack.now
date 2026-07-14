@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Star, ArrowRight, RotateCcw } from "lucide-react";
+import { Star, ArrowRight, RotateCcw, Trophy } from "lucide-react";
+import { MascotByName } from "@/components/mascots/MascotSVG";
 
 function Confetti() {
-  const pieces = Array.from({ length: 30 }, (_, i) => ({
+  const pieces = Array.from({ length: 28 }, (_, i) => ({
     id: i,
     x: Math.random() * 100,
     color: ["#6C4EF4", "#FFD700", "#FF6B9D", "#4ECDC4", "#45B7D1"][i % 5],
     delay: Math.random() * 0.5,
     duration: 1.5 + Math.random(),
+    size: 8 + Math.random() * 6,
   }));
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-10">
@@ -20,8 +21,8 @@ function Confetti() {
           initial={{ y: -20, x: `${p.x}vw`, opacity: 1, rotate: 0 }}
           animate={{ y: "110vh", rotate: 720, opacity: 0 }}
           transition={{ delay: p.delay, duration: p.duration, ease: "easeIn" }}
-          className="absolute top-0 w-3 h-3 rounded-sm"
-          style={{ backgroundColor: p.color }}
+          className="absolute top-0 rounded-sm"
+          style={{ backgroundColor: p.color, width: p.size, height: p.size }}
         />
       ))}
     </div>
@@ -30,10 +31,11 @@ function Confetti() {
 
 export default function StepComplete() {
   const [, setLocation] = useLocation();
-  const [xp] = useState(25);
+  const xp = 25;
+  const guide = localStorage.getItem("multimind_guide") || "Ziggy";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-12 relative">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-12 relative font-sans">
       <Confetti />
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
@@ -42,40 +44,44 @@ export default function StepComplete() {
         className="text-center max-w-md w-full z-20"
       >
         <motion.div
-          animate={{ rotate: [0, -10, 10, -5, 5, 0] }}
+          animate={{ rotate: [0, -10, 10, -5, 5, 0], y: [0, -8, 0] }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-8xl mb-6 select-none"
+          className="flex justify-center mb-4"
         >
-          🌟
+          <MascotByName name={guide} size={96} />
         </motion.div>
+
+        <div className="w-14 h-14 mx-auto bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-center justify-center mb-4">
+          <Trophy className="w-7 h-7 text-amber-500" />
+        </div>
 
         <h1 className="text-4xl md:text-5xl font-extrabold text-foreground mb-3">
           Awesome Work!
         </h1>
-        <p className="text-xl text-muted-foreground font-medium mb-8">
-          You completed a step on the number line!
+        <p className="text-lg text-muted-foreground font-medium mb-6">
+          You completed a step!
         </p>
 
-        <div className="bg-card border-2 border-border rounded-3xl p-6 mb-6 shadow-sm">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center">
-              <Star className="w-6 h-6 text-accent fill-accent" />
+        <div className="bg-card border-2 border-border rounded-3xl p-5 mb-4 shadow-sm text-left">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+              <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
             </div>
-            <div className="text-left">
-              <div className="text-sm font-bold text-muted-foreground">XP Earned</div>
+            <div>
+              <div className="text-xs font-bold text-muted-foreground">XP Earned</div>
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="text-3xl font-black text-accent-foreground"
+                className="text-2xl font-black text-foreground"
               >
-                +{xp} ⭐
+                +{xp} Stars
               </motion.div>
             </div>
           </div>
 
-          <div className="text-sm font-bold text-muted-foreground mb-2">Progress to next badge</div>
-          <div className="h-3 bg-muted rounded-full overflow-hidden">
+          <div className="text-xs font-bold text-muted-foreground mb-1.5">Progress to next badge</div>
+          <div className="h-2.5 bg-muted rounded-full overflow-hidden">
             <motion.div
               initial={{ width: "40%" }}
               animate={{ width: "65%" }}
@@ -89,8 +95,8 @@ export default function StepComplete() {
           </div>
         </div>
 
-        <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 mb-8">
-          <div className="text-2xl mb-1">🤖</div>
+        <div className="bg-primary/8 border-2 border-primary/20 rounded-2xl p-4 mb-6 text-left">
+          <div className="text-xs font-extrabold text-primary mb-1">{guide} says:</div>
           <p className="text-sm font-semibold text-foreground italic">
             "Making mistakes is how your brain grows stronger! Keep going!"
           </p>
@@ -101,7 +107,7 @@ export default function StepComplete() {
             data-testid="btn-practice-this"
             variant="outline"
             onClick={() => setLocation("/learn/numberline")}
-            className="flex-1 rounded-full h-14 text-base font-bold border-2 gap-2"
+            className="flex-1 rounded-full h-13 text-sm font-bold border-2 gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             Try Again
@@ -109,7 +115,7 @@ export default function StepComplete() {
           <Button
             data-testid="btn-next-step"
             onClick={() => setLocation("/learn/visual")}
-            className="flex-1 rounded-full h-14 text-base font-bold gap-2"
+            className="flex-1 rounded-full h-13 text-sm font-bold gap-2"
           >
             Next Step <ArrowRight className="w-4 h-4" />
           </Button>

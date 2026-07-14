@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Star, Home, Dumbbell, Compass } from "lucide-react";
+import { Star, Home, Dumbbell, Compass, Trophy } from "lucide-react";
+import { MascotByName } from "@/components/mascots/MascotSVG";
 
 function Confetti() {
   const pieces = Array.from({ length: 50 }, (_, i) => ({
@@ -28,17 +29,26 @@ function Confetti() {
   );
 }
 
+const LEARNED = [
+  "Dot groups show addition visually",
+  "Blocks stack to show the total",
+  "Number lines show jumps forward",
+  "The equation shows the pattern clearly",
+];
+
 export default function LessonComplete() {
   const [, setLocation] = useLocation();
+  const guide = localStorage.getItem("multimind_guide") || "Ziggy";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-12 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-12 relative overflow-hidden font-sans">
       <Confetti />
 
       <div
         className="absolute inset-0 opacity-10 pointer-events-none"
         style={{
-          backgroundImage: "radial-gradient(circle at 20% 50%, #6C4EF4 0%, transparent 60%), radial-gradient(circle at 80% 20%, #FFD700 0%, transparent 60%)",
+          backgroundImage:
+            "radial-gradient(circle at 20% 50%, #6C4EF4 0%, transparent 60%), radial-gradient(circle at 80% 20%, #FFD700 0%, transparent 60%)",
         }}
       />
 
@@ -51,9 +61,11 @@ export default function LessonComplete() {
         <motion.div
           animate={{ y: [0, -12, 0] }}
           transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-          className="text-9xl mb-4 select-none"
+          className="flex justify-center mb-4"
         >
-          🏆
+          <div className="w-20 h-20 rounded-3xl bg-amber-50 border-4 border-amber-200 flex items-center justify-center shadow-xl">
+            <Trophy className="w-10 h-10 text-amber-500" />
+          </div>
         </motion.div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-foreground mb-3">
@@ -78,15 +90,10 @@ export default function LessonComplete() {
           ))}
         </div>
 
-        <div className="bg-card border-2 border-border rounded-3xl p-6 mb-6 shadow-sm text-left">
-          <h3 className="font-bold text-lg text-foreground mb-3">What you learned today:</h3>
-          <ul className="space-y-2">
-            {[
-              { icon: "👁️", text: "Dot groups show addition visually" },
-              { icon: "🧱", text: "Blocks stack to show the total" },
-              { icon: "📏", text: "Number lines show jumps forward" },
-              { icon: "🖐️", text: "Fingers are your first calculator!" },
-            ].map((item, i) => (
+        <div className="bg-card border-2 border-border rounded-3xl p-6 mb-5 shadow-sm text-left">
+          <h3 className="font-bold text-lg text-foreground mb-4">What you learned today:</h3>
+          <ul className="space-y-3">
+            {LEARNED.map((item, i) => (
               <motion.li
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
@@ -94,8 +101,10 @@ export default function LessonComplete() {
                 transition={{ delay: 0.7 + i * 0.1 }}
                 className="flex items-center gap-3 text-muted-foreground font-medium"
               >
-                <span className="text-xl">{item.icon}</span>
-                {item.text}
+                <div className="w-6 h-6 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Star className="w-3 h-3 text-primary fill-primary" />
+                </div>
+                {item}
               </motion.li>
             ))}
           </ul>
@@ -105,10 +114,10 @@ export default function LessonComplete() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2 }}
-          className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 mb-8"
+          className="bg-primary/8 border-2 border-primary/20 rounded-2xl p-4 mb-8 flex items-start gap-3 text-left"
         >
-          <div className="text-2xl mb-1">🦉</div>
-          <p className="text-sm font-semibold text-foreground italic">
+          <MascotByName name={guide} size={48} />
+          <p className="text-sm font-semibold text-foreground italic pt-2">
             "There's always more than one path! You found them all. I'm so proud of you!"
           </p>
         </motion.div>

@@ -1,123 +1,129 @@
 import AppLayout from "@/components/layout/AppLayout";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  Radar,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from "recharts";
 import { motion } from "framer-motion";
-import { Trophy, Flame, Star, BookOpen } from "lucide-react";
+import { Flame, Star, BookOpen, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const weeklyData = [
-  { day: "Mon", minutes: 18 },
-  { day: "Tue", minutes: 25 },
-  { day: "Wed", minutes: 12 },
-  { day: "Thu", minutes: 30 },
-  { day: "Fri", minutes: 22 },
-  { day: "Sat", minutes: 35 },
-  { day: "Sun", minutes: 15 },
+  { day: "Mon", problems: 8 },
+  { day: "Tue", problems: 14 },
+  { day: "Wed", problems: 6 },
+  { day: "Thu", problems: 18 },
+  { day: "Fri", problems: 12 },
+  { day: "Sat", problems: 22 },
+  { day: "Sun", problems: 9 },
 ];
 
 const skillData = [
-  { skill: "Addition", score: 90 },
+  { skill: "Addition",    score: 90 },
   { skill: "Subtraction", score: 75 },
-  { skill: "Multiply", score: 60 },
-  { skill: "Division", score: 40 },
-  { skill: "Fractions", score: 55 },
-  { skill: "Geometry", score: 80 },
+  { skill: "Multiply",    score: 60 },
+  { skill: "Division",    score: 40 },
+  { skill: "Fractions",   score: 55 },
+  { skill: "Geometry",    score: 80 },
 ];
 
-const recentAchievements = [
-  { icon: "🔥", title: "7 Day Streak", desc: "Learned 7 days in a row!", date: "Today" },
-  { icon: "🌟", title: "Addition Master", desc: "Scored 100% on addition quiz", date: "Yesterday" },
-  { icon: "🚀", title: "Speed Demon", desc: "Completed 10 problems in 30 seconds", date: "3 days ago" },
+const recentActivity = [
+  { problem: "24 + 18 = ?",    approaches: "See a picture, Follow the steps", date: "Today",     stars: 3 },
+  { problem: "36 − 17 = ?",    approaches: "Number line, Explain in words",   date: "Yesterday", stars: 2 },
+  { problem: "3/4 of 20 = ?",  approaches: "Pie, Real-world example",         date: "May 9",     stars: 3 },
+  { problem: "45 ÷ 6 = ?",     approaches: "Bar/column, Follow the steps",    date: "May 8",     stars: 2 },
 ];
 
-const stats = [
-  { icon: Flame, label: "Day Streak", value: "7", color: "text-orange-500 bg-orange-100" },
-  { icon: Star, label: "Total XP", value: "1,240", color: "text-accent-foreground bg-accent/20" },
-  { icon: Trophy, label: "Badges", value: "12", color: "text-purple-600 bg-purple-100" },
-  { icon: BookOpen, label: "Topics Done", value: "8", color: "text-blue-600 bg-blue-100" },
+const STATS = [
+  { icon: Target, label: "Problems Solved", value: "32",      color: "bg-violet-100 text-violet-600" },
+  { icon: Flame,  label: "Day Streak",      value: "7",       color: "bg-orange-100 text-orange-600" },
+  { icon: Star,   label: "Most Used",       value: "Picture", color: "bg-amber-100 text-amber-600" },
+  { icon: BookOpen,label: "Accuracy",       value: "89%",     color: "bg-green-100 text-green-600" },
 ];
+
+function StarDots({ count, max = 3 }: { count: number; max?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <Star key={i} className={`w-3.5 h-3.5 ${i < count ? "text-amber-400 fill-amber-400" : "text-muted fill-muted"}`} />
+      ))}
+    </div>
+  );
+}
 
 export default function Progress() {
+  const name = localStorage.getItem("multimind_player_name") || "Alex";
+
   return (
     <AppLayout>
-      <div className="p-6 md:p-10 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-foreground mb-2">My Progress</h1>
-          <p className="text-muted-foreground font-medium">See how far you've come!</p>
+      <div className="p-6 md:p-8 max-w-4xl">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="text-xs font-extrabold text-primary uppercase tracking-wider">Progress</div>
+        </div>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-extrabold">{name}'s Progress</h1>
+          <select className="text-sm font-bold border-2 border-border rounded-xl px-3 py-1.5 bg-card text-foreground focus:outline-none focus:border-primary">
+            <option>This Week</option>
+            <option>This Month</option>
+            <option>All Time</option>
+          </select>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {stats.map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              className="bg-card border-2 border-border rounded-2xl p-4 text-center"
-            >
-              <div className={`w-10 h-10 rounded-full ${s.color} flex items-center justify-center mx-auto mb-2`}>
-                <s.icon className="w-5 h-5" />
-              </div>
-              <div className="text-2xl font-extrabold text-foreground">{s.value}</div>
-              <div className="text-xs font-bold text-muted-foreground">{s.label}</div>
-            </motion.div>
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {STATS.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07 }}
+                className="bg-card border-2 border-border rounded-2xl p-4 text-center shadow-sm"
+              >
+                <div className={`w-9 h-9 rounded-full ${s.color} flex items-center justify-center mx-auto mb-2`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="text-2xl font-extrabold text-foreground">{s.value}</div>
+                <div className="text-[11px] font-bold text-muted-foreground mt-0.5">{s.label}</div>
+              </motion.div>
+            );
+          })}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Weekly Activity */}
-          <div className="bg-card border-2 border-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-extrabold text-lg text-foreground mb-4">This Week's Activity</h2>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={weeklyData} barSize={20}>
-                <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-card border-2 border-border rounded-3xl p-5 shadow-sm">
+            <h2 className="font-extrabold text-base text-foreground mb-3">Weekly Activity</h2>
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={weeklyData} barSize={18}>
+                <XAxis dataKey="day" tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
                 <YAxis hide />
                 <Tooltip
                   content={({ active, payload }) =>
                     active && payload?.length ? (
-                      <div className="bg-card border-2 border-border rounded-xl p-2 text-sm font-bold shadow-lg">
-                        {payload[0].value} min
+                      <div className="bg-card border-2 border-border rounded-xl p-2 text-xs font-bold shadow-lg">
+                        {payload[0].value} problems
                       </div>
                     ) : null
                   }
                 />
-                <Bar dataKey="minutes" fill="hsl(260 60% 55%)" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="problems" fill="hsl(260 60% 55%)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Skills Radar */}
-          <div className="bg-card border-2 border-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-extrabold text-lg text-foreground mb-4">Skill Strengths</h2>
-            <ResponsiveContainer width="100%" height={160}>
-              <RadarChart data={skillData} cx="50%" cy="50%" outerRadius="70%">
-                <PolarGrid stroke="hsl(260 20% 88%)" />
-                <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fontWeight: 700 }} />
-                <Radar
-                  dataKey="score"
-                  stroke="hsl(260 60% 55%)"
-                  fill="hsl(260 60% 55%)"
-                  fillOpacity={0.25}
-                  strokeWidth={2}
-                />
+          <div className="bg-card border-2 border-border rounded-3xl p-5 shadow-sm">
+            <h2 className="font-extrabold text-base text-foreground mb-3">Skill Strengths</h2>
+            <ResponsiveContainer width="100%" height={150}>
+              <RadarChart data={skillData} cx="50%" cy="50%" outerRadius="65%">
+                <PolarGrid stroke="hsl(260 20% 90%)" />
+                <PolarAngleAxis dataKey="skill" tick={{ fontSize: 9, fontWeight: 700 }} />
+                <Radar dataKey="score" stroke="hsl(260 60% 55%)" fill="hsl(260 60% 55%)" fillOpacity={0.25} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Topics */}
-        <div className="bg-card border-2 border-border rounded-3xl p-6 mb-6 shadow-sm">
-          <h2 className="font-extrabold text-lg text-foreground mb-4">Topics</h2>
+        <div className="bg-card border-2 border-border rounded-3xl p-5 mb-4 shadow-sm">
+          <h2 className="font-extrabold text-base text-foreground mb-4">Topics Mastered</h2>
           <div className="space-y-3">
             {skillData.map((s) => (
               <div key={s.skill}>
@@ -138,26 +144,40 @@ export default function Progress() {
           </div>
         </div>
 
-        {/* Recent Achievements */}
-        <div className="bg-card border-2 border-border rounded-3xl p-6 shadow-sm">
-          <h2 className="font-extrabold text-lg text-foreground mb-4">Recent Achievements</h2>
-          <div className="space-y-3">
-            {recentAchievements.map((a, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + i * 0.1 }}
-                className="flex items-center gap-4 p-3 bg-muted/50 rounded-2xl"
-              >
-                <div className="text-2xl">{a.icon}</div>
-                <div className="flex-1">
-                  <div className="font-bold text-foreground text-sm">{a.title}</div>
-                  <div className="text-xs text-muted-foreground font-medium">{a.desc}</div>
-                </div>
-                <div className="text-xs font-bold text-muted-foreground">{a.date}</div>
-              </motion.div>
-            ))}
+        <div className="bg-card border-2 border-border rounded-3xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-extrabold text-base text-foreground">Recent Activity</h2>
+            <Button variant="outline" size="sm" className="rounded-xl border-2 font-bold text-xs">
+              View All History
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-border">
+                  <th className="pb-2 font-extrabold text-muted-foreground text-xs pr-4">Problem</th>
+                  <th className="pb-2 font-extrabold text-muted-foreground text-xs pr-4">Approaches</th>
+                  <th className="pb-2 font-extrabold text-muted-foreground text-xs pr-4">Date</th>
+                  <th className="pb-2 font-extrabold text-muted-foreground text-xs">Stars</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentActivity.map((item, i) => (
+                  <motion.tr
+                    key={i}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + i * 0.08 }}
+                    className="border-b border-border/50 last:border-0"
+                  >
+                    <td className="py-2.5 pr-4 font-extrabold text-foreground whitespace-nowrap">{item.problem}</td>
+                    <td className="py-2.5 pr-4 text-muted-foreground font-medium text-xs max-w-[180px]">{item.approaches}</td>
+                    <td className="py-2.5 pr-4 text-muted-foreground font-medium text-xs whitespace-nowrap">{item.date}</td>
+                    <td className="py-2.5"><StarDots count={item.stars} /></td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
