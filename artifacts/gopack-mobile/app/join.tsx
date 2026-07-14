@@ -55,7 +55,17 @@ export default function JoinScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} style={styles.backBtn}>
+        <Pressable
+          onPress={() => {
+            if (router.canDismiss()) {
+              router.dismiss();
+            } else {
+              router.replace("/(tabs)");
+            }
+          }}
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
       </View>
