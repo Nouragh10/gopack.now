@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "@/context/AuthContext";
 import { saveItinerary, useTrip, useWishes } from "@/hooks/useFirebase";
 
 const MESSAGES = [
@@ -21,6 +22,7 @@ const MESSAGES = [
 export default function BuildingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { trip } = useTrip(id);
   const wishes = useWishes(id);
 
@@ -100,6 +102,8 @@ export default function BuildingScreen() {
             startDate: trip.startDate ?? null,
             wishes: sortedWishes,
             pace: resolvedPace,
+            userId: user?.uid,
+            isPlusUser: false,
           }),
         });
 

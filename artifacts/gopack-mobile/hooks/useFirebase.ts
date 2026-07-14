@@ -131,6 +131,7 @@ export interface Activity {
   estimatedCost: number;
   labels: string[];
   nearPrevious: boolean;
+  lastRedoBy?: string;
 }
 
 export interface PackItem {

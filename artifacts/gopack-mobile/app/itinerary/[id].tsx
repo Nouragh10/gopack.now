@@ -74,6 +74,41 @@ function getDayDate(startDate: string | null | undefined, dayNumber: number): st
   }
 }
 
+function parseActivityTime(timeStr: string): { hours: number; minutes: number } | null {
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return null;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3].toUpperCase();
+  if (ampm === "PM" && hours !== 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+  return { hours, minutes };
+}
+
+function getDayDateTime(
+  startDate: string | null | undefined,
+  dayNumber: number,
+  timeStr: string,
+): { start: string; end: string } | null {
+  if (!startDate) return null;
+  try {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const base = new Date(startDate + "T00:00:00");
+    base.setDate(base.getDate() + dayNumber - 1);
+    const time = parseActivityTime(timeStr);
+    if (!time) return null;
+    const start = new Date(base);
+    start.setHours(time.hours, time.minutes, 0, 0);
+    const end = new Date(start);
+    end.setHours(end.getHours() + 1); // 1-hour event
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    return { start: fmt(start), end: fmt(end) };
+  } catch {
+    return null;
+  }
+}
+
 /* ── PDF HTML builder ────────────────────────────────────────────────── */
 
 interface AccomSummary {
@@ -148,12 +183,17 @@ function buildItineraryHTML(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',Helvetica,Arial,sans-serif;background:#FFFDF9;color:#0E0D0B;font-size:13px;line-height:1.5}
-h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;background:#FFFDF9;color:#0E0D0B;font-size:13px;line-height:1.5}
+h1,h2,h3{font-family:Georgia,'Times New Roman',serif}
+
+@media print{
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .day{page-break-before:auto;page-break-inside:avoid}
+  .act{page-break-inside:avoid}
+  .cover{page-break-after:always}
+}
 
 /* Cover */
 .cover{background:#1C1916;padding:60px 48px 56px;color:#FFFDF9;position:relative;overflow:hidden}
@@ -161,9 +201,9 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
 .cover-blob2{position:absolute;left:-40px;bottom:-80px;width:200px;height:200px;background:#E85D3A;opacity:.05;border-radius:50%}
 .logo-row{display:flex;align-items:center;gap:10px;margin-bottom:52px}
 .logo-dot{width:10px;height:10px;border-radius:50%;background:#E85D3A}
-.logo-text{font-family:'Playfair Display',Georgia,serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#E85D3A}
+.logo-text{font-family:Georgia,serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#E85D3A;font-weight:bold}
 .cover-eyebrow{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#756C66;margin-bottom:12px}
-.cover-title{font-size:44px;font-weight:700;line-height:1.05;margin-bottom:10px;color:#FFFDF9}
+.cover-title{font-size:44px;font-weight:700;line-height:1.05;margin-bottom:10px;color:#FFFDF9;font-family:Georgia,serif;text-transform:capitalize}
 .cover-dest{font-size:16px;color:#8C8480;margin-bottom:48px}
 .cover-stats{display:flex;gap:0;border-top:1px solid #2E2A27;padding-top:28px}
 .stat{flex:1;padding-right:24px}
@@ -181,46 +221,46 @@ h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
 .chip-name{font-size:13px;font-weight:500}
 
 /* Day */
-.day{padding:40px 48px;border-bottom:1px solid #EDE8DE;page-break-inside:avoid}
+.day{padding:32px 48px;border-bottom:1px solid #EDE8DE}
 .day-head{display:flex;align-items:baseline;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #E85D3A}
 .day-badge{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#E85D3A;white-space:nowrap}
-.day-city{font-size:26px;font-weight:700;flex:1}
+.day-city{font-size:26px;font-weight:700;flex:1;font-family:Georgia,serif}
 .day-theme{font-size:12px;color:#756C66;font-style:italic;white-space:nowrap}
 
 /* Activity */
-.act{display:flex;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid #EDE8DE;background:#FEFCF8;page-break-inside:avoid}
+.act{display:flex;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid #EDE8DE;background:#FEFCF8}
 .act-bar{width:4px;flex-shrink:0}
 .act-body{flex:1;padding:14px 18px}
 .act-meta{display:flex;align-items:center;gap:10px;margin-bottom:5px}
 .act-time{font-size:11px;font-weight:600;color:#A8A298;letter-spacing:.3px;min-width:58px}
 .wish-badge{font-size:10px;background:#FFF3E0;color:#E65100;border-radius:10px;padding:2px 8px;font-weight:600}
-.act-name{font-size:16px;font-weight:700;margin-bottom:4px;color:#0E0D0B}
+.act-name{font-size:15px;font-weight:700;margin-bottom:4px;color:#0E0D0B}
 .act-suggester{font-size:11px;color:#E85D3A;font-weight:500;margin-bottom:6px}
-.act-desc{font-size:12.5px;color:#4A4440;line-height:1.55;margin-bottom:6px}
+.act-desc{font-size:12px;color:#4A4440;line-height:1.55;margin-bottom:6px}
 .act-cost{font-size:11px;color:#756C66;font-weight:500}
 
 /* Accommodation */
 .accom-section{padding:32px 48px;border-bottom:1px solid #EDE8DE}
 .accom-card{display:flex;align-items:flex-start;gap:18px;background:#F0FAF9;border:1.5px solid #26A69A;border-radius:14px;padding:18px 20px;margin-top:12px}
 .accom-icon{font-size:28px;flex-shrink:0;margin-top:2px}
-.accom-name{font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:700;color:#0E0D0B;margin-bottom:4px}
+.accom-name{font-family:Georgia,serif;font-size:20px;font-weight:700;color:#0E0D0B;margin-bottom:4px}
 .accom-meta{font-size:12px;color:#4A4440;margin-bottom:6px;text-transform:capitalize}
 .accom-cost{font-size:12px;font-weight:600;color:#26A69A}
 
 /* Vibes */
-.vibes-section{padding:32px 48px;border-bottom:1px solid #EDE8DE;display:flex;align-items:center;gap:12px}
+.vibes-section{padding:32px 48px;border-bottom:1px solid #EDE8DE;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .vibe-tag{display:inline-block;background:#F5F0E8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:500;color:#0E0D0B;text-transform:capitalize}
 
 /* Total */
-.total-section{padding:40px 48px;background:linear-gradient(135deg,#1C1916 0%,#2B2420 100%);display:flex;align-items:center;gap:24px}
+.total-section{padding:40px 48px;background:#1C1916;display:flex;align-items:center;gap:24px}
 .total-icon{width:48px;height:48px;background:#E85D3A;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
 .total-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#756C66;margin-bottom:6px}
-.total-val{font-family:'Playfair Display',Georgia,serif;font-size:40px;font-weight:700;color:#FFFDF9;line-height:1}
+.total-val{font-family:Georgia,serif;font-size:40px;font-weight:700;color:#FFFDF9;line-height:1}
 .total-note{font-size:12px;color:#756C66;margin-top:4px}
 
 /* Footer */
 .footer{background:#0E0D0B;padding:24px 48px;display:flex;align-items:center;justify-content:space-between}
-.footer-logo{font-family:'Playfair Display',Georgia,serif;font-size:20px;color:#FFFDF9}
+.footer-logo{font-family:Georgia,serif;font-size:20px;color:#FFFDF9;font-weight:bold}
 .footer-tagline{font-size:11px;color:#4A4440}
 .footer-date{font-size:11px;color:#4A4440}
 </style>
@@ -367,12 +407,18 @@ function ActivityCard({
   };
 
   const openCalendar = () => {
+    const dt = getDayDateTime(startDate, dayNumber, activity.time);
     const dateStr = getDayDate(startDate, dayNumber);
     const t = encodeURIComponent(activity.name);
     const d = encodeURIComponent(activity.description);
     const l = encodeURIComponent(`${activity.name}, ${destination}`);
-    const url = dateStr
-      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
+    const dates = dt
+      ? `${dt.start}/${dt.end}`
+      : dateStr
+      ? `${dateStr}/${dateStr}`
+      : null;
+    const url = dates
+      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dates}&details=${d}&location=${l}`
       : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
     openURL(url);
   };
@@ -414,6 +460,11 @@ function ActivityCard({
             ~${activity.estimatedCost} est. per person
           </Text>
         )}
+        {activity.lastRedoBy ? (
+          <Text style={[styles.actRedoBy, { color: colors.mutedForeground }]}>
+            ↻ Last changed by {activity.lastRedoBy}
+          </Text>
+        ) : null}
         <View style={styles.actActions}>
           <Pressable
             onPress={() => {
@@ -555,26 +606,47 @@ export default function ItineraryScreen() {
               redoType,
               otherActivities,
               allTripActivities,
+              userId: user?.uid,
+              isPlusUser: false,
             }),
           });
-          if (resp.ok) {
-            const { activity: newAct } = await resp.json();
-            await updateActivity(id!, dayNum, idx, { ...newAct, time: act.time });
-            await incrementAiUsage(id!, "activityRedos");
+          if (!resp.ok) {
+            const errBody = await resp.json().catch(() => ({})) as { message?: string };
+            throw new Error(errBody.message ?? "Could not replace activity. Please try again.");
           }
+          const { activity: newAct } = await resp.json();
+          const redoByName = user?.displayName ?? user?.email ?? "A member";
+          await updateActivity(id!, dayNum, idx, {
+            ...newAct,
+            time: act.time,
+            lastRedoBy: redoByName,
+          });
+          await incrementAiUsage(id!, "activityRedos");
+        } catch (err) {
+          Alert.alert("Could not change activity", (err as Error).message || "Please try again.");
         } finally {
           setRedoLoading(null);
         }
       },
     }));
-    buttons.push({ text: "Cancel", onPress: () => {} } as any);
+    buttons.push({ text: "Cancel", style: "cancel" } as any);
     Alert.alert("Change activity", "What would you like to do?", buttons as any);
   };
 
   const handleDelete = (idx: number, dayNum: number) => {
     Alert.alert("Delete activity", "Remove this activity from the itinerary?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteActivity(id!, dayNum, idx) },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteActivity(id!, dayNum, idx);
+          } catch (err) {
+            Alert.alert("Delete failed", (err as Error).message || "Could not delete activity. Please try again.");
+          }
+        },
+      },
     ]);
   };
 
@@ -811,12 +883,18 @@ export default function ItineraryScreen() {
                       onRedo={handleRedo}
                       onDelete={handleDelete}
                       onCalendar={() => {
+                        const dt = getDayDateTime(trip.startDate, currentDay.dayNumber, act.time);
                         const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
                         const t = encodeURIComponent(act.name);
                         const d = encodeURIComponent(act.description);
                         const l = encodeURIComponent(`${act.name}, ${trip.destination}`);
-                        const url = dateStr
-                          ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dateStr}/${dateStr}&details=${d}&location=${l}`
+                        const dates = dt
+                          ? `${dt.start}/${dt.end}`
+                          : dateStr
+                          ? `${dateStr}/${dateStr}`
+                          : null;
+                        const url = dates
+                          ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dates}&details=${d}&location=${l}`
                           : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
                         if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
                         else Linking.openURL(url);
@@ -1178,6 +1256,7 @@ const styles = StyleSheet.create({
   actSuggester: { fontFamily: "DmSans_500Medium", fontSize: 12 },
   actDesc: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18 },
   actCost: { fontFamily: "DmSans_500Medium", fontSize: 12 },
+  actRedoBy: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 4, fontStyle: "italic" },
   actActions: { flexDirection: "row", gap: 8, marginTop: 6 },
   actActionBtn: {
     flexDirection: "row",
