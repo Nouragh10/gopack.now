@@ -34,13 +34,9 @@ import {
   deleteActivity,
   incrementAiUsage,
   savePack,
-  setDayUnlocked,
-  setTripPremium,
   useTrip,
 } from "@/hooks/useFirebase";
 import { Mascot } from "@/components/Mascot";
-import { UpgradeModal } from "@/components/UpgradeModal";
-import { useSubscription } from "@/lib/revenuecat";
 
 const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
 
@@ -463,7 +459,6 @@ export default function ItineraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { purchase, dayUnlockPackage, tripUnlockPackage, refetchOfferings } = useSubscription();
   const { trip, loading } = useTrip(id);
 
   const [selectedDay, setSelectedDay] = useState(1);
@@ -471,25 +466,11 @@ export default function ItineraryScreen() {
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState("");
-  const [dayUnlockLoading, setDayUnlockLoading] = useState<number | null>(null);
-  const [tripUnlockLoading, setTripUnlockLoading] = useState(false);
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
   const [savePackSaving, setSavePackSaving] = useState(false);
   const [packSavedName, setPackSavedName] = useState<string | null>(null);
   const [savePackError, setSavePackError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!__DEV__ || Platform.OS !== "web") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("e2eUpgrade") === "1") {
-      setUpgradeReason(params.get("e2eUpgradeReason") ?? "You've used your free redo for this trip.");
-      setShowUpgrade(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (!trip?.itinerary || !user || !id) return;
@@ -536,17 +517,6 @@ export default function ItineraryScreen() {
   const accom = trip?.confirmedAccommodation ?? null;
   const accomCost = accom?.costPerPerson ?? 0;
 
-  const isPremium = trip?.isPremium ?? false;
-  const unlockedDays = trip?.unlockedDays ?? {};
-  const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
-  const FREE_REDO_LIMIT = 1;
-  const PREMIUM_REDO_LIMIT = 20;
-  const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
-
-  const freeDayCount = days.length <= 1 ? days.length : Math.floor(days.length / 2);
-  const isDayLocked = (dayNumber: number) =>
-    !isPremium && !unlockedDays[String(dayNumber)] && dayNumber > freeDayCount;
-
   const totalCost =
     days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
     accomCost;
@@ -563,11 +533,6 @@ export default function ItineraryScreen() {
   };
 
   const handleRedo = (act: Activity, idx: number, dayNum: number) => {
-    if (!canRedo) {
-      setUpgradeReason(isPremium ? "You've reached the premium redo limit (20)" : "You've used your free activity redo");
-      setShowUpgrade(true);
-      return;
-    }
     const options = getRedoOptions(act.tag);
     const day = days.find((d) => d.dayNumber === dayNum);
     const buttons = options.map(({ label, redoType }) => ({
@@ -672,11 +637,6 @@ export default function ItineraryScreen() {
 
   const handleExportPDF = async () => {
     if (!trip || !itinerary) return;
-    if (!isPremium) {
-      setUpgradeReason("PDF export is a Pack Plus feature");
-      setShowUpgrade(true);
-      return;
-    }
     setExportingPDF(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -740,11 +700,6 @@ export default function ItineraryScreen() {
           <View style={styles.headerTitles}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACKNOW ITINERARY</Text>
-              {isPremium && (
-                <View style={{ backgroundColor: "#E85D3A", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                  <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 9, color: "#fff", letterSpacing: 1 }}>PLUS</Text>
-                </View>
-              )}
             </View>
             <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
               {trip.destination}
@@ -806,7 +761,6 @@ export default function ItineraryScreen() {
         >
           {days.map((day) => {
             const isSelected = day.dayNumber === selectedDay;
-            const locked = isDayLocked(day.dayNumber);
             return (
               <Pressable
                 key={day.dayNumber}
@@ -817,17 +771,14 @@ export default function ItineraryScreen() {
                 style={[
                   styles.dayChip,
                   {
-                    backgroundColor: isSelected ? (locked ? "#888" : colors.primary) : colors.muted,
-                    borderColor: isSelected ? (locked ? "#888" : colors.primary) : colors.border,
+                    backgroundColor: isSelected ? colors.primary : colors.muted,
+                    borderColor: isSelected ? colors.primary : colors.border,
                   },
                 ]}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  {locked && <Feather name="lock" size={10} color={isSelected ? "#fff" : colors.mutedForeground} />}
-                  <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
-                    Day {day.dayNumber}
-                  </Text>
-                </View>
+                <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
+                  Day {day.dayNumber}
+                </Text>
               </Pressable>
             );
           })}
@@ -846,116 +797,7 @@ export default function ItineraryScreen() {
               <Text style={[styles.dayTheme, { color: colors.mutedForeground }]}>{currentDay.theme}</Text>
             </View>
 
-            {isDayLocked(currentDay.dayNumber) ? (
-              <View style={[styles.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.lockedIconWrap, { backgroundColor: "#E85D3A18" }]}>
-                    <Feather name="lock" size={18} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.lockedTitle, { color: colors.foreground }]}>
-                    Day {currentDay.dayNumber} is locked
-                  </Text>
-                  <Text style={[styles.lockedSub, { color: colors.mutedForeground }]}>
-                    Unlock just today, the full trip, or subscribe
-                  </Text>
-
-                  {/* Unlock rest of days — $2.99 */}
-                  <Pressable
-                    disabled={dayUnlockLoading === currentDay.dayNumber}
-                    onPress={async () => {
-                      let pkg = dayUnlockPackage;
-                      if (!pkg) {
-                        const result = await refetchOfferings();
-                        pkg = result.data?.current?.availablePackages?.find((p) => p.identifier === "day_unlock_299");
-                      }
-                      if (!pkg) {
-                        Alert.alert("Unavailable", "Day unlock is loading. Please try again in a moment.");
-                        return;
-                      }
-                      setDayUnlockLoading(currentDay.dayNumber);
-                      try {
-                        await purchase(pkg);
-                        if (id) {
-                          await Promise.all(
-                            days
-                              .filter((d) => isDayLocked(d.dayNumber))
-                              .map((d) => setDayUnlocked(id, d.dayNumber))
-                          );
-                        }
-                        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      } catch (e: any) {
-                        if (!e?.userCancelled) Alert.alert("Purchase failed", e?.message ?? "Please try again.");
-                      } finally {
-                        setDayUnlockLoading(null);
-                      }
-                    }}
-                    style={[styles.lockedCta, { backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border, opacity: dayUnlockLoading === currentDay.dayNumber ? 0.6 : 1 }]}
-                  >
-                    {dayUnlockLoading === currentDay.dayNumber ? (
-                      <ActivityIndicator size="small" color={colors.foreground} />
-                    ) : (
-                      <>
-                        <Feather name="unlock" size={13} color={colors.foreground} />
-                        <Text style={[styles.lockedCtaText, { color: colors.foreground }]}>
-                          Unlock Remaining Days · $2.99
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-
-                  {/* Trip unlock — $5.99 one-time */}
-                  <Pressable
-                    disabled={tripUnlockLoading}
-                    onPress={async () => {
-                      let pkg = tripUnlockPackage;
-                      if (!pkg) {
-                        const result = await refetchOfferings();
-                        pkg = result.data?.current?.availablePackages?.find((p) => p.identifier === "trip_unlock");
-                      }
-                      if (!pkg) {
-                        Alert.alert("Unavailable", "Trip unlock is loading. Please try again in a moment.");
-                        return;
-                      }
-                      setTripUnlockLoading(true);
-                      try {
-                        await purchase(pkg);
-                        if (id) await setTripPremium(id);
-                        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      } catch (e: any) {
-                        if (!e?.userCancelled) Alert.alert("Purchase failed", e?.message ?? "Please try again.");
-                      } finally {
-                        setTripUnlockLoading(false);
-                      }
-                    }}
-                    style={[styles.lockedCta, { backgroundColor: colors.foreground, opacity: tripUnlockLoading ? 0.6 : 1 }]}
-                  >
-                    {tripUnlockLoading ? (
-                      <ActivityIndicator size="small" color={colors.background} />
-                    ) : (
-                      <>
-                        <Feather name="star" size={13} color={colors.background} />
-                        <Text style={[styles.lockedCtaText, { color: colors.background }]}>
-                          Unlock Full Trip · $5.99 for everyone
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-
-                  {/* Subscribe */}
-                  <Pressable
-                    onPress={() => {
-                      setUpgradeReason(`Unlock all ${days.length} days with a subscription`);
-                      setShowUpgrade(true);
-                    }}
-                    style={[styles.lockedCta, { backgroundColor: "#E85D3A" }]}
-                  >
-                    <Feather name="zap" size={13} color="#fff" />
-                    <Text style={styles.lockedCtaText}>
-                      Subscribe · from $9.99/mo
-                    </Text>
-                  </Pressable>
-              </View>
-            ) : (
-              <>
+            <>
                 {currentDay.activities.map((act, i) => (
                   <View key={i}>
                     <ActivityCard
@@ -969,11 +811,6 @@ export default function ItineraryScreen() {
                       onRedo={handleRedo}
                       onDelete={handleDelete}
                       onCalendar={() => {
-                        if (!isPremium) {
-                          setUpgradeReason("Calendar export is a Pack Plus feature");
-                          setShowUpgrade(true);
-                          return;
-                        }
                         const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
                         const t = encodeURIComponent(act.name);
                         const d = encodeURIComponent(act.description);
@@ -1001,7 +838,6 @@ export default function ItineraryScreen() {
                   <Text style={[styles.addActText, { color: colors.mutedForeground }]}>Add activity</Text>
                 </Pressable>
               </>
-            )}
           </>
         )}
 
@@ -1201,13 +1037,6 @@ export default function ItineraryScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <UpgradeModal
-        visible={showUpgrade}
-        reason={upgradeReason}
-        tripId={id ?? ""}
-        onClose={() => setShowUpgrade(false)}
-        onPurchaseSuccess={async () => { if (id) await setTripPremium(id); }}
-      />
 
       {/* Pack saved toast — Ticket Pal celebrates the win */}
       {packSavedName ? (

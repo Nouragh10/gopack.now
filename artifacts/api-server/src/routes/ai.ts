@@ -218,11 +218,43 @@ Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER 
   }
 }
 
+type GenerationFeature = "itinerary" | "packing" | "redo-activity" | "suggest-destinations";
+
+async function checkAndIncrementGenerationCount(
+  userId: string,
+  feature: GenerationFeature,
+  isPlusUser: boolean,
+  res: Response,
+): Promise<boolean> {
+  if (isPlusUser) return true;
+  const db = getAdminDb();
+  const ref = db.ref(`users/${userId}/generationCounts/${feature}`);
+  const snap = await ref.get();
+  const count: number = snap.exists() ? (snap.val() as number) : 0;
+  if (count >= 1) {
+    res.status(403).json({
+      error: "Generation limit reached",
+      message: "Free users get 1 generation. Upgrade to Plus for unlimited.",
+      feature,
+    });
+    return false;
+  }
+  await ref.set(count + 1);
+  return true;
+}
+
 router.post("/itinerary", async (req: Request, res: Response): Promise<void> => {
   const parsed = GenerateItineraryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  const userId = (req.body as { userId?: string }).userId;
+  const isPlusUser = (req.body as { isPlusUser?: boolean }).isPlusUser === true;
+  if (userId) {
+    const allowed = await checkAndIncrementGenerationCount(userId, "itinerary", isPlusUser, res);
+    if (!allowed) return;
   }
 
   const { destination, days, vibes, budget, startDate, wishes } = parsed.data;
@@ -380,6 +412,13 @@ router.post("/packing", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const userId = (req.body as { userId?: string }).userId;
+  const isPlusUser = (req.body as { isPlusUser?: boolean }).isPlusUser === true;
+  if (userId) {
+    const allowed = await checkAndIncrementGenerationCount(userId, "packing", isPlusUser, res);
+    if (!allowed) return;
+  }
+
   const { destination, days, vibes, budget } = parsed.data;
 
   const prompt = `You are a seasoned travel packer. Generate a smart, curated packing list for a ${days}-day group trip to ${destination}.
@@ -482,6 +521,13 @@ router.post("/suggest-destinations", async (req: Request, res: Response): Promis
   if (!isGroupMode && (!body.tripType?.length || !body.distance || !body.budget || !body.days)) {
     res.status(400).json({ error: "Missing required fields." });
     return;
+  }
+
+  const userId = (req.body as { userId?: string }).userId;
+  const isPlusUser = (req.body as { isPlusUser?: boolean }).isPlusUser === true;
+  if (userId) {
+    const allowed = await checkAndIncrementGenerationCount(userId, "suggest-destinations", isPlusUser, res);
+    if (!allowed) return;
   }
 
   let prompt: string;
@@ -1005,6 +1051,13 @@ router.post("/redo-activity", async (req: Request, res: Response): Promise<void>
     return;
   }
 
+  const userId = (req.body as { userId?: string }).userId;
+  const isPlusUser = (req.body as { isPlusUser?: boolean }).isPlusUser === true;
+  if (userId) {
+    const allowed = await checkAndIncrementGenerationCount(userId, "redo-activity", isPlusUser, res);
+    if (!allowed) return;
+  }
+
   const others = (otherActivities ?? []).length > 0
     ? `\nActivities already on this day — do NOT repeat these:\n${(otherActivities ?? []).map((a: string) => `- ${a}`).join("\n")}`
     : "";
@@ -1267,9 +1320,9 @@ Always give the response in this exact JSON format (no markdown, no code fences)
       messages: [{ role: "user", content: `Math question: "${question}"` }],
     });
 
-    if (!response.ok) {
+    if (!(response as unknown as globalThis.Response).ok) {
       const text = await (response as unknown as globalThis.Response).text();
-      req.log.error({ status: response.status, text }, "Anthropic error for multimind suggest");
+      req.log.error({ text }, "Anthropic error for multimind suggest");
       res.status(502).json({ error: "AI service error" });
       return;
     }

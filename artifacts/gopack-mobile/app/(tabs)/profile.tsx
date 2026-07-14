@@ -21,7 +21,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { signOut, deleteAccount } from "@/lib/firebase";
 import { Trip, deleteTrip, leaveTrip, useTrips, wipeUserData } from "@/hooks/useFirebase";
-import { UpgradeModal } from "@/components/UpgradeModal";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -30,7 +29,6 @@ export default function ProfileScreen() {
   const { trips, refetch } = useTrips(user?.uid);
   const router = useRouter();
   const [tripsExpanded, setTripsExpanded] = useState(false);
-  const [upgradeVisible, setUpgradeVisible] = useState(false);
   const [passwordPromptVisible, setPasswordPromptVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -230,17 +228,6 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Upgrade to Pack Plus */}
-        <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
-          <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setUpgradeVisible(true); }}
-            style={[styles.upgradeBtn, { backgroundColor: colors.primary }]}
-          >
-            <Feather name="zap" size={18} color="#fff" />
-            <Text style={styles.upgradeBtnText}>Upgrade to Pack Plus</Text>
-          </Pressable>
-        </View>
-
         {/* Sign out */}
         <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
           <Pressable
@@ -270,12 +257,6 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </ScrollView>
-
-      <UpgradeModal
-        visible={upgradeVisible}
-        tripId=""
-        onClose={() => setUpgradeVisible(false)}
-      />
 
       <Modal
         visible={passwordPromptVisible}
