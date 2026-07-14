@@ -142,43 +142,43 @@ function TopSwipeCard({
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.swipeCard, { backgroundColor: colors.card, borderColor: colors.border }, cardStyle]}>
-        {/* Like label */}
+        {/* Header strip — labels stamp over this */}
+        <View style={[styles.swipeCardHeader, { backgroundColor: colors.primary + "12" }]}>
+          <View style={styles.swipeCardAuthorRow}>
+            <Avatar name={wish.authorName} index={authorIdx} size={26} />
+            <Text style={[styles.swipeCardAuthor, { color: colors.mutedForeground }]}>{wish.authorName}</Text>
+          </View>
+          <View style={[styles.swipeScorePill, { backgroundColor: score > 0 ? "#4CAF5022" : colors.muted }]}>
+            <Feather name="arrow-up" size={12} color={score > 0 ? "#4CAF50" : colors.mutedForeground} />
+            <Text style={[styles.swipeScoreText, { color: score > 0 ? "#4CAF50" : colors.mutedForeground }]}>
+              {score > 0 ? `+${score}` : score}
+            </Text>
+          </View>
+        </View>
+
+        {/* LOVE IT stamp */}
         <Animated.View style={[styles.swipeLabel, styles.swipeLabelRight, likeStyle]}>
-          <Feather name="heart" size={22} color="#4CAF50" />
+          <Feather name="heart" size={18} color="#4CAF50" />
           <Text style={[styles.swipeLabelText, { color: "#4CAF50" }]}>LOVE IT</Text>
         </Animated.View>
-        {/* Skip label */}
+        {/* SKIP stamp */}
         <Animated.View style={[styles.swipeLabel, styles.swipeLabelLeft, nopeStyle]}>
-          <Feather name="x" size={22} color="#ef4444" />
+          <Feather name="x" size={18} color="#ef4444" />
           <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
         </Animated.View>
 
-        {/* Author row */}
-        <View style={styles.swipeCardAuthorRow}>
-          <Avatar name={wish.authorName} index={authorIdx} size={28} />
-          <Text style={[styles.swipeCardAuthor, { color: colors.mutedForeground }]}>{wish.authorName}</Text>
+        {/* Wish text */}
+        <View style={styles.swipeCardBody}>
           {(upvoted || downvoted) && (
-            <View style={[styles.prevVotePill, { backgroundColor: upvoted ? "#4CAF5018" : "#9E9E9E18" }]}>
+            <View style={[styles.prevVotePill, { backgroundColor: upvoted ? "#4CAF5015" : "#9E9E9E15", alignSelf: "flex-start" }]}>
               <Feather name={upvoted ? "heart" : "x"} size={11} color={upvoted ? "#4CAF50" : "#9E9E9E"} />
               <Text style={[styles.prevVoteText, { color: upvoted ? "#4CAF50" : "#9E9E9E" }]}>
                 {upvoted ? "You loved this" : "You skipped"}
               </Text>
             </View>
           )}
-        </View>
-
-        {/* Wish text */}
-        <Text style={[styles.swipeCardWishText, { color: colors.foreground }]}>{wish.text}</Text>
-
-        {/* Score + hint */}
-        <View style={styles.swipeCardBottom}>
-          <View style={[styles.swipeScorePill, { backgroundColor: score > 0 ? "#4CAF5018" : colors.muted }]}>
-            <Feather name="arrow-up" size={12} color={score > 0 ? "#4CAF50" : colors.mutedForeground} />
-            <Text style={[styles.swipeScoreText, { color: score > 0 ? "#4CAF50" : colors.mutedForeground }]}>
-              {score > 0 ? `+${score}` : score}
-            </Text>
-          </View>
-          <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>← skip · love it →</Text>
+          <Text style={[styles.swipeCardWishText, { color: colors.foreground }]}>{wish.text}</Text>
+          <Text style={[styles.swipeHint, { color: colors.mutedForeground }]}>swipe or tap below</Text>
         </View>
       </Animated.View>
     </GestureDetector>
@@ -297,15 +297,15 @@ function SwipeWishStack({
       <View style={styles.swipeTapRow}>
         <Pressable
           onPress={onSwipeLeft}
-          style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}
+          style={[styles.swipeTapBtn, { backgroundColor: "#ef444418" }]}
         >
-          <Feather name="x" size={28} color="#ef4444" />
+          <Feather name="x" size={30} color="#ef4444" />
         </Pressable>
         <Pressable
           onPress={onSwipeRight}
-          style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}
+          style={[styles.swipeTapBtn, { backgroundColor: "#E85D3A" }]}
         >
-          <Feather name="heart" size={26} color="#4CAF50" />
+          <Feather name="heart" size={28} color="#fff" />
         </Pressable>
       </View>
     </View>
@@ -1354,16 +1354,28 @@ const styles = StyleSheet.create({
   swipeCard: {
     position: "absolute" as const,
     width: CARD_WIDTH,
-    minHeight: 240,
+    minHeight: 260,
     borderRadius: 22,
     borderWidth: 1.5,
-    padding: 22,
-    justifyContent: "space-between" as const,
+    overflow: "hidden" as const,
     shadowColor: "#000",
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  swipeCardHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  swipeCardBody: {
+    paddingHorizontal: 22,
+    paddingBottom: 22,
+    paddingTop: 10,
+    gap: 10,
   },
   swipeBgCard2: {
     top: 14,
@@ -1377,7 +1389,7 @@ const styles = StyleSheet.create({
   },
   swipeLabel: {
     position: "absolute" as const,
-    top: 18,
+    top: 14,
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
@@ -1387,50 +1399,47 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
   },
   swipeLabelRight: {
-    right: 18,
+    right: 16,
     borderColor: "#4CAF50",
-    transform: [{ rotate: "10deg" }],
+    backgroundColor: "#4CAF5010",
+    transform: [{ rotate: "8deg" }],
   },
   swipeLabelLeft: {
-    left: 18,
+    left: 16,
     borderColor: "#ef4444",
-    transform: [{ rotate: "-10deg" }],
+    backgroundColor: "#ef444410",
+    transform: [{ rotate: "-8deg" }],
   },
   swipeLabelText: {
     fontFamily: "DmSans_700Bold",
-    fontSize: 14,
-    letterSpacing: 0.8,
+    fontSize: 13,
+    letterSpacing: 1,
   },
   swipeCardAuthorRow: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 8,
-    marginBottom: 18,
-    marginTop: 8,
   },
   swipeCardAuthor: {
-    fontFamily: "DmSans_500Medium",
+    fontFamily: "DmSans_600SemiBold",
     fontSize: 13,
-    flex: 1,
   },
   prevVotePill: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 20,
   },
   prevVoteText: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 11,
+    fontFamily: "DmSans_500Medium",
+    fontSize: 12,
   },
   swipeCardWishText: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 22,
-    lineHeight: 30,
-    flex: 1,
-    marginBottom: 18,
+    fontSize: 26,
+    lineHeight: 34,
   },
   swipeCardBottom: {
     flexDirection: "row" as const,
@@ -1442,7 +1451,7 @@ const styles = StyleSheet.create({
     alignItems: "center" as const,
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 20,
   },
   swipeScoreText: {
@@ -1452,20 +1461,26 @@ const styles = StyleSheet.create({
   swipeHint: {
     fontFamily: "DmSans_400Regular",
     fontSize: 12,
+    opacity: 0.5,
   },
   swipeTapRow: {
     flexDirection: "row" as const,
     justifyContent: "center" as const,
-    gap: 28,
-    paddingVertical: 18,
+    alignItems: "center" as const,
+    gap: 24,
+    paddingVertical: 20,
   },
   swipeTapBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 1.5,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: "center" as const,
     justifyContent: "center" as const,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   allDoneWrap: {
     flex: 1,
