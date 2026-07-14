@@ -24,6 +24,12 @@ uri = "file://attached_assets/logo_plane.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "eMUneTuwiRF1mYWBKvG2C"
+uri = "file://artifacts/multimind-math/src/assets/hero-illustration.png"
+type = "image"
+title = "Cartoon kids doing math"
+
 [[outputs]]
 id = "4-5I7NVqCpJwWxKdbF1vr"
 uri = "file://attached_assets/logo_backpack.png"
