@@ -289,7 +289,6 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
   }).join("\n");
 
   const totalActivities = days * activitiesPerDay;
-  const maxWishSlots = Math.max(1, Math.min(topWishes.length, Math.floor(totalActivities * 0.25)));
 
   const prompt = `You are a world-class group travel planner. Generate a detailed ${days}-day itinerary for a group trip to ${destination}.
 
@@ -300,15 +299,14 @@ Trip details:
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
-━━━ SECTION A — WISH INCLUSION (highest priority) ━━━
-The group submitted these specific activity wishes. Include them as real named activities:
+━━━ SECTION A — WISH INCLUSION (MANDATORY — highest priority) ━━━
+The group submitted these specific activity wishes. You MUST include ALL of them as real named activities in the itinerary — every single one, no exceptions:
 ${topWishes.length > 0 ? topWishes.join("\n") : "No wishes — skip this section."}
 
-Each included wish counts as exactly ONE activity slot. Mark it with "fromWish": true and the author's name as "suggester".
-LIMIT: Include AT MOST ${maxWishSlots} wish-based activit${maxWishSlots === 1 ? "y" : "ies"} across the ENTIRE itinerary. Do not repeat the same wish theme across multiple slots.
+Each included wish counts as exactly ONE activity slot. Mark it with "fromWish": true and the author's name as "suggester". Do NOT skip or omit any wish. If the total number of wishes exceeds the total activity slots, add extra activities to accommodate all wishes.
 
 ━━━ SECTION B — AI PICKS (fill all remaining slots) ━━━
-ALL other activity slots (at least ${totalActivities - maxWishSlots} of the ${totalActivities} total) MUST be original AI recommendations — diverse, specific, real-world venues the group would love.
+After including ALL wishes, fill the remaining activity slots (target: ${totalActivities} total activities across ${days} days) with original AI recommendations — diverse, specific, real-world venues the group would love.
 Use the group's vibes as inspiration, not as a hard constraint. A great itinerary mixes iconic sights, local gems, meals, and experiences.
 These must have "fromWish": false and "suggester": "AI pick".
 
