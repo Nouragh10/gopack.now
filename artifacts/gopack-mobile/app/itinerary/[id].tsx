@@ -129,51 +129,73 @@ function buildItineraryHTML(
   vibes: string[],
   accom?: AccomSummary | null,
 ): string {
-  const totalDays = days.reduce((s, d) => s + d.activities.length, 0);
+  const totalActivities = days.reduce((s, d) => s + d.activities.length, 0);
+  const generatedDate = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-  const memberChips = members
+  const memberAvatars = members
     .map(
       (m, i) => `
-      <div class="chip">
-        <div class="chip-avatar" style="background:${MEMBER_COLORS[i % MEMBER_COLORS.length]}">
-          ${m.name[0].toUpperCase()}
-        </div>
-        <span class="chip-name">${m.name}</span>
+      <div class="avatar" style="background:${MEMBER_COLORS[i % MEMBER_COLORS.length]}">
+        ${m.name[0].toUpperCase()}
       </div>`,
     )
     .join("");
 
-  const vibeTags = vibes.map(v => `<span class="vibe-tag">${v}</span>`).join("");
+  const memberNames = members.map(m => m.name).join("  ·  ");
+
+  const vibePills = vibes.map(v => `<span class="vibe-pill">${v}</span>`).join("");
 
   const daysHtml = days
     .map((day) => {
       const activitiesHtml = day.activities
         .map(
-          (act) => `
-          <div class="act">
-            <div class="act-bar" style="background:${getTagColor(act.tag)}"></div>
+          (act, idx) => {
+            const tagColor = getTagColor(act.tag);
+            const isWish = act.fromWish;
+            const isManual = !act.fromWish && act.suggester && act.suggester !== "AI pick";
+            const attributionText = isWish
+              ? `★ ${act.suggester}'s wish`
+              : isManual
+              ? `+ Added by ${act.suggester}`
+              : act.matchedVibe
+              ? `✦ AI · ${act.matchedVibe}`
+              : `✦ AI pick`;
+            const attrColor = isWish ? "#D97706" : isManual ? "#26A69A" : "#9E9E9E";
+            const attrBg = isWish ? "#FFFBEB" : isManual ? "#F0FAF9" : "transparent";
+
+            return `
+          <div class="act ${isWish ? "act-wish" : ""}">
+            <div class="act-index">${idx + 1}</div>
+            <div class="act-accent" style="background:${tagColor}"></div>
             <div class="act-body">
-              <div class="act-meta">
+              <div class="act-header">
                 <span class="act-time">${act.time}</span>
-                ${act.fromWish ? '<span class="wish-badge">★ Wish</span>' : ""}
+                <span class="act-attr" style="color:${attrColor};background:${attrBg}">${attributionText}</span>
               </div>
               <div class="act-name">${act.name}</div>
-              ${act.suggester ? `<div class="act-suggester">${act.fromWish ? `✦ ${act.suggester}'s wish` : act.suggester === "AI pick" ? (act.matchedVibe ? `✦ AI pick · ${act.matchedVibe}` : `✦ AI pick`) : `✦ Added by ${act.suggester}`}</div>` : ""}
               <div class="act-desc">${act.description}</div>
-              ${act.estimatedCost > 0 ? `<div class="act-cost">~$${act.estimatedCost} per person</div>` : ""}
+              ${act.estimatedCost > 0 ? `<div class="act-cost">≈ $${act.estimatedCost} <span style="font-weight:400;opacity:.7">per person</span></div>` : `<div class="act-cost" style="color:#26A69A">Free</div>`}
             </div>
-          </div>`,
+          </div>`;
+          }
         )
         .join("");
 
+      const dayCost = day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0);
+
       return `
-        <div class="day">
-          <div class="day-head">
-            <div class="day-badge">Day ${day.dayNumber}</div>
-            <div class="day-city">${day.city}</div>
-            <div class="day-theme">${day.theme}</div>
+        <div class="day-block">
+          <div class="day-header">
+            <div class="day-number">Day ${day.dayNumber}</div>
+            <div class="day-info">
+              <div class="day-city">${day.city}</div>
+              <div class="day-theme">${day.theme}</div>
+            </div>
+            ${dayCost > 0 ? `<div class="day-cost">≈ $${dayCost}<span class="day-cost-label">/person</span></div>` : ""}
           </div>
-          ${activitiesHtml}
+          <div class="activities-grid">
+            ${activitiesHtml}
+          </div>
         </div>`;
     })
     .join("");
@@ -184,160 +206,393 @@ function buildItineraryHTML(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;background:#FFFDF9;color:#0E0D0B;font-size:13px;line-height:1.5}
-h1,h2,h3{font-family:Georgia,'Times New Roman',serif}
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap');
 
-@media print{
-  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .day{page-break-before:auto;page-break-inside:avoid}
-  .act{page-break-inside:avoid}
-  .cover{page-break-after:always}
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  background:#F8F5F0;
+  color:#1A1714;
+  font-size:13px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
 }
 
-/* Cover */
-.cover{background:#1C1916;padding:60px 48px 56px;color:#FFFDF9;position:relative;overflow:hidden}
-.cover-blob{position:absolute;right:-60px;top:-60px;width:260px;height:260px;background:#E85D3A;opacity:.07;border-radius:50%}
-.cover-blob2{position:absolute;left:-40px;bottom:-80px;width:200px;height:200px;background:#E85D3A;opacity:.05;border-radius:50%}
-.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:52px}
-.logo-dot{width:10px;height:10px;border-radius:50%;background:#E85D3A}
-.logo-text{font-family:Georgia,serif;font-size:14px;letter-spacing:4px;text-transform:uppercase;color:#E85D3A;font-weight:bold}
-.cover-eyebrow{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#756C66;margin-bottom:12px}
-.cover-title{font-size:44px;font-weight:700;line-height:1.05;margin-bottom:10px;color:#FFFDF9;font-family:Georgia,serif;text-transform:capitalize}
-.cover-dest{font-size:16px;color:#8C8480;margin-bottom:48px}
-.cover-stats{display:flex;gap:0;border-top:1px solid #2E2A27;padding-top:28px}
-.stat{flex:1;padding-right:24px}
-.stat+.stat{padding-left:24px;border-left:1px solid #2E2A27}
-.stat-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#756C66;margin-bottom:5px}
-.stat-val{font-size:18px;font-weight:600;color:#FFFDF9}
+@media print{
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#F8F5F0}
+  .cover{page-break-after:always}
+  .day-block{page-break-inside:avoid}
+  .act{page-break-inside:avoid}
+}
 
-/* Pack section */
-.pack-section{padding:40px 48px;border-bottom:1px solid #EDE8DE}
-.eyebrow{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#E85D3A;margin-bottom:8px}
-.section-h{font-size:22px;font-weight:700;margin-bottom:20px}
-.chips{display:flex;flex-wrap:wrap;gap:10px}
-.chip{display:inline-flex;align-items:center;gap:8px;background:#F5F0E8;border-radius:28px;padding:6px 14px 6px 6px}
-.chip-avatar{width:28px;height:28px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff}
-.chip-name{font-size:13px;font-weight:500}
+/* ─── COVER ─────────────────────────────────────── */
+.cover{
+  background:linear-gradient(145deg,#111009 0%,#1E1A15 60%,#2A2118 100%);
+  min-height:100vh;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  overflow:hidden;
+}
+.cover-glow{
+  position:absolute;top:-120px;right:-120px;
+  width:500px;height:500px;
+  background:radial-gradient(circle,rgba(232,93,58,.18) 0%,transparent 70%);
+  pointer-events:none;
+}
+.cover-glow2{
+  position:absolute;bottom:-80px;left:-80px;
+  width:350px;height:350px;
+  background:radial-gradient(circle,rgba(232,93,58,.1) 0%,transparent 70%);
+  pointer-events:none;
+}
+.cover-lines{
+  position:absolute;inset:0;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 59px,rgba(255,255,255,.025) 59px,rgba(255,255,255,.025) 60px);
+  pointer-events:none;
+}
+.cover-top{
+  padding:40px 52px 0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.logo{
+  display:flex;align-items:center;gap:10px;
+}
+.logo-mark{
+  width:32px;height:32px;
+  background:#E85D3A;
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;
+}
+.logo-name{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:18px;font-weight:700;
+  color:#FFFDF9;letter-spacing:.5px;
+}
+.cover-badge{
+  font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
+  color:#E85D3A;
+  border:1px solid rgba(232,93,58,.4);
+  padding:6px 14px;border-radius:20px;
+}
+.cover-body{
+  flex:1;
+  padding:60px 52px 0;
+  display:flex;flex-direction:column;justify-content:flex-end;
+}
+.cover-eyebrow{
+  font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;
+  color:#756C66;margin-bottom:18px;
+}
+.cover-title{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:52px;font-weight:900;line-height:1.02;
+  color:#FFFDF9;margin-bottom:14px;
+}
+.cover-dest{
+  font-size:18px;font-weight:500;color:#8C8480;margin-bottom:60px;
+  display:flex;align-items:center;gap:10px;
+}
+.cover-dest-dot{width:6px;height:6px;border-radius:50%;background:#E85D3A;flex-shrink:0}
+.cover-rule{height:1px;background:linear-gradient(90deg,rgba(232,93,58,.6),rgba(232,93,58,.1),transparent)}
+.cover-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  padding:32px 52px;gap:0;
+}
+.stat{padding-right:28px;position:relative}
+.stat+.stat{padding-left:28px;padding-right:28px}
+.stat+.stat::before{
+  content:"";position:absolute;left:0;top:8px;bottom:8px;
+  width:1px;background:rgba(255,255,255,.08);
+}
+.stat-label{
+  font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
+  color:#756C66;margin-bottom:8px;
+}
+.stat-val{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:24px;font-weight:700;color:#FFFDF9;line-height:1.1;
+}
+.stat-sub{font-size:11px;color:#4A4440;margin-top:4px;font-weight:500}
 
-/* Day */
-.day{padding:32px 48px;border-bottom:1px solid #EDE8DE}
-.day-head{display:flex;align-items:baseline;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #E85D3A}
-.day-badge{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#E85D3A;white-space:nowrap}
-.day-city{font-size:26px;font-weight:700;flex:1;font-family:Georgia,serif}
-.day-theme{font-size:12px;color:#756C66;font-style:italic;white-space:nowrap}
+/* ─── MEMBERS STRIP ─────────────────────────────── */
+.members-strip{
+  background:#FFFDF9;
+  padding:32px 52px;
+  display:flex;align-items:center;gap:24px;
+  border-bottom:1px solid #E8E2D9;
+}
+.avatars{display:flex;align-items:center}
+.avatar{
+  width:40px;height:40px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:14px;color:#fff;
+  border:2.5px solid #FFFDF9;
+  margin-left:-10px;
+}
+.avatar:first-child{margin-left:0}
+.members-info{flex:1}
+.members-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#B8B0A8;margin-bottom:4px}
+.members-names{font-size:14px;font-weight:600;color:#1A1714}
 
-/* Activity */
-.act{display:flex;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid #EDE8DE;background:#FEFCF8}
-.act-bar{width:4px;flex-shrink:0}
-.act-body{flex:1;padding:14px 18px}
-.act-meta{display:flex;align-items:center;gap:10px;margin-bottom:5px}
-.act-time{font-size:11px;font-weight:600;color:#A8A298;letter-spacing:.3px;min-width:58px}
-.wish-badge{font-size:10px;background:#FFF3E0;color:#E65100;border-radius:10px;padding:2px 8px;font-weight:600}
-.act-name{font-size:15px;font-weight:700;margin-bottom:4px;color:#0E0D0B}
-.act-suggester{font-size:11px;color:#E85D3A;font-weight:500;margin-bottom:6px}
-.act-desc{font-size:12px;color:#4A4440;line-height:1.55;margin-bottom:6px}
-.act-cost{font-size:11px;color:#756C66;font-weight:500}
+/* ─── VIBES ─────────────────────────────────────── */
+.vibes-strip{
+  background:#FFFDF9;padding:20px 52px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border-bottom:1px solid #E8E2D9;
+}
+.vibes-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#B8B0A8;white-space:nowrap;margin-right:4px}
+.vibe-pill{
+  display:inline-block;
+  background:linear-gradient(135deg,#FFF8F5,#FFF0EB);
+  border:1px solid rgba(232,93,58,.25);
+  border-radius:20px;padding:5px 14px;
+  font-size:12px;font-weight:600;color:#E85D3A;text-transform:capitalize;
+}
 
-/* Accommodation */
-.accom-section{padding:32px 48px;border-bottom:1px solid #EDE8DE}
-.accom-card{display:flex;align-items:flex-start;gap:18px;background:#F0FAF9;border:1.5px solid #26A69A;border-radius:14px;padding:18px 20px;margin-top:12px}
-.accom-icon{font-size:28px;flex-shrink:0;margin-top:2px}
-.accom-name{font-family:Georgia,serif;font-size:20px;font-weight:700;color:#0E0D0B;margin-bottom:4px}
-.accom-meta{font-size:12px;color:#4A4440;margin-bottom:6px;text-transform:capitalize}
-.accom-cost{font-size:12px;font-weight:600;color:#26A69A}
+/* ─── ACCOMMODATION ─────────────────────────────── */
+.accom-section{
+  background:#FFFDF9;padding:28px 52px;border-bottom:1px solid #E8E2D9;
+}
+.section-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#B8B0A8;margin-bottom:16px}
+.accom-card{
+  background:linear-gradient(135deg,#F0FAF9,#E8F6F4);
+  border:1.5px solid rgba(38,166,154,.3);border-radius:16px;
+  padding:20px 24px;display:flex;align-items:center;gap:18px;
+}
+.accom-icon{
+  width:48px;height:48px;border-radius:12px;
+  background:#26A69A;display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;
+}
+.accom-name{font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:700;color:#0E0D0B;margin-bottom:3px}
+.accom-meta{font-size:12px;color:#4A4440;text-transform:capitalize}
+.accom-cost{font-size:13px;font-weight:700;color:#26A69A;margin-top:6px}
 
-/* Vibes */
-.vibes-section{padding:32px 48px;border-bottom:1px solid #EDE8DE;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.vibe-tag{display:inline-block;background:#F5F0E8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:500;color:#0E0D0B;text-transform:capitalize}
+/* ─── DAYS ──────────────────────────────────────── */
+.day-block{
+  background:#FFFDF9;
+  margin-top:2px;
+  padding:36px 52px 28px;
+  border-bottom:2px solid #F0EBE3;
+}
+.day-header{
+  display:flex;align-items:flex-start;gap:20px;margin-bottom:28px;
+  padding-bottom:20px;
+  border-bottom:1px solid #EDE8DE;
+  position:relative;
+}
+.day-header::after{
+  content:"";position:absolute;bottom:-1px;left:0;
+  width:60px;height:2px;background:#E85D3A;
+}
+.day-number{
+  font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+  color:#E85D3A;padding-top:5px;white-space:nowrap;min-width:40px;
+}
+.day-info{flex:1}
+.day-city{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:28px;font-weight:700;color:#1A1714;line-height:1.1;margin-bottom:4px;
+}
+.day-theme{font-size:13px;color:#8C8480;font-style:italic}
+.day-cost{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:22px;font-weight:700;color:#1A1714;
+  text-align:right;padding-top:4px;white-space:nowrap;
+}
+.day-cost-label{font-size:11px;font-weight:500;color:#8C8480;font-family:'Inter',sans-serif}
 
-/* Total */
-.total-section{padding:40px 48px;background:#1C1916;display:flex;align-items:center;gap:24px}
-.total-icon{width:48px;height:48px;background:#E85D3A;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.total-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#756C66;margin-bottom:6px}
-.total-val{font-family:Georgia,serif;font-size:40px;font-weight:700;color:#FFFDF9;line-height:1}
-.total-note{font-size:12px;color:#756C66;margin-top:4px}
+/* ─── ACTIVITIES ────────────────────────────────── */
+.activities-grid{display:flex;flex-direction:column;gap:10px}
+.act{
+  display:flex;align-items:stretch;
+  border-radius:14px;overflow:hidden;
+  border:1px solid #EDE8DE;
+  background:#FEFCF8;
+  transition:all .2s;
+}
+.act-wish{
+  border-color:rgba(217,119,6,.25);
+  background:linear-gradient(135deg,#FFFBEB,#FFF8EE);
+}
+.act-index{
+  width:36px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#C4BDB6;
+  background:#F8F5F0;border-right:1px solid #EDE8DE;
+}
+.act-wish .act-index{background:#FFF3D0;color:#D97706;border-color:rgba(217,119,6,.2)}
+.act-accent{width:3px;flex-shrink:0}
+.act-body{flex:1;padding:14px 18px 12px}
+.act-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.act-time{
+  font-size:11px;font-weight:700;color:#A8A298;
+  letter-spacing:.5px;min-width:58px;
+}
+.act-attr{
+  font-size:10px;font-weight:600;letter-spacing:.3px;
+  padding:2px 9px;border-radius:10px;
+}
+.act-name{
+  font-size:15px;font-weight:700;color:#1A1714;
+  margin-bottom:5px;line-height:1.3;
+}
+.act-desc{font-size:12px;color:#5A534D;line-height:1.6;margin-bottom:7px}
+.act-cost{font-size:12px;font-weight:700;color:#1A1714}
 
-/* Footer */
-.footer{background:#0E0D0B;padding:24px 48px;display:flex;align-items:center;justify-content:space-between}
-.footer-logo{font-family:Georgia,serif;font-size:20px;color:#FFFDF9;font-weight:bold}
-.footer-tagline{font-size:11px;color:#4A4440}
-.footer-date{font-size:11px;color:#4A4440}
+/* ─── TOTALS ─────────────────────────────────────── */
+.totals-section{
+  background:linear-gradient(145deg,#111009 0%,#1E1A15 100%);
+  padding:48px 52px;
+  display:flex;align-items:center;gap:32px;
+  position:relative;overflow:hidden;
+}
+.totals-glow{
+  position:absolute;right:-60px;top:-60px;
+  width:300px;height:300px;
+  background:radial-gradient(circle,rgba(232,93,58,.12) 0%,transparent 70%);
+}
+.totals-circle{
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,#E85D3A,#D44E2D);
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;flex-shrink:0;
+  box-shadow:0 0 0 12px rgba(232,93,58,.1);
+}
+.totals-label{font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#756C66;margin-bottom:8px}
+.totals-val{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:48px;font-weight:900;color:#FFFDF9;line-height:1;margin-bottom:6px;
+}
+.totals-note{font-size:13px;color:#4A4440;font-weight:500}
+
+/* ─── FOOTER ─────────────────────────────────────── */
+.footer{
+  background:#0A0907;
+  padding:28px 52px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.footer-logo{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:18px;color:#FFFDF9;font-weight:700;
+  display:flex;align-items:center;gap:10px;
+}
+.footer-dot{width:8px;height:8px;border-radius:50%;background:#E85D3A}
+.footer-meta{font-size:11px;color:#4A4440;text-align:right;line-height:1.8}
 </style>
 </head>
 <body>
 
+<!-- COVER -->
 <div class="cover">
-  <div class="cover-blob"></div>
-  <div class="cover-blob2"></div>
-  <div class="logo-row">
-    <div class="logo-dot"></div>
-    <div class="logo-text">GoPackNow</div>
+  <div class="cover-glow"></div>
+  <div class="cover-glow2"></div>
+  <div class="cover-lines"></div>
+
+  <div class="cover-top">
+    <div class="logo">
+      <div class="logo-mark">🎒</div>
+      <div class="logo-name">GoPackNow</div>
+    </div>
+    <div class="cover-badge">Group Travel Itinerary</div>
   </div>
-  <div class="cover-eyebrow">Group Travel Itinerary</div>
-  <h1 class="cover-title">${title}</h1>
-  <div class="cover-dest">${destination}</div>
+
+  <div class="cover-body">
+    <div class="cover-eyebrow">Your adventure awaits</div>
+    <h1 class="cover-title">${title}</h1>
+    <div class="cover-dest">
+      <div class="cover-dest-dot"></div>
+      ${destination}
+    </div>
+  </div>
+
+  <div class="cover-rule"></div>
+
   <div class="cover-stats">
     <div class="stat">
       <div class="stat-label">Duration</div>
-      <div class="stat-val">${days.length} day${days.length !== 1 ? "s" : ""}</div>
+      <div class="stat-val">${days.length}</div>
+      <div class="stat-sub">day${days.length !== 1 ? "s" : ""}</div>
     </div>
-    ${startDate ? `<div class="stat"><div class="stat-label">Start date</div><div class="stat-val">${startDate}</div></div>` : ""}
+    <div class="stat">
+      <div class="stat-label">Experiences</div>
+      <div class="stat-val">${totalActivities}</div>
+      <div class="stat-sub">activities</div>
+    </div>
     <div class="stat">
       <div class="stat-label">Budget</div>
-      <div class="stat-val" style="text-transform:capitalize">${budget}</div>
+      <div class="stat-val" style="text-transform:capitalize;font-size:18px">${budget}</div>
+      <div class="stat-sub">level</div>
     </div>
     <div class="stat">
-      <div class="stat-label">Pack size</div>
-      <div class="stat-val">${members.length} ${members.length === 1 ? "person" : "people"}</div>
+      <div class="stat-label">Travellers</div>
+      <div class="stat-val">${members.length}</div>
+      <div class="stat-sub">in the pack</div>
     </div>
   </div>
 </div>
 
-<div class="pack-section">
-  <div class="eyebrow">The Pack</div>
-  <h2 class="section-h">Who's coming</h2>
-  <div class="chips">${memberChips}</div>
+<!-- MEMBERS -->
+<div class="members-strip">
+  <div class="avatars">${memberAvatars}</div>
+  <div class="members-info">
+    <div class="members-title">The Pack</div>
+    <div class="members-names">${memberNames}</div>
+  </div>
+  ${startDate ? `<div style="text-align:right"><div class="stat-label" style="color:#B8B0A8;font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Departure</div><div style="font-size:15px;font-weight:700;color:#1A1714">${startDate}</div></div>` : ""}
 </div>
 
 ${vibes.length > 0 ? `
-<div class="vibes-section">
-  <div class="eyebrow" style="margin-bottom:0;white-space:nowrap">Trip vibes</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px">${vibeTags}</div>
+<div class="vibes-strip">
+  <div class="vibes-label">Trip vibes</div>
+  ${vibePills}
 </div>` : ""}
 
 ${accom ? `
 <div class="accom-section">
-  <div class="eyebrow">Accommodation</div>
+  <div class="section-label">Accommodation</div>
   <div class="accom-card">
     <div class="accom-icon">🏠</div>
     <div>
       <div class="accom-name">${accom.name}</div>
       <div class="accom-meta">${accom.location}${accom.type ? ` · ${accom.type}` : ""}</div>
-      <div class="accom-cost">~$${accom.costPerPerson} per person (total stay)</div>
+      <div class="accom-cost">≈ $${accom.costPerPerson} per person · total stay</div>
     </div>
   </div>
 </div>` : ""}
 
+<!-- DAYS -->
 ${daysHtml}
 
+<!-- TOTALS -->
 ${
   totalCost > 0
-    ? `<div class="total-section">
-        <div class="total-icon">💰</div>
+    ? `<div class="totals-section">
+        <div class="totals-glow"></div>
+        <div class="totals-circle">💰</div>
         <div>
-          <div class="total-label">Estimated total · all ${days.length} days</div>
-          <div class="total-val">~$${totalCost}</div>
-          <div class="total-note">per person · ${totalDays} activities${accom ? " + accommodation" : ""}</div>
+          <div class="totals-label">Estimated total · all ${days.length} days${accom ? " + accommodation" : ""}</div>
+          <div class="totals-val">~$${totalCost}</div>
+          <div class="totals-note">per person · ${totalActivities} activities planned</div>
         </div>
       </div>`
     : ""
 }
 
+<!-- FOOTER -->
 <div class="footer">
-  <div class="footer-logo">GoPackNow</div>
-  <div class="footer-tagline">Plan trips together ✦</div>
-  <div class="footer-date">Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+  <div class="footer-logo">
+    <div class="footer-dot"></div>
+    GoPackNow
+  </div>
+  <div class="footer-meta">
+    Generated on ${generatedDate}<br>
+    Plan trips together ✦
+  </div>
 </div>
 
 </body>
