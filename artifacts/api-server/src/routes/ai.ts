@@ -325,15 +325,15 @@ ${vibeGuide}
 7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
-10. COST ACCURACY — "estimatedCost" is the exact per-person cost in USD a tourist would actually pay, matching real booking-platform prices (Viator, GetYourGuide, etc.). Use these realistic ranges by activity type:
+10. COST ACCURACY — "estimatedCost" is the price ONE single traveler pays out of pocket, exactly as listed at the ticket counter, on Google, Viator, or GetYourGuide. It is NEVER the group total divided by the number of travelers — do NOT divide by group size. Treat each traveler as booking independently and paying their own full individual admission or meal. Use these realistic single-ticket ranges:
   FREE (always $0): open-air landmarks, beaches, temples with no entry fee, public parks, viewpoints, self-guided walks, free markets
-  PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
-  GUIDED TOURS booked on Viator/GetYourGuide ($30–150): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
-  FOOD & DRINK per person: street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
-  NIGHTLIFE per person: local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
-  WELLNESS: spa / hammam session $40–120, yoga or fitness class $15–40, surf lesson $50–90
+  PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known single-ticket admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
+  GUIDED TOURS booked on Viator/GetYourGuide ($30–150 per person): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
+  FOOD & DRINK (price of one person's meal): street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
+  NIGHTLIFE (one person's spend): local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
+  WELLNESS (one person's session): spa / hammam $40–120, yoga or fitness class $15–40, surf lesson $50–90
   Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer free or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
-  NEVER output 25 as a default. Every activity must have a cost that honestly reflects what that specific venue/experience actually costs.
+  NEVER output 25 as a default. NEVER divide a venue's price by the group size. Every activity must have a cost that honestly reflects what one individual pays for that specific venue/experience.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -1100,15 +1100,15 @@ Name: must be a real, specific venue that you are highly confident actually exis
 SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
 Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
-Cost: exact per-person USD cost matching real booking-platform prices (Viator/GetYourGuide). Use the activity TYPE, not just budget tier:
+Cost: what ONE individual traveler pays at the counter or on Viator/GetYourGuide — NEVER the group total divided by the number of travelers. Each traveler pays their own full individual price. Use the activity TYPE, not just budget tier:
   FREE $0: open landmarks, temples/churches with no entry fee, public parks, beaches, viewpoints
-  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known admission price when possible)
-  GUIDED TOURS $30–150: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
-  FOOD per person: street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
-  NIGHTLIFE: local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
-  WELLNESS: spa/hammam $40–120, yoga class $15–40
+  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known single-ticket admission price)
+  GUIDED TOURS $30–150 per person: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
+  FOOD (one person's meal): street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
+  NIGHTLIFE (one person's spend): local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
+  WELLNESS (one person's session): spa/hammam $40–120, yoga class $15–40
   Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
-  NEVER output 25 as a default — give the honest cost for this specific venue/experience.
+  NEVER output 25 as a default. NEVER divide by group size. Give the honest individual cost for this specific venue/experience.
 
 Respond with ONLY valid JSON (no markdown):
 {
