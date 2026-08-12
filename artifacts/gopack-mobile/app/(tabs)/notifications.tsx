@@ -25,6 +25,7 @@ interface AppNotification {
   subtitle: string;
   tripId?: string;
   time: number;
+  type?: "itinerary" | "default";
 }
 
 function timeAgo(ts: number): string {
@@ -81,6 +82,7 @@ export default function NotificationsScreen() {
           subtitle: `Your ${trip.destination} itinerary has been built. Tap to view.`,
           tripId: trip.id,
           time: createdAt + 3600000,
+          type: "itinerary",
         });
       }
 
@@ -209,7 +211,14 @@ export default function NotificationsScreen() {
         {notifications.map((note) => (
           <Pressable
             key={note.id}
-            onPress={() => note.tripId && router.push(`/trip/${note.tripId}` as any)}
+            onPress={() => {
+              if (!note.tripId) return;
+              if (note.type === "itinerary") {
+                router.push(`/itinerary/${note.tripId}` as any);
+              } else {
+                router.push(`/trip/${note.tripId}` as any);
+              }
+            }}
             style={[styles.noteRow, { borderBottomColor: colors.border }]}
           >
             <View style={[styles.noteIcon, { backgroundColor: note.color + "1A" }]}>
