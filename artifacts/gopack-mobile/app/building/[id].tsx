@@ -64,6 +64,14 @@ export default function BuildingScreen() {
 
     const run = async () => {
       try {
+        const memberPrefs = Object.values((trip as any).memberPreferences ?? {}) as Array<Record<string, unknown>>;
+
+        // Days: average of all member preferences, rounded. Fall back to trip.days if no prefs exist.
+        const prefDays = memberPrefs.map(p => Number(p.days)).filter(d => d > 0);
+        const resolvedDays = prefDays.length > 0
+          ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
+          : (trip.days ?? 5);
+
         // ── Wish selection: fairness-cap algorithm ──────────────────────
         // Step 0: exclude negatively-scored wishes (the group said no)
         const positiveWishes = [...wishes]
@@ -107,14 +115,6 @@ export default function BuildingScreen() {
           author: w.authorName,
           votes: w.score,
         });
-
-        const memberPrefs = Object.values((trip as any).memberPreferences ?? {}) as Array<Record<string, unknown>>;
-
-        // Days: average of all member preferences, rounded. Fall back to trip.days if no prefs exist.
-        const prefDays = memberPrefs.map(p => Number(p.days)).filter(d => d > 0);
-        const resolvedDays = prefDays.length > 0
-          ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
-          : (trip.days ?? 5);
 
         // Vibes: union of all member vibe selections. Fall back to trip.vibes if no prefs exist.
         const prefVibes = memberPrefs.flatMap(p => (p.vibes as string[] | undefined) ?? []);
