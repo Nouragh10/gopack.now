@@ -257,16 +257,38 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
     if (!allowed) return;
   }
 
-  const { destination, days, vibes, budget, startDate, wishes } = parsed.data;
+  const { destination, days, vibes, budget, startDate } = parsed.data;
   const pace = (req.body as { pace?: string }).pace ?? "balanced";
   const activitiesPerDay = pace === "relaxed" ? 3 : pace === "packed" ? 7 : 5;
 
-  const topWishes = (wishes ?? [])
-    .sort((a: { votes: number }, b: { votes: number }) => b.votes - a.votes)
-    .slice(0, 20)
-    .map((w: { text: string; author: string; votes: number }, i: number) =>
-      `${i + 1}. "${w.text}" by ${w.author} (${w.votes} votes)`
-    );
+  // Support both new two-tier format (guaranteed + candidates) and legacy wishes array.
+  const bodyAny = req.body as {
+    guaranteed?: Array<{ text: string; author: string; votes: number }>;
+    candidates?: Array<{ text: string; author: string; votes: number }>;
+    wishes?: Array<{ text: string; author: string; votes: number }>;
+  };
+
+  type WishItem = { text: string; author: string; votes: number };
+  const formatWishLine = (w: WishItem, i: number) =>
+    `${i + 1}. "${w.text}" by ${w.author} (net score: ${w.votes})`;
+
+  let guaranteedWishes: WishItem[];
+  let candidateWishes: WishItem[];
+
+  if (bodyAny.guaranteed !== undefined || bodyAny.candidates !== undefined) {
+    // New two-tier format from mobile client
+    guaranteedWishes = (bodyAny.guaranteed ?? []).slice(0, 30);
+    candidateWishes = (bodyAny.candidates ?? []).slice(0, 15);
+  } else {
+    // Legacy: treat entire wishes list as guaranteed (backward compat)
+    guaranteedWishes = ((parsed.data as { wishes?: WishItem[] }).wishes ?? [])
+      .sort((a, b) => b.votes - a.votes)
+      .slice(0, 20);
+    candidateWishes = [];
+  }
+
+  const guaranteedList = guaranteedWishes.map(formatWishLine);
+  const candidateList = candidateWishes.map(formatWishLine);
 
   const validTags = vibes.map(v => v.toLowerCase());
 
@@ -299,14 +321,24 @@ Trip details:
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
-━━━ SECTION A — WISH INCLUSION (MANDATORY — highest priority) ━━━
-The group submitted these specific activity wishes. You MUST include ALL of them as real named activities in the itinerary — every single one, no exceptions:
-${topWishes.length > 0 ? topWishes.join("\n") : "No wishes — skip this section."}
+━━━ SECTION A — GROUP WISHES (two-tier, priority-ordered) ━━━
 
-Each included wish counts as exactly ONE activity slot. Mark it with "fromWish": true and the author's name as "suggester". Do NOT skip or omit any wish. If the total number of wishes exceeds the total activity slots, add extra activities to accommodate all wishes.
+TIER 1 — GUARANTEED (non-negotiable):
+These wishes were democratically selected by the group and MUST all appear as real named activities in the itinerary — every single one, no exceptions:
+${guaranteedList.length > 0 ? guaranteedList.join("\n") : "None."}
+
+Each guaranteed wish counts as exactly ONE activity slot. Mark with "fromWish": true and the author's name as "suggester". If the total number of guaranteed wishes exceeds the total activity slots available, add extra activities to those days to absorb them all — do NOT drop any guaranteed wish.
+
+TIER 2 — CANDIDATES (include if slots allow, skip if not):
+These wishes have group support but are not guaranteed. Include them only if you have spare activity slots remaining after placing all guaranteed wishes and your AI picks. Do NOT force them in at the expense of pacing or geography — skip any that don't fit naturally:
+${candidateList.length > 0 ? candidateList.join("\n") : "None."}
+
+Candidates also use "fromWish": true and the author's name as "suggester".
+
+CONFLICT RESOLUTION: If two guaranteed wishes are geographically incompatible on the same day (e.g., opposite ends of the city with no reasonable way to visit both), split them across different days rather than degrading pacing or cramming both in. Record any such adjustment in the top-level "conflicts" array (one string per conflict, e.g. "Moved 'X' from Day 1 to Day 3 — too far from other Day 1 activities"). If there are no conflicts, return an empty array.
 
 ━━━ SECTION B — AI PICKS (fill all remaining slots) ━━━
-After including ALL wishes, fill the remaining activity slots (target: ${totalActivities} total activities across ${days} days) with original AI recommendations — diverse, specific, real-world venues the group would love.
+After placing all guaranteed wishes (and any candidates that fit), fill the remaining activity slots (target: ${totalActivities} total activities across ${days} days) with original AI recommendations — diverse, specific, real-world venues the group would love.
 Use the group's vibes as inspiration, not as a hard constraint. A great itinerary mixes iconic sights, local gems, meals, and experiences.
 These must have "fromWish": false and "suggester": "AI pick".
 
@@ -338,6 +370,7 @@ ${vibeGuide}
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
   "title": "Catchy trip title",
+  "conflicts": [],
   "days": [
     {
       "dayNumber": 1,

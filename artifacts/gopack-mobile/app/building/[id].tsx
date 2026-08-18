@@ -64,10 +64,49 @@ export default function BuildingScreen() {
 
     const run = async () => {
       try {
-        const sortedWishes = [...wishes]
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 10)
-          .map((w) => ({ text: w.text, author: w.authorName, votes: w.score }));
+        // ── Wish selection: fairness-cap algorithm ──────────────────────
+        // Step 0: exclude negatively-scored wishes (the group said no)
+        const positiveWishes = [...wishes]
+          .filter(w => w.score >= 0)
+          .sort((a, b) => b.score - a.score);
+
+        // Step 1: cap scales with trip length (~1.5 guaranteed slots/day)
+        const guaranteedCap = Math.floor(resolvedDays * 1.5);
+
+        // Step 2: fairness pass — each member who submitted ≥1 wish gets
+        // their highest-scoring wish guaranteed (score ≥ 0 only)
+        const guaranteedSet: typeof positiveWishes = [];
+        const usedWishIds = new Set<string>();
+        const seenAuthors = new Set<string>();
+
+        for (const w of positiveWishes) {
+          if (guaranteedSet.length >= guaranteedCap) break;
+          if (!seenAuthors.has(w.authorId)) {
+            seenAuthors.add(w.authorId);
+            usedWishIds.add(w.id);
+            guaranteedSet.push(w);
+          }
+        }
+
+        // Step 3: fill remaining guaranteed slots by net score (member-agnostic)
+        for (const w of positiveWishes) {
+          if (guaranteedSet.length >= guaranteedCap) break;
+          if (!usedWishIds.has(w.id)) {
+            usedWishIds.add(w.id);
+            guaranteedSet.push(w);
+          }
+        }
+
+        // Step 4: candidates — remaining score ≥ 0 wishes, up to 15
+        const candidateWishes = positiveWishes
+          .filter(w => !usedWishIds.has(w.id))
+          .slice(0, 15);
+
+        const toPayload = (w: typeof positiveWishes[0]) => ({
+          text: w.text,
+          author: w.authorName,
+          votes: w.score,
+        });
 
         const memberPrefs = Object.values((trip as any).memberPreferences ?? {}) as Array<Record<string, unknown>>;
 
@@ -101,7 +140,8 @@ export default function BuildingScreen() {
             vibes: resolvedVibes,
             budget: trip.budget ?? "midrange",
             startDate: trip.startDate ?? null,
-            wishes: sortedWishes,
+            guaranteed: guaranteedSet.map(toPayload),
+            candidates: candidateWishes.map(toPayload),
             pace: resolvedPace,
             userId: user?.uid,
             isPlusUser: false,
