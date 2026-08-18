@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import React, { useState, useEffect } from "react";
@@ -626,7 +627,6 @@ interface ActivityCardProps {
   onEdit: (act: Activity, idx: number, day: number) => void;
   onRedo: (act: Activity, idx: number, day: number) => void;
   onDelete: (idx: number, day: number) => void;
-  onCalendar: () => void;
 }
 
 function ActivityCard({
@@ -639,7 +639,6 @@ function ActivityCard({
   onEdit,
   onRedo,
   onDelete,
-  onCalendar,
 }: ActivityCardProps) {
   const tagColor = getTagColor(activity.tag);
 
@@ -659,23 +658,6 @@ function ActivityCard({
     } else {
       Linking.openURL(googleMapsUrl).catch(() => {});
     }
-  };
-
-  const openCalendar = () => {
-    const dt = getDayDateTime(startDate, dayNumber, activity.time);
-    const dateStr = getDayDate(startDate, dayNumber);
-    const t = encodeURIComponent(activity.name);
-    const d = encodeURIComponent(activity.description);
-    const l = encodeURIComponent(`${activity.name}, ${destination}`);
-    const dates = dt
-      ? `${dt.start}/${dt.end}`
-      : dateStr
-      ? `${dateStr}/${dateStr}`
-      : null;
-    const url = dates
-      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dates}&details=${d}&location=${l}`
-      : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
-    openURL(url);
   };
 
   return (
@@ -737,10 +719,6 @@ function ActivityCard({
           <Pressable onPress={openMaps} style={[styles.actActionBtn, { borderColor: colors.border }]}>
             <Feather name="map-pin" size={13} color={colors.foreground} />
             <Text style={[styles.actActionText, { color: colors.foreground }]}>Maps</Text>
-          </Pressable>
-          <Pressable onPress={onCalendar} style={[styles.actActionBtn, { borderColor: colors.border }]}>
-            <Feather name="calendar" size={13} color={colors.foreground} />
-            <Text style={[styles.actActionText, { color: colors.foreground }]}>Calendar</Text>
           </Pressable>
         </View>
       </View>
@@ -964,6 +942,79 @@ export default function ItineraryScreen() {
     await Share.share({ message: lines.join("\n") });
   };
 
+  const handleExportCalendar = async () => {
+    if (!trip || !itinerary) return;
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const base = trip.startDate ? new Date(trip.startDate) : new Date();
+
+      const parseTime = (dayOffset: number, timeStr: string): Date => {
+        const d = new Date(base);
+        d.setDate(d.getDate() + dayOffset);
+        const match = timeStr?.match(/(\d+):(\d+)\s*(am|pm)?/i);
+        if (match) {
+          let h = parseInt(match[1]);
+          const m = parseInt(match[2]);
+          const period = match[3]?.toLowerCase();
+          if (period === "pm" && h < 12) h += 12;
+          if (period === "am" && h === 12) h = 0;
+          d.setHours(h, m, 0, 0);
+        } else {
+          d.setHours(9, 0, 0, 0);
+        }
+        return d;
+      };
+
+      const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+      const lines: string[] = [
+        "BEGIN:VCALENDAR", "VERSION:2.0",
+        "PRODID:-//GoPackNow//AI Travel Planner//EN",
+        "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        `X-WR-CALNAME:${itinerary.title || trip.destination || "Trip"}`,
+      ];
+
+      days.forEach((day, di) => {
+        day.activities.forEach((act) => {
+          const start = parseTime(di, act.time || "9:00am");
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          lines.push(
+            "BEGIN:VEVENT",
+            `DTSTART:${fmt(start)}`,
+            `DTEND:${fmt(end)}`,
+            `SUMMARY:${(act.name || "").replace(/,/g, "\\,")}`,
+            `DESCRIPTION:${(act.description || "").replace(/,/g, "\\,").replace(/\n/g, "\\n")}`,
+            `LOCATION:${day.city || trip.destination || ""}`,
+            "END:VEVENT",
+          );
+        });
+      });
+      lines.push("END:VCALENDAR");
+      const icsContent = lines.join("\r\n");
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(trip.destination || "trip").replace(/\s+/g, "-").toLowerCase()}-itinerary.ics`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = `${FileSystem.cacheDirectory}itinerary.ics`;
+        await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, { mimeType: "text/calendar", dialogTitle: `${trip.destination} Calendar`, UTI: "public.calendar-event" });
+        } else {
+          Alert.alert("Saved", "Itinerary calendar file has been created.");
+        }
+      }
+    } catch (err) {
+      Alert.alert("Export failed", "Could not generate calendar file. Please try again.");
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!trip || !itinerary) return;
     setExportingPDF(true);
@@ -1043,6 +1094,12 @@ export default function ItineraryScreen() {
             </Pressable>
             <Pressable onPress={handleShare} style={[styles.iconBtn, { borderColor: colors.border }]}>
               <Feather name="share" size={16} color={colors.foreground} />
+            </Pressable>
+            <Pressable
+              onPress={handleExportCalendar}
+              style={[styles.iconBtn, { borderColor: colors.border }]}
+            >
+              <Feather name="calendar" size={16} color={colors.foreground} />
             </Pressable>
             <Pressable
               onPress={handleExportPDF}
@@ -1139,23 +1196,6 @@ export default function ItineraryScreen() {
                       onEdit={handleEdit}
                       onRedo={handleRedo}
                       onDelete={handleDelete}
-                      onCalendar={() => {
-                        const dt = getDayDateTime(trip.startDate, currentDay.dayNumber, act.time);
-                        const dateStr = getDayDate(trip.startDate, currentDay.dayNumber);
-                        const t = encodeURIComponent(act.name);
-                        const d = encodeURIComponent(act.description);
-                        const l = encodeURIComponent(`${act.name}, ${trip.destination}`);
-                        const dates = dt
-                          ? `${dt.start}/${dt.end}`
-                          : dateStr
-                          ? `${dateStr}/${dateStr}`
-                          : null;
-                        const url = dates
-                          ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${dates}&details=${d}&location=${l}`
-                          : `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&details=${d}&location=${l}`;
-                        if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-                        else Linking.openURL(url);
-                      }}
                     />
                     {redoLoading === `${currentDay.dayNumber}-${i}` && (
                       <View style={{ alignItems: "center", padding: 8 }}>
