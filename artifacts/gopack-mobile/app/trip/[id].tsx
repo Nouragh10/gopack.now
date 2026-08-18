@@ -299,13 +299,13 @@ function SwipeWishStack({
           onPress={onSwipeLeft}
           style={[styles.swipeTapBtn, { backgroundColor: "#ef444418" }]}
         >
-          <Feather name="x" size={30} color="#ef4444" />
+          <Feather name="x" size={22} color="#ef4444" />
         </Pressable>
         <Pressable
           onPress={onSwipeRight}
           style={[styles.swipeTapBtn, { backgroundColor: "#E85D3A" }]}
         >
-          <Feather name="heart" size={28} color="#fff" />
+          <Feather name="heart" size={20} color="#fff" />
         </Pressable>
       </View>
     </View>
@@ -1347,28 +1347,27 @@ const styles = StyleSheet.create({
   swipeCard: {
     position: "absolute" as const,
     width: CARD_WIDTH,
-    minHeight: 260,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1.5,
     overflow: "hidden" as const,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   swipeCardHeader: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   swipeCardBody: {
-    paddingHorizontal: 22,
-    paddingBottom: 22,
-    paddingTop: 10,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+    gap: 8,
   },
   swipeBgCard2: {
     top: 14,
@@ -1431,8 +1430,8 @@ const styles = StyleSheet.create({
   },
   swipeCardWishText: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 20,
+    lineHeight: 28,
   },
   swipeCardBottom: {
     flexDirection: "row" as const,
@@ -1460,20 +1459,20 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     justifyContent: "center" as const,
     alignItems: "center" as const,
-    gap: 24,
-    paddingVertical: 20,
+    gap: 20,
+    paddingVertical: 14,
   },
   swipeTapBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center" as const,
     justifyContent: "center" as const,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   allDoneWrap: {
     flex: 1,
