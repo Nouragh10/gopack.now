@@ -2,7 +2,7 @@
   "expo": {
     "name": "GoPackNow",
     "slug": "gopack-mobile",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gopack-mobile",
@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gopacknow.app"
+      "bundleIdentifier": "com.gopacknow.app",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.gopacknow.app"
