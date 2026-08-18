@@ -240,12 +240,22 @@ function AccommodationSwipeStack({
   colors: any;
   onComplete: () => void;
 }) {
-  const [swipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
+  const [swipeOrder, setSwipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
   const [pos, setPos] = useState(0);
   const posRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
   posRef.current = pos;
   onCompleteRef.current = onComplete;
+
+  // When new suggestions are added (e.g. member pastes a link), append their
+  // indices so they appear in the swipe deck without resetting current position.
+  useEffect(() => {
+    setSwipeOrder(prev => {
+      const prevSet = new Set(prev);
+      const added = suggestions.map((_, i) => i).filter(i => !prevSet.has(i));
+      return added.length > 0 ? [...prev, ...added] : prev;
+    });
+  }, [suggestions.length]);
 
   const doVote = useCallback((dir: "up" | "down") => {
     const i = posRef.current;
