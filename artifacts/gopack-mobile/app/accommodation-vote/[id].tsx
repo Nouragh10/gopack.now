@@ -150,7 +150,7 @@ function TopAccommodationCard({
         {firstPhoto && !imgFailed ? (
           <Image
             source={{ uri: firstPhoto }}
-            style={{ width: CARD_WIDTH - 40, height: 160, borderRadius: 12 }}
+            style={{ width: CARD_WIDTH - 28, height: 130, borderRadius: 10 }}
             resizeMode="cover"
             onError={() => setImgFailed(true)}
           />
@@ -870,24 +870,24 @@ const styles = StyleSheet.create({
   lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
   lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
-  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 8 },
-  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 10 },
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 6 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 12, marginBottom: 8 },
   swipeStack: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
-  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
-  swipeBgCard2: { top: 14, transform: [{ scale: 0.96 }], opacity: 0.85 },
-  swipeBgCard3: { top: 28, transform: [{ scale: 0.92 }], opacity: 0.6 },
+  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 18, borderWidth: 1, padding: 14, gap: 9 },
+  swipeBgCard2: { top: 12, transform: [{ scale: 0.96 }], opacity: 0.85 },
+  swipeBgCard3: { top: 24, transform: [{ scale: 0.92 }], opacity: 0.6 },
   swipeLabel: {
-    position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
-    gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    position: "absolute", top: 16, flexDirection: "row", alignItems: "center",
+    gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
     borderWidth: 2, zIndex: 10, backgroundColor: "rgba(255,255,255,0.92)",
   },
-  swipeLabelRight: { right: 16, borderColor: "#4CAF50" },
-  swipeLabelLeft: { left: 16, borderColor: "#ef4444" },
-  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
-  swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
-  swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
-  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
+  swipeLabelRight: { right: 14, borderColor: "#4CAF50" },
+  swipeLabelLeft: { left: 14, borderColor: "#ef4444" },
+  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 13, letterSpacing: 1 },
+  swipeTapRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
+  swipeTapBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18, lineHeight: 24 },
+  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 11, textAlign: "center", marginTop: 2 },
 
   allDoneWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   allDoneCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center", gap: 12, width: "100%" },
