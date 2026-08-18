@@ -221,25 +221,11 @@ Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER 
 type GenerationFeature = "itinerary" | "packing" | "redo-activity" | "suggest-destinations";
 
 async function checkAndIncrementGenerationCount(
-  userId: string,
-  feature: GenerationFeature,
-  isPlusUser: boolean,
-  res: Response,
+  _userId: string,
+  _feature: GenerationFeature,
+  _isPlusUser: boolean,
+  _res: Response,
 ): Promise<boolean> {
-  if (isPlusUser) return true;
-  const db = getAdminDb();
-  const ref = db.ref(`users/${userId}/generationCounts/${feature}`);
-  const snap = await ref.get();
-  const count: number = snap.exists() ? (snap.val() as number) : 0;
-  if (count >= 1) {
-    res.status(403).json({
-      error: "Generation limit reached",
-      message: "Free users get 1 generation. Upgrade to Plus for unlimited.",
-      feature,
-    });
-    return false;
-  }
-  await ref.set(count + 1);
   return true;
 }
 
