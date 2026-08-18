@@ -355,7 +355,7 @@ function VoteCard({
             borderColor: isPackFavorite ? colors.primary + "40" : "#9E9E9E40" },
         ]}>
           <Text style={[styles.packBadgeText, { color: isPackFavorite ? colors.primary : "#757575" }]}>
-            {isPackFavorite ? "🎉 Pack's Favorite!" : "😬 Least Favorite!"}
+            {isPackFavorite ? "Pack's Favorite!" : "Least Favorite!"}
           </Text>
         </View>
       )}
