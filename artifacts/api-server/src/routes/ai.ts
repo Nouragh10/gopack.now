@@ -1017,6 +1017,52 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
   }
 });
 
+router.post("/ai-pick-destination", async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as {
+    suggestions: Array<{ name: string; pitch: string; tags: string[]; flightHint: string }>;
+    memberCount: number;
+  };
+
+  if (!body.suggestions?.length) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const optionLines = body.suggestions
+    .map((s, i) =>
+      `Option ${i + 1} (index ${i}): ${s.name} — ${s.pitch} (tags: ${s.tags.join(", ")}) | ${s.flightHint}`
+    )
+    .join("\n");
+
+  const prompt = `A group of ${body.memberCount} travelers are tied on destination votes. Break the tie by picking the single best destination for the group.
+
+Options:
+${optionLines}
+
+Pick the best option by its 0-based index and explain in one sentence why it is the best group choice.
+Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`;
+
+  try {
+    const requestBody = {
+      model: "claude-haiku-4-5",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    };
+
+    const response = await callAnthropic(requestBody);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+    };
+
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const result = extractAndParseJson(allText);
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to pick destination");
+    res.status(500).json({ error: "Could not determine destination winner." });
+  }
+});
+
 router.post("/ai-pick-accommodation", async (req: Request, res: Response): Promise<void> => {
   const body = req.body as {
     suggestions: Array<{ name: string; type: string; location: string; costPerPerson: number; whyItFits: string }>;

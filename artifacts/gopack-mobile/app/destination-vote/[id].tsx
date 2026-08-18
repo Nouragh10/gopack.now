@@ -33,6 +33,7 @@ import {
   DestinationSuggestion,
   confirmDestination,
   lockDestinationVotes,
+  resetDestinationForRevote,
   storeRedoSuggestions,
   unlockDestinationVotes,
   useTrip,
@@ -358,6 +359,8 @@ export default function DestinationVoteScreen() {
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [redoing, setRedoing] = useState(false);
+  const [breaking, setBreaking] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -405,6 +408,13 @@ export default function DestinationVoteScreen() {
     return getScore(idx) > getScore(best) ? idx : best;
   }, 0);
 
+  const topScore = getScore(winnerIdx);
+  const isTied = allLocked && suggestions.length > 1 &&
+    suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
+  const tiedSuggestions = isTied
+    ? suggestions.map((s, i) => ({ ...s, origIdx: i })).filter((_, i) => getScore(i) === topScore)
+    : [];
+
   const handleAutoLock = async () => {
     if (!user || !id) return;
     setLocking(true);
@@ -436,6 +446,74 @@ export default function DestinationVoteScreen() {
       router.replace(`/trip/${id}`);
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleResetForRevote = async () => {
+    if (!id) return;
+    Alert.alert(
+      "Reset votes?",
+      "All votes and locks will be cleared so the pack can vote again on the same destinations.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset & Re-vote",
+          style: "destructive",
+          onPress: async () => {
+            setResetting(true);
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              await resetDestinationForRevote(id);
+            } finally {
+              setResetting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleAiTiebreakDestination = async () => {
+    if (!id || !trip) return;
+    setBreaking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      const baseUrl = Platform.OS === "web"
+        ? ""
+        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const res = await fetch(`${baseUrl}/api/ai-pick-destination`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          suggestions: tiedSuggestions.map((s) => ({
+            name: s.name, pitch: s.pitch, tags: s.tags, flightHint: s.flightHint,
+          })),
+          memberCount,
+        }),
+      });
+      if (!res.ok) throw new Error("AI could not decide");
+      const result = await res.json() as { winnerIdx: number; reason: string };
+      const picked = tiedSuggestions[result.winnerIdx];
+      Alert.alert(
+        "AI Tiebreaker",
+        `AI picks: ${picked?.name ?? "Unknown"}\n\n"${result.reason}"`,
+        [
+          { text: "Keep voting", style: "cancel" },
+          isCreator && picked
+            ? {
+                text: "Set as destination",
+                onPress: async () => {
+                  await confirmDestination(id, suggestions[picked.origIdx].name);
+                  router.replace(`/trip/${id}`);
+                },
+              }
+            : { text: "OK" },
+        ].filter(Boolean) as any,
+      );
+    } catch {
+      Alert.alert("Error", "Could not break the tie. Please try again.");
+    } finally {
+      setBreaking(false);
     }
   };
 
@@ -616,7 +694,55 @@ export default function DestinationVoteScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
         >
-          {allLocked && !isCreator && (
+          {/* Tie-break banner — shown when all locked but no majority */}
+          {isTied && (
+            <View style={[styles.tieBanner, { backgroundColor: "#FFA72615", borderColor: "#FFA726" }]}>
+              <Feather name="alert-circle" size={18} color="#FFA726" />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.tieBannerTitle, { color: "#FFA726" }]}>It's a tie — no majority yet</Text>
+                <Text style={[styles.tieBannerSub, { color: colors.mutedForeground }]}>
+                  The pack is split between {tiedSuggestions.length} destinations.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Tie-break actions — creator only */}
+          {isTied && isCreator && (
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                onPress={handleResetForRevote}
+                disabled={resetting}
+                style={[styles.tieActionBtn, { borderColor: colors.border, flex: 1 }]}
+              >
+                {resetting
+                  ? <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  : (
+                    <>
+                      <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+                      <Text style={[styles.tieActionText, { color: colors.foreground }]}>Re-vote</Text>
+                    </>
+                  )}
+              </Pressable>
+              <Pressable
+                onPress={handleAiTiebreakDestination}
+                disabled={breaking}
+                style={[styles.tieActionBtn, { borderColor: "#7E57C2", backgroundColor: "#7E57C218", flex: 1 }]}
+              >
+                {breaking
+                  ? <ActivityIndicator size="small" color="#7E57C2" />
+                  : (
+                    <>
+                      <Feather name="zap" size={14} color="#7E57C2" />
+                      <Text style={[styles.tieActionText, { color: "#7E57C2" }]}>Let AI decide</Text>
+                    </>
+                  )}
+              </Pressable>
+            </View>
+          )}
+
+          {/* Non-creator waiting banner (only when not tied) */}
+          {allLocked && !isTied && !isCreator && (
             <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
@@ -651,7 +777,7 @@ export default function DestinationVoteScreen() {
                 uid={user?.uid ?? ""}
                 votes={getVotesForIdx(i)}
                 members={members}
-                isWinning={i === winnerIdx}
+                isWinning={!isTied && i === winnerIdx}
                 allLocked={allLocked}
                 isCreator={isCreator}
                 packConfirmed={!!trip?.packConfirmed}
@@ -765,6 +891,11 @@ const styles = StyleSheet.create({
   waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
+  tieBanner: { flexDirection: "row", alignItems: "flex-start", gap: 12, borderRadius: 14, padding: 14, borderWidth: 1 },
+  tieBannerTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  tieBannerSub: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  tieActionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
+  tieActionText: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   inviteSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48, gap: 14 },

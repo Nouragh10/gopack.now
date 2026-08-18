@@ -341,21 +341,21 @@ interface CardProps {
   votes: Record<string, "up" | "down">;
   members: Record<string, { name: string }>;
   isWinning: boolean;
-  allLocked: boolean;
+  hasQuorum: boolean;
   isCreator: boolean;
   colors: any;
   onConfirm: () => void;
 }
 
 function AccommodationCard({
-  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
+  suggestion, idx, tripId, uid, votes, members, isWinning, hasQuorum, isCreator, colors, onConfirm,
 }: CardProps) {
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
   const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
   const score = upVoters.length - downVoters.length;
   const upNames = upVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
-  const winner = isWinning && allLocked;
+  const winner = isWinning && hasQuorum;
 
   return (
     <View style={[
@@ -506,6 +506,10 @@ export default function AccommodationVoteScreen() {
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
   const myLocked = !!lockedBy[user?.uid ?? ""];
   const isCreator = trip?.hostMemberId === user?.uid;
+
+  // Participation threshold: majority of members must vote before host can confirm
+  const participationThreshold = Math.max(1, Math.ceil(memberCount / 2));
+  const hasQuorum = lockedCount >= participationThreshold;
 
   const getVotesForIdx = (idx: number): Record<string, "up" | "down"> =>
     (allVotes[idx] ?? {}) as Record<string, "up" | "down">;
@@ -664,7 +668,7 @@ export default function AccommodationVoteScreen() {
   }
 
   const topScore = getScore(winnerIdx);
-  const isTied = allLocked && suggestions.length > 1 &&
+  const isTied = hasQuorum && suggestions.length > 1 &&
     suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
 
   return (
@@ -686,17 +690,33 @@ export default function AccommodationVoteScreen() {
 
       {/* Lock-in bar */}
       <View style={[styles.lockBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-            {allLocked
-              ? "All votes locked in ✓"
-              : myLocked
-              ? "Your vote is locked ✓"
-              : `${lockedCount} of ${memberCount} locked in`}
-          </Text>
+        <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
+              {allLocked
+                ? "All voted ✓"
+                : hasQuorum
+                ? "Majority voted ✓"
+                : myLocked
+                ? "Your vote is locked"
+                : `${lockedCount} of ${memberCount} voted`}
+            </Text>
+            {!hasQuorum && (
+              <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>
+                {participationThreshold - lockedCount} more to confirm
+              </Text>
+            )}
+          </View>
           <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
+            {/* Threshold marker */}
+            {memberCount > 0 && (
+              <View style={{
+                position: "absolute", left: `${(participationThreshold / memberCount) * 100}%`,
+                top: -2, bottom: -2, width: 1.5, backgroundColor: TEAL + "80", zIndex: 1,
+              }} />
+            )}
             <View style={[styles.lockProgressFill, {
-              backgroundColor: allLocked ? "#4CAF50" : TEAL,
+              backgroundColor: allLocked ? "#4CAF50" : hasQuorum ? "#4CAF50" : TEAL,
               width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
             }]} />
           </View>
@@ -751,7 +771,7 @@ export default function AccommodationVoteScreen() {
             </Pressable>
           )}
 
-          {allLocked && !isCreator && !isTied && (
+          {hasQuorum && !isCreator && !isTied && (
             <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
@@ -780,7 +800,7 @@ export default function AccommodationVoteScreen() {
                 votes={getVotesForIdx(i)}
                 members={members}
                 isWinning={i === winnerIdx}
-                allLocked={allLocked}
+                hasQuorum={hasQuorum}
                 isCreator={isCreator}
                 colors={colors}
                 onConfirm={handleConfirm}

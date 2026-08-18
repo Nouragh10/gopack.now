@@ -625,6 +625,14 @@ export async function lockDestinationVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), true);
 }
 
+/** Reset all votes + locks (keep suggestions) so everyone re-swipes — used for tie-break re-vote. */
+export async function resetDestinationForRevote(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), {
+    destinationVotes: null,
+    destinationLockedBy: null,
+  });
+}
+
 export async function unlockDestinationVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), null);
 }
