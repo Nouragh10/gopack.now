@@ -33,6 +33,7 @@ import {
   DestinationSuggestion,
   confirmDestination,
   lockDestinationVotes,
+  resetDestinationForRevote,
   storeRedoSuggestions,
   unlockDestinationVotes,
   useTrip,
@@ -358,6 +359,8 @@ export default function DestinationVoteScreen() {
   const [locking, setLocking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [redoing, setRedoing] = useState(false);
+  const [breaking, setBreaking] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -405,6 +408,13 @@ export default function DestinationVoteScreen() {
     return getScore(idx) > getScore(best) ? idx : best;
   }, 0);
 
+  const topScore = getScore(winnerIdx);
+  const isTied = allLocked && suggestions.length > 1 &&
+    suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
+  const tiedSuggestions = isTied
+    ? suggestions.map((s, i) => ({ ...s, origIdx: i })).filter((_, i) => getScore(i) === topScore)
+    : [];
+
   const handleAutoLock = async () => {
     if (!user || !id) return;
     setLocking(true);
@@ -436,6 +446,74 @@ export default function DestinationVoteScreen() {
       router.replace(`/trip/${id}`);
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleResetForRevote = async () => {
+    if (!id) return;
+    Alert.alert(
+      "Reset votes?",
+      "All votes and locks will be cleared so the pack can vote again on the same destinations.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset & Re-vote",
+          style: "destructive",
+          onPress: async () => {
+            setResetting(true);
+            try {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              await resetDestinationForRevote(id);
+            } finally {
+              setResetting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleAiTiebreakDestination = async () => {
+    if (!id || !trip) return;
+    setBreaking(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      const baseUrl = Platform.OS === "web"
+        ? ""
+        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const res = await fetch(`${baseUrl}/api/ai-pick-destination`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          suggestions: tiedSuggestions.map((s) => ({
+            name: s.name, pitch: s.pitch, tags: s.tags, flightHint: s.flightHint,
+          })),
+          memberCount,
+        }),
+      });
+      if (!res.ok) throw new Error("AI could not decide");
+      const result = await res.json() as { winnerIdx: number; reason: string };
+      const picked = tiedSuggestions[result.winnerIdx];
+      Alert.alert(
+        "AI Tiebreaker",
+        `AI picks: ${picked?.name ?? "Unknown"}\n\n"${result.reason}"`,
+        [
+          { text: "Keep voting", style: "cancel" },
+          isCreator && picked
+            ? {
+                text: "Set as destination",
+                onPress: async () => {
+                  await confirmDestination(id, suggestions[picked.origIdx].name);
+                  router.replace(`/trip/${id}`);
+                },
+              }
+            : { text: "OK" },
+        ].filter(Boolean) as any,
+      );
+    } catch {
+      Alert.alert("Error", "Could not break the tie. Please try again.");
+    } finally {
+      setBreaking(false);
     }
   };
 
@@ -616,7 +694,55 @@ export default function DestinationVoteScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: bottomInset + 20 }}
         >
-          {allLocked && !isCreator && (
+          {/* Tie-break banner — shown when all locked but no majority */}
+          {isTied && (
+            <View style={[styles.tieBanner, { backgroundColor: "#FFA72615", borderColor: "#FFA726" }]}>
+              <Feather name="alert-circle" size={18} color="#FFA726" />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.tieBannerTitle, { color: "#FFA726" }]}>It's a tie — no majority yet</Text>
+                <Text style={[styles.tieBannerSub, { color: colors.mutedForeground }]}>
+                  The pack is split between {tiedSuggestions.length} destinations.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Tie-break actions — creator only */}
+          {isTied && isCreator && (
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                onPress={handleResetForRevote}
+                disabled={resetting}
+                style={[styles.tieActionBtn, { borderColor: colors.border, flex: 1 }]}
+              >
+                {resetting
+                  ? <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  : (
+                    <>
+                      <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+                      <Text style={[styles.tieActionText, { color: colors.foreground }]}>Re-vote</Text>
+                    </>
+                  )}
+              </Pressable>
+              <Pressable
+                onPress={handleAiTiebreakDestination}
+                disabled={breaking}
+                style={[styles.tieActionBtn, { borderColor: "#7E57C2", backgroundColor: "#7E57C218", flex: 1 }]}
+              >
+                {breaking
+                  ? <ActivityIndicator size="small" color="#7E57C2" />
+                  : (
+                    <>
+                      <Feather name="zap" size={14} color="#7E57C2" />
+                      <Text style={[styles.tieActionText, { color: "#7E57C2" }]}>Let AI decide</Text>
+                    </>
+                  )}
+              </Pressable>
+            </View>
+          )}
+
+          {/* Non-creator waiting banner (only when not tied) */}
+          {allLocked && !isTied && !isCreator && (
             <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
@@ -651,7 +777,7 @@ export default function DestinationVoteScreen() {
                 uid={user?.uid ?? ""}
                 votes={getVotesForIdx(i)}
                 members={members}
-                isWinning={i === winnerIdx}
+                isWinning={!isTied && i === winnerIdx}
                 allLocked={allLocked}
                 isCreator={isCreator}
                 packConfirmed={!!trip?.packConfirmed}
@@ -719,24 +845,24 @@ const styles = StyleSheet.create({
   membersRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
 
-  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 8 },
-  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 10 },
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 6 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 12, marginBottom: 8 },
   swipeStack: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
-  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 20, borderWidth: 1, padding: 22, gap: 14 },
-  swipeBgCard2: { top: 14, transform: [{ scale: 0.96 }], opacity: 0.85 },
-  swipeBgCard3: { top: 28, transform: [{ scale: 0.92 }], opacity: 0.6 },
+  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 18, borderWidth: 1, padding: 16, gap: 10 },
+  swipeBgCard2: { top: 12, transform: [{ scale: 0.96 }], opacity: 0.85 },
+  swipeBgCard3: { top: 24, transform: [{ scale: 0.92 }], opacity: 0.6 },
   swipeLabel: {
-    position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
-    gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    position: "absolute", top: 16, flexDirection: "row", alignItems: "center",
+    gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
     borderWidth: 2, zIndex: 10, backgroundColor: "rgba(255,255,255,0.92)",
   },
-  swipeLabelRight: { right: 16, borderColor: "#4CAF50" },
-  swipeLabelLeft: { left: 16, borderColor: "#ef4444" },
-  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
-  swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
-  swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30, lineHeight: 36 },
-  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
+  swipeLabelRight: { right: 14, borderColor: "#4CAF50" },
+  swipeLabelLeft: { left: 14, borderColor: "#ef4444" },
+  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 13, letterSpacing: 1 },
+  swipeTapRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
+  swipeTapBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
+  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 11, textAlign: "center", marginTop: 2 },
 
   allDoneWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   allDoneCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center", gap: 12, width: "100%" },
@@ -765,6 +891,11 @@ const styles = StyleSheet.create({
   waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },
   confirmingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 12 },
   waitingText: { fontFamily: "DmSans_400Regular", fontSize: 13, flex: 1 },
+  tieBanner: { flexDirection: "row", alignItems: "flex-start", gap: 12, borderRadius: 14, padding: 14, borderWidth: 1 },
+  tieBannerTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  tieBannerSub: { fontFamily: "DmSans_400Regular", fontSize: 13 },
+  tieActionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
+  tieActionText: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   inviteSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48, gap: 14 },

@@ -625,6 +625,14 @@ export async function lockDestinationVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), true);
 }
 
+/** Reset all votes + locks (keep suggestions) so everyone re-swipes — used for tie-break re-vote. */
+export async function resetDestinationForRevote(tripId: string) {
+  await update(ref(db, `trips/${tripId}`), {
+    destinationVotes: null,
+    destinationLockedBy: null,
+  });
+}
+
 export async function unlockDestinationVotes(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/destinationLockedBy/${uid}`), null);
 }
@@ -796,6 +804,17 @@ export async function updateActivity(
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
 
+function parseTimeToMinutes(timeStr: string): number {
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3].toUpperCase();
+  if (ampm === "PM" && hours !== 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
 export async function addActivity(
   tripId: string,
   dayNumber: number,
@@ -817,7 +836,14 @@ export async function addActivity(
     labels: [],
     nearPrevious: false,
   };
-  itinerary.days[dayIdx].activities.push(newAct);
+  const newMinutes = parseTimeToMinutes(newAct.time);
+  const acts = itinerary.days[dayIdx].activities;
+  const insertAt = acts.findIndex((a) => parseTimeToMinutes(a.time) > newMinutes);
+  if (insertAt === -1) {
+    acts.push(newAct);
+  } else {
+    acts.splice(insertAt, 0, newAct);
+  }
   await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
 }
 

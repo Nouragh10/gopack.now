@@ -152,7 +152,7 @@ export default function DashboardScreen() {
         {/* Active trip pill */}
         {mostRecentTrip && (
           <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push(`/trip/${mostRecentTrip.id}`); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push(mostRecentTrip.itinerary ? `/itinerary/${mostRecentTrip.id}` : `/trip/${mostRecentTrip.id}` as any); }}
             style={[styles.activeCard, { borderColor: colors.primary }]}
           >
             <View style={styles.activeCardInner}>

@@ -221,25 +221,11 @@ Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER 
 type GenerationFeature = "itinerary" | "packing" | "redo-activity" | "suggest-destinations";
 
 async function checkAndIncrementGenerationCount(
-  userId: string,
-  feature: GenerationFeature,
-  isPlusUser: boolean,
-  res: Response,
+  _userId: string,
+  _feature: GenerationFeature,
+  _isPlusUser: boolean,
+  _res: Response,
 ): Promise<boolean> {
-  if (isPlusUser) return true;
-  const db = getAdminDb();
-  const ref = db.ref(`users/${userId}/generationCounts/${feature}`);
-  const snap = await ref.get();
-  const count: number = snap.exists() ? (snap.val() as number) : 0;
-  if (count >= 1) {
-    res.status(403).json({
-      error: "Generation limit reached",
-      message: "Free users get 1 generation. Upgrade to Plus for unlimited.",
-      feature,
-    });
-    return false;
-  }
-  await ref.set(count + 1);
   return true;
 }
 
@@ -257,16 +243,38 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
     if (!allowed) return;
   }
 
-  const { destination, days, vibes, budget, startDate, wishes } = parsed.data;
+  const { destination, days, vibes, budget, startDate } = parsed.data;
   const pace = (req.body as { pace?: string }).pace ?? "balanced";
   const activitiesPerDay = pace === "relaxed" ? 3 : pace === "packed" ? 7 : 5;
 
-  const topWishes = (wishes ?? [])
-    .sort((a: { votes: number }, b: { votes: number }) => b.votes - a.votes)
-    .slice(0, 20)
-    .map((w: { text: string; author: string; votes: number }, i: number) =>
-      `${i + 1}. "${w.text}" by ${w.author} (${w.votes} votes)`
-    );
+  // Support both new two-tier format (guaranteed + candidates) and legacy wishes array.
+  const bodyAny = req.body as {
+    guaranteed?: Array<{ text: string; author: string; votes: number }>;
+    candidates?: Array<{ text: string; author: string; votes: number }>;
+    wishes?: Array<{ text: string; author: string; votes: number }>;
+  };
+
+  type WishItem = { text: string; author: string; votes: number };
+  const formatWishLine = (w: WishItem, i: number) =>
+    `${i + 1}. "${w.text}" by ${w.author} (net score: ${w.votes})`;
+
+  let guaranteedWishes: WishItem[];
+  let candidateWishes: WishItem[];
+
+  if (bodyAny.guaranteed !== undefined || bodyAny.candidates !== undefined) {
+    // New two-tier format from mobile client
+    guaranteedWishes = (bodyAny.guaranteed ?? []).slice(0, 30);
+    candidateWishes = (bodyAny.candidates ?? []).slice(0, 15);
+  } else {
+    // Legacy: treat entire wishes list as guaranteed (backward compat)
+    guaranteedWishes = ((parsed.data as { wishes?: WishItem[] }).wishes ?? [])
+      .sort((a, b) => b.votes - a.votes)
+      .slice(0, 20);
+    candidateWishes = [];
+  }
+
+  const guaranteedList = guaranteedWishes.map(formatWishLine);
+  const candidateList = candidateWishes.map(formatWishLine);
 
   const validTags = vibes.map(v => v.toLowerCase());
 
@@ -289,7 +297,6 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
   }).join("\n");
 
   const totalActivities = days * activitiesPerDay;
-  const maxWishSlots = Math.max(1, Math.min(topWishes.length, Math.floor(totalActivities * 0.25)));
 
   const prompt = `You are a world-class group travel planner. Generate a detailed ${days}-day itinerary for a group trip to ${destination}.
 
@@ -300,15 +307,24 @@ Trip details:
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
-━━━ SECTION A — WISH INCLUSION (highest priority) ━━━
-The group submitted these specific activity wishes. Include them as real named activities:
-${topWishes.length > 0 ? topWishes.join("\n") : "No wishes — skip this section."}
+━━━ SECTION A — GROUP WISHES (two-tier, priority-ordered) ━━━
 
-Each included wish counts as exactly ONE activity slot. Mark it with "fromWish": true and the author's name as "suggester".
-LIMIT: Include AT MOST ${maxWishSlots} wish-based activit${maxWishSlots === 1 ? "y" : "ies"} across the ENTIRE itinerary. Do not repeat the same wish theme across multiple slots.
+TIER 1 — GUARANTEED (non-negotiable):
+These wishes were democratically selected by the group and MUST all appear as real named activities in the itinerary — every single one, no exceptions:
+${guaranteedList.length > 0 ? guaranteedList.join("\n") : "None."}
+
+Each guaranteed wish counts as exactly ONE activity slot. Mark with "fromWish": true and the author's name as "suggester". If the total number of guaranteed wishes exceeds the total activity slots available, add extra activities to those days to absorb them all — do NOT drop any guaranteed wish.
+
+TIER 2 — CANDIDATES (include if slots allow, skip if not):
+These wishes have group support but are not guaranteed. Include them only if you have spare activity slots remaining after placing all guaranteed wishes and your AI picks. Do NOT force them in at the expense of pacing or geography — skip any that don't fit naturally:
+${candidateList.length > 0 ? candidateList.join("\n") : "None."}
+
+Candidates also use "fromWish": true and the author's name as "suggester".
+
+CONFLICT RESOLUTION: If two guaranteed wishes are geographically incompatible on the same day (e.g., opposite ends of the city with no reasonable way to visit both), split them across different days rather than degrading pacing or cramming both in. Record any such adjustment in the top-level "conflicts" array (one string per conflict, e.g. "Moved 'X' from Day 1 to Day 3 — too far from other Day 1 activities"). If there are no conflicts, return an empty array.
 
 ━━━ SECTION B — AI PICKS (fill all remaining slots) ━━━
-ALL other activity slots (at least ${totalActivities - maxWishSlots} of the ${totalActivities} total) MUST be original AI recommendations — diverse, specific, real-world venues the group would love.
+After placing all guaranteed wishes (and any candidates that fit), fill the remaining activity slots (target: ${totalActivities} total activities across ${days} days) with original AI recommendations — diverse, specific, real-world venues the group would love.
 Use the group's vibes as inspiration, not as a hard constraint. A great itinerary mixes iconic sights, local gems, meals, and experiences.
 These must have "fromWish": false and "suggester": "AI pick".
 
@@ -327,19 +343,20 @@ ${vibeGuide}
 7. NO REPEATS ACROSS THE WHOLE TRIP — Never use the same venue name twice anywhere in the itinerary, across ANY day, not just within a single day. Track every venue name you've already used across all previous days and pick a different one each time. Also avoid repeating the same narrow activity type (e.g. two ramen shops, two rooftop bars) more than once per day.
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
-10. COST ACCURACY — "estimatedCost" is the exact per-person cost in USD a tourist would actually pay, matching real booking-platform prices (Viator, GetYourGuide, etc.). Use these realistic ranges by activity type:
+10. COST ACCURACY — "estimatedCost" is the price ONE single traveler pays out of pocket, exactly as listed at the ticket counter, on Google, Viator, or GetYourGuide. It is NEVER the group total divided by the number of travelers — do NOT divide by group size. Treat each traveler as booking independently and paying their own full individual admission or meal. Use these realistic single-ticket ranges:
   FREE (always $0): open-air landmarks, beaches, temples with no entry fee, public parks, viewpoints, self-guided walks, free markets
-  PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
-  GUIDED TOURS booked on Viator/GetYourGuide ($30–150): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
-  FOOD & DRINK per person: street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
-  NIGHTLIFE per person: local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
-  WELLNESS: spa / hammam session $40–120, yoga or fitness class $15–40, surf lesson $50–90
+  PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known single-ticket admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
+  GUIDED TOURS booked on Viator/GetYourGuide ($30–150 per person): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
+  FOOD & DRINK (price of one person's meal): street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
+  NIGHTLIFE (one person's spend): local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
+  WELLNESS (one person's session): spa / hammam $40–120, yoga or fitness class $15–40, surf lesson $50–90
   Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer free or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
-  NEVER output 25 as a default. Every activity must have a cost that honestly reflects what that specific venue/experience actually costs.
+  NEVER output 25 as a default. NEVER divide a venue's price by the group size. Every activity must have a cost that honestly reflects what one individual pays for that specific venue/experience.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
   "title": "Catchy trip title",
+  "conflicts": [],
   "days": [
     {
       "dayNumber": 1,
@@ -986,6 +1003,52 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
   }
 });
 
+router.post("/ai-pick-destination", async (req: Request, res: Response): Promise<void> => {
+  const body = req.body as {
+    suggestions: Array<{ name: string; pitch: string; tags: string[]; flightHint: string }>;
+    memberCount: number;
+  };
+
+  if (!body.suggestions?.length) {
+    res.status(400).json({ error: "Missing required fields." });
+    return;
+  }
+
+  const optionLines = body.suggestions
+    .map((s, i) =>
+      `Option ${i + 1} (index ${i}): ${s.name} — ${s.pitch} (tags: ${s.tags.join(", ")}) | ${s.flightHint}`
+    )
+    .join("\n");
+
+  const prompt = `A group of ${body.memberCount} travelers are tied on destination votes. Break the tie by picking the single best destination for the group.
+
+Options:
+${optionLines}
+
+Pick the best option by its 0-based index and explain in one sentence why it is the best group choice.
+Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`;
+
+  try {
+    const requestBody = {
+      model: "claude-haiku-4-5",
+      max_tokens: 150,
+      messages: [{ role: "user", content: prompt }],
+    };
+
+    const response = await callAnthropic(requestBody);
+    const data = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type: string; text?: string }>;
+    };
+
+    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    const result = extractAndParseJson(allText);
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "Failed to pick destination");
+    res.status(500).json({ error: "Could not determine destination winner." });
+  }
+});
+
 router.post("/ai-pick-accommodation", async (req: Request, res: Response): Promise<void> => {
   const body = req.body as {
     suggestions: Array<{ name: string; type: string; location: string; costPerPerson: number; whyItFits: string }>;
@@ -1102,15 +1165,15 @@ Name: must be a real, specific venue that you are highly confident actually exis
 SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
 Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
 Description: ONE sentence, max 15 words.
-Cost: exact per-person USD cost matching real booking-platform prices (Viator/GetYourGuide). Use the activity TYPE, not just budget tier:
+Cost: what ONE individual traveler pays at the counter or on Viator/GetYourGuide — NEVER the group total divided by the number of travelers. Each traveler pays their own full individual price. Use the activity TYPE, not just budget tier:
   FREE $0: open landmarks, temples/churches with no entry fee, public parks, beaches, viewpoints
-  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known admission price when possible)
-  GUIDED TOURS $30–150: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
-  FOOD per person: street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
-  NIGHTLIFE: local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
-  WELLNESS: spa/hammam $40–120, yoga class $15–40
+  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known single-ticket admission price)
+  GUIDED TOURS $30–150 per person: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
+  FOOD (one person's meal): street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
+  NIGHTLIFE (one person's spend): local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
+  WELLNESS (one person's session): spa/hammam $40–120, yoga class $15–40
   Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
-  NEVER output 25 as a default — give the honest cost for this specific venue/experience.
+  NEVER output 25 as a default. NEVER divide by group size. Give the honest individual cost for this specific venue/experience.
 
 Respond with ONLY valid JSON (no markdown):
 {

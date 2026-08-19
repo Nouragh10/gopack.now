@@ -299,13 +299,13 @@ function SwipeWishStack({
           onPress={onSwipeLeft}
           style={[styles.swipeTapBtn, { backgroundColor: "#ef444418" }]}
         >
-          <Feather name="x" size={30} color="#ef4444" />
+          <Feather name="x" size={22} color="#ef4444" />
         </Pressable>
         <Pressable
           onPress={onSwipeRight}
           style={[styles.swipeTapBtn, { backgroundColor: "#E85D3A" }]}
         >
-          <Feather name="heart" size={28} color="#fff" />
+          <Feather name="heart" size={20} color="#fff" />
         </Pressable>
       </View>
     </View>
@@ -315,23 +315,22 @@ function SwipeWishStack({
 /* ── VoteCard (Vote tab) ─────────────────────────────────────────── */
 
 function VoteCard({
-  wish, rank, uid, userName, tripId, colors,
+  wish, rank, memberCount, colors,
 }: {
-  wish: Wish; rank: number; uid: string; userName: string; tripId: string; colors: any;
+  wish: Wish; rank: number; memberCount: number; colors: any;
 }) {
-  const upvoted = !!wish.upvoters?.[uid];
-  const downvoted = !!wish.downvoters?.[uid];
   const upNames = Object.values(wish.upvoters ?? {}) as string[];
   const downNames = Object.values(wish.downvoters ?? {}) as string[];
   const score = wish.score ?? 0;
 
-  const handleVote = (dir: "up" | "down") => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    voteWish(tripId, wish.id, uid, userName, dir);
-  };
+  const isPackFavorite = memberCount > 0 && upNames.length >= memberCount;
+  const isLeastFavorite = memberCount > 0 && downNames.length >= memberCount;
 
   return (
-    <View style={[styles.voteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[
+      styles.voteCard,
+      { backgroundColor: colors.card, borderColor: isPackFavorite ? colors.primary : isLeastFavorite ? "#9E9E9E" : colors.border },
+    ]}>
       <View style={styles.voteCardTop}>
         <Text style={[styles.voteRank, { color: colors.mutedForeground }]}>{rank}</Text>
         <Text style={[styles.voteCardText, { color: colors.foreground }]} numberOfLines={3}>
@@ -340,7 +339,7 @@ function VoteCard({
         <View
           style={[
             styles.scorePill,
-            { backgroundColor: score > 0 ? colors.primary : score < 0 ? colors.muted : colors.muted },
+            { backgroundColor: score > 0 ? colors.primary : score < 0 ? "#9E9E9E30" : colors.muted },
           ]}
         >
           <Text style={[styles.scorePillText, { color: score > 0 ? "#fff" : colors.foreground }]}>
@@ -348,6 +347,18 @@ function VoteCard({
           </Text>
         </View>
       </View>
+
+      {(isPackFavorite || isLeastFavorite) && (
+        <View style={[
+          styles.packBadge,
+          { backgroundColor: isPackFavorite ? colors.primary + "18" : "#9E9E9E18",
+            borderColor: isPackFavorite ? colors.primary + "40" : "#9E9E9E40" },
+        ]}>
+          <Text style={[styles.packBadgeText, { color: isPackFavorite ? colors.primary : "#757575" }]}>
+            {isPackFavorite ? "Pack's Favorite!" : "Least Favorite!"}
+          </Text>
+        </View>
+      )}
 
       {upNames.length > 0 && (
         <View style={styles.voterRow}>
@@ -365,33 +376,6 @@ function VoteCard({
           </Text>
         </View>
       )}
-
-      <View style={styles.voteCardActions}>
-        <Pressable
-          onPress={() => handleVote("up")}
-          style={[
-            styles.voteActionBtn,
-            { backgroundColor: upvoted ? colors.primary : colors.muted, borderColor: upvoted ? colors.primary : colors.border },
-          ]}
-        >
-          <Feather name="arrow-up" size={16} color={upvoted ? "#fff" : colors.foreground} />
-          <Text style={[styles.voteActionCount, { color: upvoted ? "#fff" : colors.foreground }]}>
-            {upNames.length}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => handleVote("down")}
-          style={[
-            styles.voteActionBtn,
-            { backgroundColor: downvoted ? colors.foreground : colors.muted, borderColor: downvoted ? colors.foreground : colors.border },
-          ]}
-        >
-          <Feather name="arrow-down" size={16} color={downvoted ? colors.background : colors.foreground} />
-          <Text style={[styles.voteActionCount, { color: downvoted ? colors.background : colors.foreground }]}>
-            {downNames.length}
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -841,9 +825,7 @@ export default function TripHubScreen() {
                 <VoteCard
                   wish={item}
                   rank={index + 1}
-                  uid={user?.uid ?? ""}
-                  userName={user?.displayName ?? "Traveler"}
-                  tripId={id!}
+                  memberCount={memberCount}
                   colors={colors}
                 />
               )}
@@ -1177,6 +1159,17 @@ const styles = StyleSheet.create({
   scorePillText: { fontFamily: "DmSans_700Bold", fontSize: 13 },
   voterRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
+  packBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  packBadgeText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
   voteCardActions: { flexDirection: "row", gap: 8, marginTop: 2 },
   voteActionBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
@@ -1354,28 +1347,27 @@ const styles = StyleSheet.create({
   swipeCard: {
     position: "absolute" as const,
     width: CARD_WIDTH,
-    minHeight: 260,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1.5,
     overflow: "hidden" as const,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   swipeCardHeader: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   swipeCardBody: {
-    paddingHorizontal: 22,
-    paddingBottom: 22,
-    paddingTop: 10,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+    gap: 8,
   },
   swipeBgCard2: {
     top: 14,
@@ -1438,8 +1430,8 @@ const styles = StyleSheet.create({
   },
   swipeCardWishText: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 20,
+    lineHeight: 28,
   },
   swipeCardBottom: {
     flexDirection: "row" as const,
@@ -1467,20 +1459,20 @@ const styles = StyleSheet.create({
     flexDirection: "row" as const,
     justifyContent: "center" as const,
     alignItems: "center" as const,
-    gap: 24,
-    paddingVertical: 20,
+    gap: 20,
+    paddingVertical: 14,
   },
   swipeTapBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center" as const,
     justifyContent: "center" as const,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   allDoneWrap: {
     flex: 1,

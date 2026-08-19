@@ -82,19 +82,6 @@ function toGCalDate(d: Date) {
   return d.toISOString().replace(/[-:.]/g, "").slice(0, 15);
 }
 
-function buildActivityCalendarUrl(act: any, day: any, trip: any, dayIndex: number): string {
-  const base = trip?.startDate ? new Date(trip.startDate) : new Date();
-  const start = parseActivityTime(base, dayIndex, act.time || "9:00am");
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
-  const params = new URLSearchParams({
-    action:   "TEMPLATE",
-    text:     act.name || "",
-    details:  act.description || "",
-    location: `${act.name || ""}, ${day.city || trip?.destination || ""}`,
-    dates:    `${toGCalDate(start)}/${toGCalDate(end)}`,
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
 
 function buildActivityMapsUrl(act: any, day: any, trip: any): string {
   const q = `${act.name || ""}, ${day.city || trip?.destination || ""}`;
@@ -731,16 +718,6 @@ export default function Itinerary() {
                                             title="Reserve on Viator" data-testid={`button-act-viator-${di+1}-${ai+1}`}>
                                             <Star size={11}/> Reserve
                                           </a>
-                                          <button
-                                            onClick={() => {
-                                              if (!isPremium) { setUpgradeReason("Calendar export is a Pack Plus feature"); setShowUpgrade(true); return; }
-                                              window.open(buildActivityCalendarUrl(act, day, trip, di), "_blank", "noopener,noreferrer");
-                                            }}
-                                            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                                            title={isPremium ? "Add to Google Calendar" : "Pack Plus — Calendar export"}
-                                            data-testid={`button-act-calendar-${di+1}-${ai+1}`}>
-                                            <CalendarPlus size={11}/> Calendar
-                                          </button>
                                           <a href={buildActivityMapsUrl(act, day, trip)} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                                             title="Open in Google Maps" data-testid={`button-act-maps-${di+1}-${ai+1}`}>

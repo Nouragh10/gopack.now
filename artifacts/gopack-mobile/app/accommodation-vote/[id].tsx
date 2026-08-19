@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -150,7 +150,7 @@ function TopAccommodationCard({
         {firstPhoto && !imgFailed ? (
           <Image
             source={{ uri: firstPhoto }}
-            style={{ width: CARD_WIDTH - 40, height: 160, borderRadius: 12 }}
+            style={{ width: CARD_WIDTH - 28, height: 130, borderRadius: 10 }}
             resizeMode="cover"
             onError={() => setImgFailed(true)}
           />
@@ -240,12 +240,22 @@ function AccommodationSwipeStack({
   colors: any;
   onComplete: () => void;
 }) {
-  const [swipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
+  const [swipeOrder, setSwipeOrder] = useState<number[]>(() => suggestions.map((_, i) => i));
   const [pos, setPos] = useState(0);
   const posRef = useRef(0);
   const onCompleteRef = useRef(onComplete);
   posRef.current = pos;
   onCompleteRef.current = onComplete;
+
+  // When new suggestions are added (e.g. member pastes a link), append their
+  // indices so they appear in the swipe deck without resetting current position.
+  useEffect(() => {
+    setSwipeOrder(prev => {
+      const prevSet = new Set(prev);
+      const added = suggestions.map((_, i) => i).filter(i => !prevSet.has(i));
+      return added.length > 0 ? [...prev, ...added] : prev;
+    });
+  }, [suggestions.length]);
 
   const doVote = useCallback((dir: "up" | "down") => {
     const i = posRef.current;
@@ -341,21 +351,21 @@ interface CardProps {
   votes: Record<string, "up" | "down">;
   members: Record<string, { name: string }>;
   isWinning: boolean;
-  allLocked: boolean;
+  hasQuorum: boolean;
   isCreator: boolean;
   colors: any;
   onConfirm: () => void;
 }
 
 function AccommodationCard({
-  suggestion, idx, tripId, uid, votes, members, isWinning, allLocked, isCreator, colors, onConfirm,
+  suggestion, idx, tripId, uid, votes, members, isWinning, hasQuorum, isCreator, colors, onConfirm,
 }: CardProps) {
   const upVoters = Object.entries(votes).filter(([, v]) => v === "up");
   const downVoters = Object.entries(votes).filter(([, v]) => v === "down");
   const score = upVoters.length - downVoters.length;
   const upNames = upVoters.map(([id]) => members[id]?.name ?? "Unknown");
   const downNames = downVoters.map(([id]) => members[id]?.name ?? "Unknown");
-  const winner = isWinning && allLocked;
+  const winner = isWinning && hasQuorum;
 
   return (
     <View style={[
@@ -506,6 +516,10 @@ export default function AccommodationVoteScreen() {
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
   const myLocked = !!lockedBy[user?.uid ?? ""];
   const isCreator = trip?.hostMemberId === user?.uid;
+
+  // Participation threshold: majority of members must vote before host can confirm
+  const participationThreshold = Math.max(1, Math.ceil(memberCount / 2));
+  const hasQuorum = lockedCount >= participationThreshold;
 
   const getVotesForIdx = (idx: number): Record<string, "up" | "down"> =>
     (allVotes[idx] ?? {}) as Record<string, "up" | "down">;
@@ -664,7 +678,7 @@ export default function AccommodationVoteScreen() {
   }
 
   const topScore = getScore(winnerIdx);
-  const isTied = allLocked && suggestions.length > 1 &&
+  const isTied = hasQuorum && suggestions.length > 1 &&
     suggestions.filter((_, i) => getScore(i) === topScore).length > 1;
 
   return (
@@ -686,17 +700,33 @@ export default function AccommodationVoteScreen() {
 
       {/* Lock-in bar */}
       <View style={[styles.lockBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-            {allLocked
-              ? "All votes locked in ✓"
-              : myLocked
-              ? "Your vote is locked ✓"
-              : `${lockedCount} of ${memberCount} locked in`}
-          </Text>
+        <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
+              {allLocked
+                ? "All voted ✓"
+                : hasQuorum
+                ? "Majority voted ✓"
+                : myLocked
+                ? "Your vote is locked"
+                : `${lockedCount} of ${memberCount} voted`}
+            </Text>
+            {!hasQuorum && (
+              <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>
+                {participationThreshold - lockedCount} more to confirm
+              </Text>
+            )}
+          </View>
           <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
+            {/* Threshold marker */}
+            {memberCount > 0 && (
+              <View style={{
+                position: "absolute", left: `${(participationThreshold / memberCount) * 100}%`,
+                top: -2, bottom: -2, width: 1.5, backgroundColor: TEAL + "80", zIndex: 1,
+              }} />
+            )}
             <View style={[styles.lockProgressFill, {
-              backgroundColor: allLocked ? "#4CAF50" : TEAL,
+              backgroundColor: allLocked ? "#4CAF50" : hasQuorum ? "#4CAF50" : TEAL,
               width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
             }]} />
           </View>
@@ -751,7 +781,7 @@ export default function AccommodationVoteScreen() {
             </Pressable>
           )}
 
-          {allLocked && !isCreator && !isTied && (
+          {hasQuorum && !isCreator && !isTied && (
             <View style={[styles.waitingBanner, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Feather name="clock" size={16} color={colors.mutedForeground} />
               <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>
@@ -780,7 +810,7 @@ export default function AccommodationVoteScreen() {
                 votes={getVotesForIdx(i)}
                 members={members}
                 isWinning={i === winnerIdx}
-                allLocked={allLocked}
+                hasQuorum={hasQuorum}
                 isCreator={isCreator}
                 colors={colors}
                 onConfirm={handleConfirm}
@@ -870,24 +900,24 @@ const styles = StyleSheet.create({
   lockBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20 },
   lockBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
-  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 8 },
-  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 10 },
+  swipeStackWrap: { flex: 1, alignItems: "center", paddingTop: 6 },
+  swipeCounter: { fontFamily: "DmSans_400Regular", fontSize: 12, marginBottom: 8 },
   swipeStack: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
-  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
-  swipeBgCard2: { top: 14, transform: [{ scale: 0.96 }], opacity: 0.85 },
-  swipeBgCard3: { top: 28, transform: [{ scale: 0.92 }], opacity: 0.6 },
+  swipeCard: { position: "absolute" as const, width: CARD_WIDTH, borderRadius: 18, borderWidth: 1, padding: 14, gap: 9 },
+  swipeBgCard2: { top: 12, transform: [{ scale: 0.96 }], opacity: 0.85 },
+  swipeBgCard3: { top: 24, transform: [{ scale: 0.92 }], opacity: 0.6 },
   swipeLabel: {
-    position: "absolute", top: 20, flexDirection: "row", alignItems: "center",
-    gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12,
+    position: "absolute", top: 16, flexDirection: "row", alignItems: "center",
+    gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
     borderWidth: 2, zIndex: 10, backgroundColor: "rgba(255,255,255,0.92)",
   },
-  swipeLabelRight: { right: 16, borderColor: "#4CAF50" },
-  swipeLabelLeft: { left: 16, borderColor: "#ef4444" },
-  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 15, letterSpacing: 1 },
-  swipeTapRow: { flexDirection: "row", gap: 32, marginTop: 16 },
-  swipeTapBtn: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
-  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
+  swipeLabelRight: { right: 14, borderColor: "#4CAF50" },
+  swipeLabelLeft: { left: 14, borderColor: "#ef4444" },
+  swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 13, letterSpacing: 1 },
+  swipeTapRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
+  swipeTapBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18, lineHeight: 24 },
+  swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 11, textAlign: "center", marginTop: 2 },
 
   allDoneWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   allDoneCard: { borderRadius: 20, borderWidth: 1, padding: 32, alignItems: "center", gap: 12, width: "100%" },

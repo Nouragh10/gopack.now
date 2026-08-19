@@ -21,17 +21,22 @@ export const HealthCheckResponse = zod.object({
  * Uses Claude to generate a day-by-day itinerary based on trip details and wishes
  * @summary Generate AI trip itinerary
  */
+const WishItem = zod.object({
+  "text": zod.string(),
+  "author": zod.string(),
+  "votes": zod.number()
+});
+
 export const GenerateItineraryBody = zod.object({
   "destination": zod.string().describe('Trip destination(s)'),
   "days": zod.number().describe('Number of trip days'),
   "vibes": zod.array(zod.string()).describe('Trip vibes (culture, food, adventure, etc.)'),
   "budget": zod.string().describe('Budget level (budget, midrange, luxury)'),
   "startDate": zod.string().nullish().describe('Trip start date (YYYY-MM-DD)'),
-  "wishes": zod.array(zod.object({
-  "text": zod.string(),
-  "author": zod.string(),
-  "votes": zod.number()
-})).describe('Group wishes sorted by votes')
+  /** @deprecated use guaranteed + candidates instead */
+  "wishes": zod.array(WishItem).optional().describe('Legacy: group wishes sorted by votes'),
+  "guaranteed": zod.array(WishItem).optional().describe('Wishes that must appear in the itinerary (fairness-capped)'),
+  "candidates": zod.array(WishItem).optional().describe('Wishes to include if slots allow, skipped if pacing requires')
 })
 
 export const GenerateItineraryResponse = zod.object({
