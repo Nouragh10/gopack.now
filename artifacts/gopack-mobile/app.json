@@ -2,7 +2,7 @@
   "expo": {
     "name": "GoPackNow",
     "slug": "gopack-mobile",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gopack-mobile",
@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gopacknow.app"
+      "bundleIdentifier": "com.gopacknow.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.gopacknow.app"
@@ -36,6 +39,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "246de177-cc0e-49f6-9a96-5d088306ca39"
+      }
     }
   }
 }
