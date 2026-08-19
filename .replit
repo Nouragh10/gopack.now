@@ -9,28 +9,6 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "GoPack Clone Preview"
-
-[[workflows.workflow]]
-name = "GoPack Clone Preview"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd /home/runner/workspace/gopack.now-clone-2 && PORT=3002 pnpm --filter @workspace/gopack-mobile run dev"
-waitForPort = 3002
 
 [agent]
 stack = "PNPM_WORKSPACE"

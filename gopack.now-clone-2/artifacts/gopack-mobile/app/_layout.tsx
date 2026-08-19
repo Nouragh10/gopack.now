@@ -21,12 +21,6 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
-
-// initializeRevenueCat handles missing keys and configure() errors internally —
-// it logs a warning and sets revenueCatInitialized=false so the SDK is never
-// called when not configured. No Alert needed here (Alert before mount is unsafe).
-initializeRevenueCat();
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`);
 
@@ -102,13 +96,11 @@ export default function RootLayout() {
       <ErrorBoundary>
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
-            <SubscriptionProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <RootLayoutNav />
                 </KeyboardProvider>
               </GestureHandlerRootView>
-            </SubscriptionProvider>
           </QueryClientProvider>
         </AuthProvider>
       </ErrorBoundary>

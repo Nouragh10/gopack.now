@@ -6,3 +6,4 @@
 - [AI venue verification needs live web search](ai-venue-verification.md) — LLM training data can't know current open/closed status; prompt-only fixes fail, must use real search tool
 - [Stale git lock files block bash git ops](git-lock-workaround.md) — bash tool blocks any write touching `.git/*.lock`; clear + git add/commit/push via the code_execution sandbox instead
 - [Firebase anonymous auth disabled](firebase-anon-auth-disabled.md) — gopack's "Continue as guest" fails with ADMIN_ONLY_OPERATION; blocks e2e tests needing login
+- [Free app policy](free-app-policy.md) — GoPackNow is fully free; do not add subscriptions, paywalls, or in-app purchases.
