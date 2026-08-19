@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/gopack-mobile/"
+title = "GoPack Mobile"
+version = "1.0.0"
+id = "artifacts/gopack-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/gopack-mobile/" ]
+localPort = 18342
+
+[services.development]
+run = "pnpm --filter @workspace/gopack-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gopack-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/gopack-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "18342"
+BASE_PATH = "/gopack-mobile/"

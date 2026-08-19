@@ -1,0 +1,61 @@
+uploads = []
+
+[[generated]]
+id = "98aWrr_pVY7hvZbMPzTX-"
+uri = "file://artifacts/gopack-mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "YenGcIkHG22D7Bb9TLgg1"
+uri = "file://attached_assets/logo_backpack.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "cQzTDKCSPvtY2FFTTa1dy"
+uri = "file://attached_assets/logo_compass.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "CpZ0nQTCkSYGzphfHtnKv"
+uri = "file://attached_assets/logo_plane.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "eMUneTuwiRF1mYWBKvG2C"
+uri = "file://artifacts/multimind-math/src/assets/hero-illustration.png"
+type = "image"
+title = "Cartoon kids doing math"
+
+[[outputs]]
+id = "4-5I7NVqCpJwWxKdbF1vr"
+uri = "file://attached_assets/logo_backpack.png"
+type = "image"
+title = "Option 1 — Backpack + Location Pin"
+
+[[outputs]]
+id = "EEJ8m0rpagO8QJC9DtrR3"
+uri = "file://attached_assets/logo_compass.png"
+type = "image"
+title = "Option 2 — Compass + Group"
+
+[[outputs]]
+id = "Fk3UVMGjJbHp2s2QhbaC5"
+uri = "file://attached_assets/logo_plane.png"
+type = "image"
+title = "Option 3 — Map Paper Plane"
+
+[[outputs]]
+id = "iTO9fTnKP89fmv6huCFch"
+uri = "file://artifacts/gopack-mobile/assets/images/icon.png"
+type = "image"
+title = "GoPackNow App Icon (1024×1024)"
+
+[[outputs]]
+id = "94YaPB38QwHlCYkeLG3tO"
+uri = "file://GoPackNow-Mobile-Screens.pdf"
+type = "pdf"
+title = "GoPackNow Mobile App — All Screens"

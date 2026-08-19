@@ -1,0 +1,34 @@
+Here's how I'd design the voting logic — split by stage, since each one has a different failure mode if left naive.
+
+**1. Destination voting**
+- Resolution: majority wins once all members lock in (not unanimity — you already handle dissent gracefully with the "note" pattern).
+- Tie-break: if it's genuinely split (e.g., 2v2), don't auto-pick — surface it back to the group with a "no majority yet, break the tie" prompt rather than silently defaulting to the host's choice. Silently favoring the host undercuts the "democratic" positioning.
+- Timeout: if voting stalls (say, 48-72h), host gets an option to force-decide — otherwise trips die in limbo. Log this as a host override, not a natural majority, so you can distinguish "group decided" from "host decided" in analytics.
+
+**2. Accommodation voting**
+- Same shape: net-positive swipes wins, but set a minimum participation threshold (e.g., majority of members must have swiped) before locking in — otherwise one fast swiper can decide for a group of 6.
+
+**3. Wishlist — this is the one that actually needs real logic, and it's where your current design has a bug**
+
+Right now: "all wishes are mandatory" + "top 10 sorted by score" are in tension, and neither accounts for trip length or member fairness. Here's what I'd replace it with:
+
+**a. Cap scales with trip length, not a flat number.**
+A 3-day trip and a 10-day trip shouldn't both get "top 10." Use something like 1.5–2 guaranteed wish-slots per day. A 3-day trip gets ~5 guaranteed wishes; a 10-day trip can absorb ~15-20. This directly prevents the overcrowding/pacing problem that likely caused your Day 1 bug.
+
+**b. Fairness quota, not pure net-score ranking.**
+Pure net-score lets one popular or vocal member's wishes dominate — a group of 6 where one person adds 8 wishes and everyone upvotes them could crowd out quieter members entirely. That undermines "democratic" as a differentiator. Instead:
+- Guarantee each member who submitted at least one wish gets their top 1 wish included (by their own ranking or highest net score among their wishes), *before* filling remaining slots by net score across everyone.
+- Fill remaining guaranteed slots by net score, member-agnostic.
+- This is a round-robin-then-score-fill pattern — one pass for fairness, one pass for popularity.
+
+**c. Two tiers, not one flat mandatory list.**
+Send Claude:
+- **Guaranteed** (the capped, fairness-filtered set) — must appear, but Claude still owns *where* they land in the day for pacing/geography.
+- **Candidates** (everything else, net-positive but not guaranteed) — Claude can use these as filler if a day has open slots, skip if not.
+
+This also gives Claude an escape valve: if two guaranteed wishes are geographically incompatible for the same day (opposite ends of the city, no way to fit both), it needs a resolution rule — not "force both no matter how bad the pacing." I'd say: Claude flags the conflict in the generation output (e.g., a `conflicts` field noting "X and Y both requested for Day 2, spread across two days instead") rather than silently degrading quality or silently dropping one. That gives you a place to show the group *why* something moved, which also reinforces transparency/trust in the AI layer.
+
+**d. Explicit instruction to preserve chronological/geographic sort regardless of source.**
+Whatever caused the Day 1 ordering bug, the underlying principle should be: wishes and AI-picks get merged into one candidate pool *before* generation, not stitched together after — and the final output always gets a single sort-by-time pass applied uniformly, with no code path that appends items post-sort.
+
+Want me to turn this into an actual prompt-engineering spec for the Claude call (i.e., the exact system prompt structure and JSON shape you'd send), or is this more useful right now as product logic to react to first?
