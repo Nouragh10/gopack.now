@@ -35,7 +35,7 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (loading) return;
-    const inSignIn = segments[0] === "sign-in";
+    const inSignIn = segments[0] === "sign-in" || segments[0] === "index";
     const needsVerification = !!user && !user.isAnonymous && !user.emailVerified;
 
     if (!user && !inSignIn) {
