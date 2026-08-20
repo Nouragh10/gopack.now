@@ -9,3 +9,4 @@
 - [Free app policy](free-app-policy.md) — GoPackNow is fully free; do not add subscriptions, paywalls, or in-app purchases.
 - [Clone artifact isolation](clone-artifact-isolation.md) — duplicate artifact routes in a cloned GoPack copy can conflict with live previews; isolate clone registrations.
 - [Expo bundle routing](expo-bundle-routing.md) — path-based Expo previews must route Metro’s absolute bundle URL or the iOS simulator remains stuck loading.
+- [Expo Go native startup](expo-go-native-startup.md) — avoid initializing third-party native modules at the Expo Go root; unsupported modules can close the iOS simulator.

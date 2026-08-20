@@ -2,7 +2,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import React, { useState, useEffect } from "react";
@@ -1001,6 +1000,10 @@ export default function ItineraryScreen() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
+        const FileSystem = await import("expo-file-system/legacy");
+        if (!FileSystem.cacheDirectory) {
+          throw new Error("No cache directory is available");
+        }
         const fileUri = `${FileSystem.cacheDirectory}itinerary.ics`;
         await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
         const canShare = await Sharing.isAvailableAsync();
