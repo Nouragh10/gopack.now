@@ -1,6 +1,6 @@
 kind = "web"
-previewPath = "/"
-title = "GoPack Web"
+previewPath = "/__clone-gopack-web/"
+title = "GoPack Web (Clone)"
 version = "1.0.0"
 id = "artifacts/gopack-web"
 router = "path"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/__clone-gopack-web/" ]
 localPort = 23381
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "23381"
-BASE_PATH = "/"
+BASE_PATH = "/__clone-gopack-web/"

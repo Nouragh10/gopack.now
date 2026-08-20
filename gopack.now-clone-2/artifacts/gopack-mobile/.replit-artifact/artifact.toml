@@ -1,6 +1,6 @@
 kind = "mobile"
-previewPath = "/gopack-mobile/"
-title = "GoPack Mobile"
+previewPath = "/__clone-gopack-mobile/"
+title = "GoPack Mobile (Clone)"
 version = "1.0.0"
 id = "artifacts/gopack-mobile"
 router = "expo-domain"
@@ -12,7 +12,7 @@ version = "1.0.0"
 [[services]]
 ensurePreviewReachable = "/status"
 name = "expo"
-paths = [ "/gopack-mobile/" ]
+paths = [ "/__clone-gopack-mobile/" ]
 localPort = 18342
 
 [services.development]
@@ -24,4 +24,4 @@ run = [ "pnpm", "--filter", "@workspace/gopack-mobile", "run", "serve" ]
 
 [services.env]
 PORT = "18342"
-BASE_PATH = "/gopack-mobile/"
+BASE_PATH = "/__clone-gopack-mobile/"
