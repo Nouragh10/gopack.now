@@ -13,7 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setBaseUrl } from "@/lib/api-client";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -35,7 +35,8 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (loading) return;
-    const inSignIn = segments[0] === "sign-in" || segments[0] === "index";
+    const firstSegment = segments[0] as string;
+    const inSignIn = firstSegment === "sign-in" || firstSegment === "index";
     const needsVerification = !!user && !user.isAnonymous && !user.emailVerified;
 
     if (!user && !inSignIn) {
@@ -82,14 +83,30 @@ export default function RootLayout() {
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
   });
+  const [startupReady, setStartupReady] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    if (fontsLoaded || fontError) setStartupReady(true);
+
+    // A native simulator can occasionally keep a font request pending.
+    // Never leave the app behind the splash screen in that case.
+    const timeout = setTimeout(() => setStartupReady(true), 4000);
+    return () => clearTimeout(timeout);
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  useEffect(() => {
+    if (startupReady) {
+      SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [startupReady]);
+
+  if (!startupReady) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFDF9" }}>
+        <ActivityIndicator color="#E85D3A" size="large" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaProvider>

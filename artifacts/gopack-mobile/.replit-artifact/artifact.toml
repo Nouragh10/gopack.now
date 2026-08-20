@@ -12,7 +12,7 @@ version = "1.0.0"
 [[services]]
 ensurePreviewReachable = "/status"
 name = "expo"
-paths = [ "/gopack-mobile/" ]
+paths = [ "/gopack-mobile/", "/node_modules/" ]
 localPort = 18342
 
 [services.development]

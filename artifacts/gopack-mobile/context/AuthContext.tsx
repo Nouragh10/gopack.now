@@ -13,11 +13,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    let active = true;
+    const finishLoading = (u: User | null) => {
+      if (!active) return;
       setUser(u);
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    const fallback = setTimeout(() => finishLoading(auth.currentUser), 6000);
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => {
+        clearTimeout(fallback);
+        finishLoading(u);
+      },
+      () => {
+        clearTimeout(fallback);
+        finishLoading(null);
+      },
+    );
+
+    return () => {
+      active = false;
+      clearTimeout(fallback);
+      unsub();
+    };
   }, []);
 
   return (
