@@ -49,3 +49,5 @@ Thumbs.db
 .local/
 .vercel
 .env*
+gopack.now-clone-2/
+attached_assets/
