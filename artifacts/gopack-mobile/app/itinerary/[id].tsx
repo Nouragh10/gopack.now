@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import React, { useState, useEffect } from "react";
@@ -289,11 +290,11 @@ body{
 }
 .cover-title{
   font-family:'Playfair Display',Georgia,serif;
-  font-size:52px;font-weight:900;line-height:1.02;
-  color:#FFFDF9;margin-bottom:14px;
+  font-size:56px;font-weight:900;line-height:1.05;
+  color:#FFFDF9;margin-bottom:16px;letter-spacing:-.5px;
 }
 .cover-dest{
-  font-size:18px;font-weight:500;color:#8C8480;margin-bottom:60px;
+  font-size:18px;font-weight:500;color:#A39A93;margin-bottom:64px;
   display:flex;align-items:center;gap:10px;
 }
 .cover-dest-dot{width:6px;height:6px;border-radius:50%;background:#E85D3A;flex-shrink:0}
@@ -376,73 +377,74 @@ body{
 .day-block{
   background:#FFFDF9;
   margin-top:2px;
-  padding:36px 52px 28px;
+  padding:40px 52px 32px;
   border-bottom:2px solid #F0EBE3;
 }
 .day-header{
-  display:flex;align-items:flex-start;gap:20px;margin-bottom:28px;
-  padding-bottom:20px;
+  display:flex;align-items:flex-end;gap:20px;margin-bottom:30px;
+  padding-bottom:22px;
   border-bottom:1px solid #EDE8DE;
   position:relative;
 }
 .day-header::after{
   content:"";position:absolute;bottom:-1px;left:0;
-  width:60px;height:2px;background:#E85D3A;
+  width:72px;height:3px;border-radius:2px;background:#E85D3A;
 }
 .day-number{
   font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  color:#E85D3A;padding-top:5px;white-space:nowrap;min-width:40px;
+  color:#E85D3A;padding-bottom:6px;white-space:nowrap;min-width:40px;
 }
 .day-info{flex:1}
 .day-city{
   font-family:'Playfair Display',Georgia,serif;
-  font-size:28px;font-weight:700;color:#1A1714;line-height:1.1;margin-bottom:4px;
+  font-size:30px;font-weight:700;color:#1A1714;line-height:1.08;margin-bottom:5px;
+  letter-spacing:-.3px;
 }
 .day-theme{font-size:13px;color:#8C8480;font-style:italic}
 .day-cost{
   font-family:'Playfair Display',Georgia,serif;
-  font-size:22px;font-weight:700;color:#1A1714;
-  text-align:right;padding-top:4px;white-space:nowrap;
+  font-size:23px;font-weight:700;color:#1A1714;
+  text-align:right;white-space:nowrap;
 }
 .day-cost-label{font-size:11px;font-weight:500;color:#8C8480;font-family:'Inter',sans-serif}
 
 /* ─── ACTIVITIES ────────────────────────────────── */
-.activities-grid{display:flex;flex-direction:column;gap:10px}
+.activities-grid{display:flex;flex-direction:column;gap:12px}
 .act{
   display:flex;align-items:stretch;
   border-radius:14px;overflow:hidden;
   border:1px solid #EDE8DE;
   background:#FEFCF8;
-  transition:all .2s;
+  box-shadow:0 1px 2px rgba(26,23,20,.04);
 }
 .act-wish{
-  border-color:rgba(217,119,6,.25);
+  border-color:rgba(217,119,6,.28);
   background:linear-gradient(135deg,#FFFBEB,#FFF8EE);
 }
 .act-index{
-  width:36px;flex-shrink:0;
+  width:38px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
   font-size:11px;font-weight:700;color:#C4BDB6;
   background:#F8F5F0;border-right:1px solid #EDE8DE;
 }
 .act-wish .act-index{background:#FFF3D0;color:#D97706;border-color:rgba(217,119,6,.2)}
-.act-accent{width:3px;flex-shrink:0}
-.act-body{flex:1;padding:14px 18px 12px}
-.act-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.act-accent{width:4px;flex-shrink:0}
+.act-body{flex:1;padding:16px 20px 14px}
+.act-header{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
 .act-time{
   font-size:11px;font-weight:700;color:#A8A298;
   letter-spacing:.5px;min-width:58px;
 }
 .act-attr{
   font-size:10px;font-weight:600;letter-spacing:.3px;
-  padding:2px 9px;border-radius:10px;
+  padding:3px 10px;border-radius:10px;
 }
 .act-name{
-  font-size:15px;font-weight:700;color:#1A1714;
-  margin-bottom:5px;line-height:1.3;
+  font-size:16px;font-weight:700;color:#1A1714;
+  margin-bottom:6px;line-height:1.3;letter-spacing:-.1px;
 }
-.act-desc{font-size:12px;color:#5A534D;line-height:1.6;margin-bottom:7px}
-.act-cost{font-size:12px;font-weight:700;color:#1A1714}
+.act-desc{font-size:12.5px;color:#5A534D;line-height:1.65;margin-bottom:9px}
+.act-cost{font-size:12px;font-weight:700;color:#1A1714;padding-top:2px;border-top:1px solid rgba(26,23,20,.06)}
 
 /* ─── TOTALS ─────────────────────────────────────── */
 .totals-section{
@@ -845,17 +847,22 @@ export default function ItineraryScreen() {
             }),
           });
           if (!resp.ok) {
-            const errBody = await resp.json().catch(() => ({})) as { message?: string };
-            throw new Error(errBody.message ?? "Could not replace activity. Please try again.");
+            const errBody = await resp.json().catch(() => ({})) as { error?: string };
+            throw new Error(errBody.error ?? "Could not replace activity. Please try again.");
           }
           const { activity: newAct } = await resp.json();
+          if (!newAct?.name) {
+            throw new Error("AI returned an incomplete activity. Please try again.");
+          }
           const redoByName = user?.displayName ?? user?.email ?? "A member";
           await updateActivity(id!, dayNum, idx, {
             ...newAct,
             time: act.time,
             lastRedoBy: redoByName,
           });
-          await incrementAiUsage(id!, "activityRedos");
+          // Usage tracking is best-effort — never let a failure here make an
+          // already-successful redo look like it failed.
+          incrementAiUsage(id!, "activityRedos").catch(() => {});
         } catch (err) {
           Alert.alert("Could not change activity", (err as Error).message || "Please try again.");
         } finally {
@@ -945,7 +952,9 @@ export default function ItineraryScreen() {
     if (!trip || !itinerary) return;
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const base = trip.startDate ? new Date(trip.startDate) : new Date();
+      // Append T00:00:00 so "YYYY-MM-DD" parses in local time, not UTC —
+      // otherwise every event shifts a day earlier in negative-UTC-offset timezones.
+      const base = trip.startDate ? new Date(trip.startDate + "T00:00:00") : new Date();
 
       const parseTime = (dayOffset: number, timeStr: string): Date => {
         const d = new Date(base);
@@ -1000,7 +1009,6 @@ export default function ItineraryScreen() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        const FileSystem = await import("expo-file-system/legacy");
         if (!FileSystem.cacheDirectory) {
           throw new Error("No cache directory is available");
         }

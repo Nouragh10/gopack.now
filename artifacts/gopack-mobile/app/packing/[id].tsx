@@ -50,7 +50,7 @@ export default function PackingScreen() {
     setGenerating(true);
     setGenError(null);
     try {
-      const baseUrl = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
       const res = await fetch(`${baseUrl}/api/packing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,8 +65,22 @@ export default function PackingScreen() {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? "Generation failed. Please try again.");
       }
-      const data = await res.json() as { list: Record<string, string[]> };
-      await savePackingList(id, data.list);
+      const data = await res.json() as { list?: Record<string, unknown> };
+      if (!data.list || typeof data.list !== "object" || Object.keys(data.list).length === 0) {
+        throw new Error("AI returned an incomplete packing list. Please try again.");
+      }
+      // Drop any category the AI didn't return as a proper array of items —
+      // saving a malformed shape would crash the list screen on render.
+      const cleanList = Object.fromEntries(
+        Object.entries(data.list).filter(
+          (entry): entry is [string, string[]] =>
+            Array.isArray(entry[1]) && entry[1].every((item) => typeof item === "string"),
+        ),
+      );
+      if (Object.keys(cleanList).length === 0) {
+        throw new Error("AI returned an incomplete packing list. Please try again.");
+      }
+      await savePackingList(id, cleanList);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       setGenError((e as Error).message || "Failed to generate packing list.");

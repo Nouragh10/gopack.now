@@ -185,18 +185,18 @@ function TopAccommodationCard({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
           <View>
             <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>Per person</Text>
-            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: TEAL }}>${suggestion.costPerPerson.toLocaleString()}</Text>
+            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: TEAL }}>${(suggestion.costPerPerson ?? 0).toLocaleString()}</Text>
           </View>
           <View style={{ width: 1, height: 32, backgroundColor: colors.border }} />
           <View>
             <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>Total</Text>
-            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: colors.foreground }}>${suggestion.totalCost.toLocaleString()}</Text>
+            <Text style={{ fontFamily: "DmSans_700Bold", fontSize: 22, color: colors.foreground }}>${(suggestion.totalCost ?? 0).toLocaleString()}</Text>
           </View>
         </View>
 
-        {suggestion.amenities.length > 0 ? (
+        {(suggestion.amenities ?? []).length > 0 ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
-            {suggestion.amenities.slice(0, 4).map((a) => (
+            {(suggestion.amenities ?? []).slice(0, 4).map((a) => (
               <View key={a} style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.muted, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
                 <Feather name="check" size={10} color={TEAL} />
                 <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 11, color: colors.mutedForeground }}>{a}</Text>
@@ -409,12 +409,12 @@ function AccommodationCard({
       <View style={styles.costRow}>
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Total</Text>
-          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>${suggestion.totalCost.toLocaleString()}</Text>
+          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>${(suggestion.totalCost ?? 0).toLocaleString()}</Text>
         </View>
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Per person</Text>
-          <Text style={[styles.costValue, { color: TEAL }]}>${suggestion.costPerPerson.toLocaleString()}</Text>
+          <Text style={[styles.costValue, { color: TEAL }]}>${(suggestion.costPerPerson ?? 0).toLocaleString()}</Text>
         </View>
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
@@ -643,16 +643,16 @@ export default function AccommodationVoteScreen() {
         totalCost: total,
         costPerPerson: total ? Math.round(total / mCount) : 0,
         nights: trip?.days ?? 1,
-        rating: (parsed.rating as number) || 0,
-        amenities: (parsed.amenities as string[]) || [],
+        rating: typeof parsed.rating === "number" ? parsed.rating : 0,
+        amenities: Array.isArray(parsed.amenities) ? parsed.amenities : [],
         rooms: 1,
         beds: mCount,
         cancellation: (parsed.cancellation as string) || "Check listing",
         whyItFits: (parsed.whyItFits as string) || "Added by a pack member",
-        tags: (parsed.tags as string[]) || ["Member pick"],
+        tags: Array.isArray(parsed.tags) ? parsed.tags : ["Member pick"],
         distanceNote: (parsed.distanceNote as string) || "See listing for details",
         link: url,
-        photos: (parsed.photos as string[]) || [],
+        photos: Array.isArray(parsed.photos) ? parsed.photos : [],
         submittedBy: user?.displayName ?? "Member",
       };
       await addMemberAccommodationLink(id, newSuggestion);

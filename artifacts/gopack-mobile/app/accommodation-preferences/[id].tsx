@@ -167,7 +167,17 @@ export default function AccommodationPreferencesScreen() {
       const data = await res.json() as { suggestions: any[] };
       if (!data.suggestions?.length) throw new Error("No suggestions returned.");
 
-      await storeAccommodationSuggestions(id, data.suggestions);
+      // The AI is shown a single example with id "opt-1" and often echoes that
+      // literal id for every suggestion. Duplicate ids become duplicate React
+      // keys in the vote screen's list, which makes votes appear to land on
+      // the wrong card. Always assign our own unique ids instead of trusting
+      // the model's output.
+      const suggestionsWithUniqueIds = data.suggestions.map((s, i) => ({
+        ...s,
+        id: `ai-${Date.now()}-${i}`,
+      }));
+
+      await storeAccommodationSuggestions(id, suggestionsWithUniqueIds);
       router.replace(`/accommodation-vote/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
