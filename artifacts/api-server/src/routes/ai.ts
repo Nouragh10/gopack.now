@@ -9,15 +9,22 @@ const router: IRouter = Router();
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function callAnthropic(body: object, retries = 3, extraHeaders: Record<string, string> = {}): Promise<Response> {
+  const baseUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+
+  if (!baseUrl || !apiKey) {
+    throw new Error("AI itinerary generation is not configured. Please try again shortly.");
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+    "x-api-key": apiKey,
     "anthropic-version": "2023-06-01",
     ...extraHeaders,
   };
 
   for (let i = 0; i < retries; i++) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/messages`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -89,7 +96,7 @@ ${JSON.stringify(itinerary)}`;
   try {
     const body = {
       model: "claude-sonnet-4-5",
-      max_tokens: 16000,
+      max_tokens: 8192,
       system: "You are a fact-checking JSON API with web search access. Investigate using web search first, then your FINAL response must be only valid JSON matching the input shape — no preamble, no explanation, no markdown code blocks, starting directly with {.",
       messages: [{ role: "user", content: verifyPrompt }],
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 25 }],
@@ -176,7 +183,7 @@ Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER 
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 2000,
+      max_tokens: 8192,
       system: "You are a JSON API. Always respond with only a valid JSON array. No preamble, no explanation, no markdown code blocks.",
       messages: [{ role: "user", content: repairPrompt }],
     };
@@ -383,7 +390,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 16000,
+      max_tokens: 8192,
       system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Never start your response with words — start directly with the opening brace {.",
       messages: [
         { role: "user", content: prompt },
@@ -463,7 +470,7 @@ Respond with ONLY valid JSON (no markdown):
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 4000,
+      max_tokens: 8192,
       system: "You are a JSON API. Always respond with only valid JSON. No preamble, no explanation, no markdown code blocks. Start directly with {.",
       messages: [
         { role: "user", content: prompt },
@@ -693,7 +700,7 @@ Respond with ONLY valid JSON, no markdown:
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -805,7 +812,7 @@ Respond with ONLY valid JSON, no markdown:
   try {
     const requestBody = {
       model: "claude-haiku-4-5",
-      max_tokens: 1200,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -970,7 +977,7 @@ Return ONLY valid JSON with these fields (no markdown, no explanation):
   try {
     const response = await callAnthropic({
       model: "claude-haiku-4-5",
-      max_tokens: 600,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });
     const data = await (response as unknown as globalThis.Response).json() as {
@@ -1031,7 +1038,7 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
   try {
     const requestBody = {
       model: "claude-haiku-4-5",
-      max_tokens: 150,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -1078,7 +1085,7 @@ Respond with ONLY valid JSON: {"winnerIdx": 0, "reason": "One clear sentence."}`
   try {
     const requestBody = {
       model: "claude-haiku-4-5",
-      max_tokens: 150,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     };
 
@@ -1191,7 +1198,7 @@ Respond with ONLY valid JSON (no markdown):
   try {
     const body = {
       model: "claude-haiku-4-5",
-      max_tokens: 400,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     };
     const response = await callAnthropic(body);
@@ -1378,7 +1385,7 @@ Always give the response in this exact JSON format (no markdown, no code fences)
   try {
     const response = await callAnthropic({
       model: "claude-haiku-4-5",
-      max_tokens: 512,
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: "user", content: `Math question: "${question}"` }],
     });

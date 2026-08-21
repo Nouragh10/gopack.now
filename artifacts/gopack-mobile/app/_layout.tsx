@@ -11,10 +11,10 @@ import {
 } from "@expo-google-fonts/playfair-display";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setBaseUrl } from "@/lib/api-client";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -31,11 +31,17 @@ function RootLayoutNav() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const navigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (loading) return;
+    // Expo Router has to mount its navigator before a redirect can be issued.
+    // Without this guard, web preview can attempt navigation during the first
+    // render and crash into the error boundary.
+    if (loading || !navigationState?.key) return;
     const firstSegment = segments[0] as string;
-    const inSignIn = firstSegment === "sign-in" || firstSegment === "index";
+    // Expo Router represents the initial "/" route as an empty segment while
+    // mounting. Treat it as public alongside the explicit sign-in route.
+    const inSignIn = !firstSegment || firstSegment === "sign-in" || firstSegment === "index";
     const needsVerification = !!user && !user.isAnonymous && !user.emailVerified;
 
     if (!user && !inSignIn) {
@@ -48,9 +54,9 @@ function RootLayoutNav() {
       // Verified (or guest/Google) user on sign-in screen — let them in
       router.replace("/(tabs)");
     }
-  }, [user, loading, segments]);
+  }, [user, loading, segments, navigationState?.key]);
 
-  if (loading) {
+  if (loading || !navigationState?.key) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFDF9" }}>
         <ActivityIndicator color="#E85D3A" size="large" />
@@ -82,7 +88,9 @@ export default function RootLayout() {
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
   });
-  const [startupReady, setStartupReady] = useState(false);
+  // Browser previews can render before remote font restoration finishes.
+  // Keep native font gating while avoiding a blank/spinner-only web preview.
+  const [startupReady, setStartupReady] = useState(Platform.OS === "web");
 
   useEffect(() => {
     if (fontsLoaded || fontError) setStartupReady(true);

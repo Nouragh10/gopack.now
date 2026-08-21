@@ -34,6 +34,9 @@ const replitPlugins =
 
 export default defineConfig({
   base: basePath,
+  // The path router rejects requests into node_modules. Use a visible cache
+  // location outside it so optimized modules can be served through preview.
+  cacheDir: path.resolve(import.meta.dirname, "vite-cache"),
   plugins: [react(), tailwindcss(), ...replitPlugins],
   resolve: {
     alias: {

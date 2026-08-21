@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { auth, onAuthStateChanged, User } from "@/lib/firebase";
 
 interface AuthContextType {
@@ -10,7 +11,10 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The web preview does not need to wait for Firebase's persisted-session
+  // restoration before showing the sign-in route. Native keeps the short
+  // loading gate so an existing session does not flash the auth screen.
+  const [loading, setLoading] = useState(Platform.OS !== "web");
 
   useEffect(() => {
     let active = true;

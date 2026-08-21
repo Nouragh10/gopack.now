@@ -5,18 +5,34 @@ import { Resend } from "resend";
 
 const router: IRouter = Router();
 
-// Init Firebase Admin (singleton)
-if (getApps().length === 0) {
-  initializeApp({
-    credential: cert({
-      projectId: "gopacknow-83d54",
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
+function getFirebaseAdminAuth() {
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  if (!clientEmail || !privateKey) {
+    throw new Error("Email verification is not configured.");
+  }
+
+  if (getApps().length === 0) {
+    initializeApp({
+      credential: cert({
+        projectId: "gopacknow-83d54",
+        clientEmail,
+        privateKey,
+      }),
+    });
+  }
+
+  return getAuth();
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("Email verification is not configured.");
+  }
+  return new Resend(apiKey);
+}
 
 function buildEmailHtml(verifyUrl: string, displayName: string): string {
   const firstName = displayName?.split(" ")[0] ?? "there";
@@ -121,9 +137,9 @@ router.post("/auth/send-verification", async (req: Request, res: Response) => {
   }
 
   try {
-    const verifyUrl = await getAuth().generateEmailVerificationLink(email);
+    const verifyUrl = await getFirebaseAdminAuth().generateEmailVerificationLink(email);
 
-    const { error } = await resend.emails.send({
+    const { error } = await getResendClient().emails.send({
       from: "GoPackNow <onboarding@resend.dev>",
       to: email,
       subject: "Confirm your GoPackNow email address",
