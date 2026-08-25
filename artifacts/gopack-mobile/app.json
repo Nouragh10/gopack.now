@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GoPackNow",
+    "name": "packyo",
     "slug": "gopack-mobile",
     "version": "1.1.0",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFDF9"
+      "backgroundColor": "#FCFBF8"
     },
     "ios": {
       "supportsTablet": false,

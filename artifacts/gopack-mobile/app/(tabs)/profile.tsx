@@ -1,68 +1,134 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { useRouter } from "expo-router";
+import React from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
+  Image,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { signOut, deleteAccount } from "@/lib/firebase";
-import { Trip, deleteTrip, leaveTrip, useTrips, wipeUserData } from "@/hooks/useFirebase";
+import { usePacks, useRecentWishes, useTrips } from "@/hooks/useFirebase";
+import { signOut } from "@/lib/firebase";
+
+const TRIP_IMAGES = [
+  "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=600&q=80&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&q=80&auto=format&fit=crop",
+];
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((word) => word[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "?";
+}
+
+function tripIsPast(startDate: string | null | undefined, days: number) {
+  if (!startDate) return false;
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(start.getTime() + Math.max(days || 1, 1) * 86400000);
+  return end < new Date();
+}
+
+function tripDateLabel(startDate: string | null | undefined, endDate: string | null | undefined, days: number) {
+  if (!startDate) return `${days || 0} days · Dates pending`;
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = endDate
+    ? new Date(`${endDate}T00:00:00`)
+    : new Date(start.getTime() + Math.max((days || 1) - 1, 0) * 86400000);
+  const format = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${format(start)} – ${format(end)}`;
+}
+
+function SectionHeading({
+  title,
+  action,
+  colors,
+}: {
+  title: string;
+  action?: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={styles.sectionHeading}>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{title}</Text>
+      {action ? <Text style={[styles.sectionAction, { color: colors.primary }]}>{action}</Text> : null}
+    </View>
+  );
+}
+
+function AvatarStack({
+  names,
+  colors,
+  max = 4,
+}: {
+  names: string[];
+  colors: ReturnType<typeof useColors>;
+  max?: number;
+}) {
+  const shown = names.slice(0, max);
+  return (
+    <View style={styles.avatarStack}>
+      {shown.map((name, index) => (
+        <View
+          key={`${name}-${index}`}
+          style={[
+            styles.stackAvatar,
+            {
+              marginLeft: index === 0 ? 0 : -8,
+              backgroundColor: index % 2 === 0 ? colors.muted : colors.secondary,
+              borderColor: colors.card,
+            },
+          ]}
+        >
+          <Text style={[styles.stackAvatarText, { color: colors.mutedForeground }]}>{initials(name)}</Text>
+        </View>
+      ))}
+      {names.length > max ? (
+        <View style={[styles.stackAvatar, styles.moreAvatar, { borderColor: colors.card, backgroundColor: colors.muted }]}>
+          <Text style={[styles.stackAvatarText, { color: colors.mutedForeground }]}>+{names.length - max}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { trips, refetch } = useTrips(user?.uid);
   const router = useRouter();
-  const [tripsExpanded, setTripsExpanded] = useState(false);
-  const [passwordPromptVisible, setPasswordPromptVisible] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteError, setDeleteError] = useState("");
-  const [deleting, setDeleting] = useState(false);
+  const { trips, loading: tripsLoading } = useTrips(user?.uid);
+  const { packs } = usePacks(user?.uid);
+  const { wishes } = useRecentWishes(user?.uid, trips.map((trip) => trip.id));
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
-
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch]),
-  );
-
-  // Dev-only hook to force-render account deletion UI states for screenshots/demos
-  // WITHOUT ever calling the real deleteAccount() flow. Never wire this to real deletion.
-  React.useEffect(() => {
-    if (!__DEV__ || Platform.OS !== "web") return;
-    const params = new URLSearchParams(window.location.search);
-    const state = params.get("e2eDeleteState");
-    if (state === "password") {
-      setPasswordPromptVisible(true);
-    } else if (state === "deleting") {
-      setPasswordPromptVisible(true);
-      setDeletePassword("••••••••");
-      setDeleting(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const displayName = user?.displayName ?? (user?.isAnonymous ? "Guest" : "Explorer");
-  const initial = displayName[0].toUpperCase();
-  const totalDays = trips.reduce((sum, t) => sum + (t.days ?? 0), 0);
-  const uniqueCities = new Set(trips.map((t) => t.destination.split(",")[0].trim())).size;
+  const displayName = user?.displayName ?? "Traveler";
+  const handle = user?.email
+    ? `@${user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, ".")}`
+    : `@${displayName.toLowerCase().replace(/[^a-z0-9]+/g, ".")}`;
+  const tripIds = trips.map((trip) => trip.id);
+  const destinationVibes = Array.from(new Set(trips.flatMap((trip) => trip.vibes ?? [])));
+  const travelVibes = (destinationVibes.length > 0 ? destinationVibes : ["Beach", "Food", "Nightlife", "Culture"]).slice(0, 4);
+  const currentYear = new Date().getFullYear();
+  const tripsThisYear = trips.filter((trip) => {
+    const date = trip.startDate ? new Date(`${trip.startDate}T00:00:00`) : new Date(trip.createdAt);
+    return date.getFullYear() === currentYear;
+  }).length;
+  const completedTrips = trips.filter((trip) => tripIsPast(trip.startDate, trip.days)).length;
 
   const handleSignOut = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -70,74 +136,15 @@ export default function ProfileScreen() {
     router.replace("/sign-in");
   };
 
-  const finishDeleteAccount = async (password?: string) => {
-    if (!user?.uid) return;
-    const uid = user.uid;
-    setDeleting(true);
-    setDeleteError("");
-    try {
-      await deleteAccount(password, () => wipeUserData(uid));
-      setPasswordPromptVisible(false);
-      setDeletePassword("");
-      router.replace("/sign-in");
-    } catch (e: any) {
-      if (e?.code === "auth/needs-password") {
-        setPasswordPromptVisible(true);
-      } else if (e?.code === "auth/wrong-password" || e?.code === "auth/invalid-credential") {
-        setDeleteError("Incorrect password. Please try again.");
-      } else {
-        Alert.alert("Error", "Failed to delete account. Please try again.");
-        setPasswordPromptVisible(false);
-      }
-    } finally {
-      setDeleting(false);
+  const openTrip = (tripId: string, hasItinerary: boolean) => {
+    if (hasItinerary) {
+      router.push({
+        pathname: "/itinerary/[id]",
+        params: { id: tripId, returnTo: "tripHub" },
+      } as any);
+    } else {
+      router.push(`/trip/${tripId}` as any);
     }
-  };
-
-  const handleDeleteAccount = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Alert.alert(
-      "Delete Account",
-      "This will permanently delete your account and all your data. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete Account",
-          style: "destructive",
-          onPress: () => finishDeleteAccount(),
-        },
-      ],
-    );
-  };
-
-  const handleConfirmPasswordDelete = () => {
-    if (!deletePassword.trim()) {
-      setDeleteError("Please enter your password.");
-      return;
-    }
-    finishDeleteAccount(deletePassword.trim());
-  };
-
-  const handleDeleteTrip = (trip: Trip) => {
-    const isHost = trip.hostMemberId === user?.uid;
-    Alert.alert(
-      isHost ? "Delete Trip" : "Leave Trip",
-      isHost
-        ? "This will permanently delete the trip for everyone. Cannot be undone."
-        : "You'll leave this trip and need a new invite to rejoin.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: isHost ? "Delete" : "Leave",
-          style: "destructive",
-          onPress: async () => {
-            if (isHost) await deleteTrip(trip.id, user!.uid);
-            else await leaveTrip(trip.id, user!.uid);
-            refetch();
-          },
-        },
-      ],
-    );
   };
 
   return (
@@ -146,239 +153,370 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomInset }}
       >
-        {/* Avatar + name */}
-        <View style={[styles.header, { paddingTop: topInset + 16 }]}>
-          <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-          <Text style={[styles.name, { color: colors.foreground }]}>{displayName}</Text>
-          {user?.email ? (
-            <Text style={[styles.email, { color: colors.mutedForeground }]}>{user.email}</Text>
-          ) : null}
-        </View>
-
-        {/* Stats */}
-        <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 20 }]}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{trips.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>trips</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{uniqueCities}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>cities</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{totalDays}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>days</Text>
-          </View>
-        </View>
-
-        {/* My Trips — collapsible card */}
-        <View style={[styles.tripsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.topBar, { paddingTop: topInset + 8 }]}>
           <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTripsExpanded(e => !e); }}
-            style={styles.tripsCardHeader}
+            onPress={() => router.push("/(tabs)/notifications")}
+            style={styles.iconButton}
+            accessibilityLabel="Open notifications"
           >
-            <View style={styles.tripsCardHeaderLeft}>
-              <Feather name="map-pin" size={16} color={colors.mutedForeground} />
-              <View>
-                <Text style={[styles.tripsCardTitle, { color: colors.foreground }]}>My trips</Text>
-                <Text style={[styles.tripsCardSub, { color: colors.mutedForeground }]}>
-                  {trips.length} trip{trips.length !== 1 ? "s" : ""}
-                </Text>
-              </View>
-            </View>
-            <Feather
-              name={tripsExpanded ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.mutedForeground}
-            />
+            <Feather name="bell" size={19} color={colors.foreground} />
+            <View style={[styles.notificationDot, { backgroundColor: colors.primary }]} />
           </Pressable>
+          <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Profile</Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/profile")}
+            style={styles.iconButton}
+            accessibilityLabel="Profile settings"
+          >
+            <Feather name="settings" size={19} color={colors.foreground} />
+          </Pressable>
+        </View>
 
-          {tripsExpanded && (
-            <View style={[styles.tripsCardBody, { borderTopColor: colors.border }]}>
-              {trips.length === 0 ? (
-                <View style={styles.tripsEmpty}>
-                  <Feather name="map" size={28} color={colors.border} />
-                  <Text style={[styles.tripsEmptyText, { color: colors.mutedForeground }]}>No trips yet</Text>
-                </View>
-              ) : (
-                trips.map((trip) => (
-                  <Pressable
-                    key={trip.id}
-                    onPress={() => router.push(`/trip/${trip.id}`)}
-                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleDeleteTrip(trip); }}
-                    style={[styles.tripRow, { borderBottomColor: colors.border }]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.tripName, { color: colors.foreground }]}>
-                        {trip.destination || "Deciding destination…"}
-                      </Text>
-                      <Text style={[styles.tripMeta, { color: colors.mutedForeground }]}>
-                        {trip.days} days · {Object.keys(trip.members ?? {}).length} members
+        <View style={styles.profileIntro}>
+          <View style={styles.avatarWrap}>
+            <Image
+              source={{
+                uri: user?.photoURL ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=240&q=80",
+              }}
+              style={styles.avatar}
+            />
+            <View style={[styles.cameraBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
+              <Feather name="camera" size={12} color={colors.primaryForeground} />
+            </View>
+          </View>
+          <View style={styles.identity}>
+            <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>{displayName}</Text>
+            <Text style={[styles.handle, { color: colors.mutedForeground }]}>{handle}</Text>
+            <View style={styles.locationLine}>
+              <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+              <Text style={[styles.locationText, { color: colors.mutedForeground }]}>Ready for the next adventure</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.statsRow, { borderColor: colors.border }]}>
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{trips.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Trips</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{packs.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Packs</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{wishes.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Wishes</Text>
+          </View>
+        </View>
+
+        <View style={[styles.vibeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.vibeCardHeader}>
+            <View>
+              <Text style={[styles.vibeEyebrow, { color: colors.mutedForeground }]}>YOUR TRAVEL VIBE</Text>
+              <Text style={[styles.vibeTitle, { color: colors.foreground }]}>The way you like to explore</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/create")}>
+              <Text style={[styles.editLink, { color: colors.primary }]}>Edit preferences</Text>
+            </Pressable>
+          </View>
+          <View style={styles.vibePills}>
+            {travelVibes.map((vibe) => (
+              <View key={vibe} style={[styles.vibePill, { backgroundColor: colors.primary + "14" }]}>
+                <Feather name="check" size={11} color={colors.primary} />
+                <Text style={[styles.vibePillText, { color: colors.foreground }]}>{vibe}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.vibeDescription, { color: colors.mutedForeground }]}>
+            Relaxed days, great food, and room to discover something unexpected.
+          </Text>
+          <View style={[styles.vibeAccent, { backgroundColor: colors.primary + "12" }]}>
+            <Feather name="sun" size={28} color={colors.primary} />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeading title="My packs" action={packs.length > 0 ? "See all" : undefined} colors={colors} />
+          {packs.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="users" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No packs yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Save a group of travel friends after your next itinerary.</Text>
+            </View>
+          ) : (
+            packs.slice(0, 3).map((pack) => {
+              const memberNames = Object.values(pack.members ?? {}).map((member) => member.name);
+              const tripCount = Object.keys(pack.tripIds ?? {}).length;
+              return (
+                <Pressable
+                  key={pack.id}
+                  onPress={() => router.push(`/groups/${pack.id}` as any)}
+                  style={({ pressed }) => [
+                    styles.packCard,
+                    { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.88 : 1 },
+                  ]}
+                >
+                  <View style={styles.packCardTop}>
+                    <AvatarStack names={memberNames} colors={colors} />
+                    <View style={[styles.roundArrow, { backgroundColor: colors.muted }]}>
+                      <Feather name="chevron-right" size={16} color={colors.foreground} />
+                    </View>
+                  </View>
+                  <Text style={[styles.packName, { color: colors.foreground }]}>{pack.name}</Text>
+                  <Text style={[styles.packMeta, { color: colors.mutedForeground }]}>
+                    {memberNames.length} members · {tripCount} {tripCount === 1 ? "trip" : "trips"}
+                  </Text>
+                  {pack.lastTripDestination ? (
+                    <View style={styles.packDestination}>
+                      <Feather name="map-pin" size={11} color={colors.primary} />
+                      <Text style={[styles.packDestinationText, { color: colors.primary }]} numberOfLines={1}>
+                        {pack.lastTripDestination}
                       </Text>
                     </View>
-                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                  </Pressable>
-                ))
-              )}
-            </View>
+                  ) : null}
+                </Pressable>
+              );
+            })
           )}
         </View>
 
-        {/* Sign out */}
-        <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
-          <Pressable
-            onPress={handleSignOut}
-            style={[styles.signOutBtn, { borderColor: colors.border }]}
-          >
-            <Feather name="log-out" size={18} color={colors.destructive} />
-            <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign out</Text>
-          </Pressable>
+        <View style={styles.section}>
+          <SectionHeading title="Your trips" action={trips.length > 3 ? "See all" : undefined} colors={colors} />
+          {tripsLoading ? (
+            <View style={styles.inlineLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : trips.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="map" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No trips yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Your next adventure starts with a shared plan.</Text>
+            </View>
+          ) : (
+            trips.slice(0, 3).map((trip, index) => {
+              const past = tripIsPast(trip.startDate, trip.days);
+              const progress = trip.itinerary ? 100 : trip.destination ? 55 : 20;
+              return (
+                <Pressable
+                  key={trip.id}
+                  onPress={() => openTrip(trip.id, !!trip.itinerary)}
+                  style={({ pressed }) => [
+                    styles.tripCard,
+                    { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.88 : 1 },
+                  ]}
+                >
+                  <Image source={{ uri: TRIP_IMAGES[index % TRIP_IMAGES.length] }} style={styles.tripImage} />
+                  <View style={styles.tripCardBody}>
+                    <View style={styles.tripCardTitleRow}>
+                      <Text style={[styles.tripName, { color: colors.foreground }]} numberOfLines={1}>
+                        {trip.destination || "Destination TBD"}
+                      </Text>
+                      <View style={[styles.statusPill, { backgroundColor: past ? colors.muted : colors.primary + "14" }]}>
+                        <Text style={[styles.statusText, { color: past ? colors.mutedForeground : colors.primary }]}>
+                          {past ? "Past" : trip.itinerary ? "Active" : "Planning"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.tripDate, { color: colors.mutedForeground }]}>
+                      {tripDateLabel(trip.startDate, trip.endDate, trip.days)}
+                    </Text>
+                    <View style={styles.tripBottomRow}>
+                      <View style={styles.tripMemberLine}>
+                        <Feather name="users" size={12} color={colors.mutedForeground} />
+                        <Text style={[styles.tripMemberText, { color: colors.mutedForeground }]}>
+                          {Object.keys(trip.members ?? {}).length} members
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+                    </View>
+                    <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+                      <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.primary }]} />
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })
+          )}
         </View>
 
-        {/* Legal links */}
-        <View style={styles.legalRow}>
-          <Pressable onPress={() => Linking.openURL("https://gopacknow.com/privacy")}>
-            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Privacy Policy</Text>
-          </Pressable>
-          <Text style={[styles.legalDot, { color: colors.mutedForeground }]}>·</Text>
-          <Pressable onPress={() => Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}>
-            <Text style={[styles.legalLink, { color: colors.mutedForeground }]}>Terms of Use</Text>
-          </Pressable>
+        <View style={styles.section}>
+          <SectionHeading title="My wishes" action={wishes.length > 3 ? "See all" : undefined} colors={colors} />
+          {wishes.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="star" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No wishes yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Add a wish inside one of your trip hubs.</Text>
+            </View>
+          ) : (
+            wishes.slice(0, 3).map((wish) => (
+              <View key={`${wish.id}-${wish.tripDestination}`} style={[styles.wishRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.wishIcon, { backgroundColor: colors.primary + "14" }]}>
+                  <Feather name="heart" size={14} color={colors.primary} />
+                </View>
+                <View style={styles.wishContent}>
+                  <Text style={[styles.wishText, { color: colors.foreground }]} numberOfLines={1}>{wish.text}</Text>
+                  <Text style={[styles.wishMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {wish.tripDestination} · {wish.score > 0 ? `${wish.score} votes` : "New wish"}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+              </View>
+            ))
+          )}
         </View>
 
-        {/* Delete account */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-          <Pressable onPress={handleDeleteAccount} style={styles.deleteAccountBtn}>
-            <Text style={[styles.deleteAccountText, { color: colors.destructive }]}>Delete account</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-
-      <Modal
-        visible={passwordPromptVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setPasswordPromptVisible(false); setDeletePassword(""); setDeleteError(""); }}
-      >
-        <View style={styles.passwordOverlay}>
-          <View style={[styles.passwordCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.passwordTitle, { color: colors.foreground }]}>Confirm your password</Text>
-            <Text style={[styles.passwordSubtitle, { color: colors.mutedForeground }]}>
-              For your security, please re-enter your password to permanently delete your account.
-            </Text>
-            <TextInput
-              style={[styles.passwordInput, { borderColor: colors.border, color: colors.foreground }]}
-              placeholder="Password"
-              placeholderTextColor={colors.mutedForeground}
-              secureTextEntry
-              autoFocus
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              onSubmitEditing={handleConfirmPasswordDelete}
-            />
-            {!!deleteError && <Text style={styles.passwordError}>{deleteError}</Text>}
-            <Pressable
-              onPress={handleConfirmPasswordDelete}
-              disabled={deleting}
-              style={[styles.passwordConfirmBtn, { backgroundColor: colors.destructive, opacity: deleting ? 0.7 : 1 }]}
-            >
-              {deleting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.passwordConfirmText}>Delete my account</Text>
-              )}
-            </Pressable>
-            <Pressable
-              onPress={() => { setPasswordPromptVisible(false); setDeletePassword(""); setDeleteError(""); }}
-              style={styles.passwordCancelBtn}
-              disabled={deleting}
-            >
-              <Text style={[styles.passwordCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
-            </Pressable>
+        <View style={[styles.yearCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.yearCardCopy}>
+            <Text style={[styles.yearEyebrow, { color: colors.mutedForeground }]}>YOUR PACKYO YEAR</Text>
+            <Text style={[styles.yearTitle, { color: colors.foreground }]}>A year of going places</Text>
+            <View style={styles.yearStats}>
+              <View>
+                <Text style={[styles.yearValue, { color: colors.primary }]}>{tripsThisYear}</Text>
+                <Text style={[styles.yearLabel, { color: colors.mutedForeground }]}>Trips</Text>
+              </View>
+              <View>
+                <Text style={[styles.yearValue, { color: colors.primary }]}>{wishes.length}</Text>
+                <Text style={[styles.yearLabel, { color: colors.mutedForeground }]}>Wishes</Text>
+              </View>
+              <View>
+                <Text style={[styles.yearValue, { color: colors.primary }]}>{completedTrips}</Text>
+                <Text style={[styles.yearLabel, { color: colors.mutedForeground }]}>Made the trip</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.chart} accessibilityLabel="Travel activity trend">
+            {[18, 34, 26, 50, 42, 66, 57].map((height, index) => (
+              <View key={index} style={[styles.chartBar, { height, backgroundColor: index === 6 ? colors.primary : colors.primary + "48" }]} />
+            ))}
+            <Feather name="trending-up" size={16} color={colors.primary} style={styles.chartIcon} />
           </View>
         </View>
-      </Modal>
+
+        <View style={styles.section}>
+          <SectionHeading title="Saved" colors={colors} />
+          <View style={styles.savedGrid}>
+            {[
+              { icon: "map", label: "Destinations", onPress: () => router.push("/(tabs)/discover") },
+              { icon: "activity", label: "Activities", onPress: () => router.push("/(tabs)/discover") },
+              { icon: "home", label: "Stays", onPress: () => router.push("/(tabs)/discover") },
+              { icon: "briefcase", label: "Trips", onPress: () => router.push("/") },
+            ].map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={item.onPress}
+                style={({ pressed }) => [
+                  styles.savedTile,
+                  { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <Feather name={item.icon as any} size={19} color={colors.primary} />
+                <Text style={[styles.savedLabel, { color: colors.foreground }]}>{item.label}</Text>
+                <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <Pressable
+          onPress={handleSignOut}
+          style={({ pressed }) => [styles.signOutButton, { borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+        >
+          <Feather name="log-out" size={16} color={colors.primary} />
+          <Text style={[styles.signOutText, { color: colors.primary }]}>Sign out</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { alignItems: "center", paddingBottom: 24, paddingHorizontal: 20 },
-  avatarCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    alignItems: "center", justifyContent: "center", marginBottom: 14,
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 10,
   },
-  avatarText: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 34, color: "#fff" },
-  name: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, marginBottom: 4 },
-  email: { fontFamily: "DmSans_400Regular", fontSize: 14 },
-  statsCard: {
-    flexDirection: "row", borderRadius: 16, borderWidth: 1,
-    paddingVertical: 20, marginBottom: 20,
-  },
-  statItem: { flex: 1, alignItems: "center" },
-  statNum: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28 },
-  statLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 2 },
-  statDivider: { width: 1, marginVertical: 4 },
-  // Trips card
-  tripsCard: {
-    marginHorizontal: 20, borderRadius: 16, borderWidth: 1, marginBottom: 16, overflow: "hidden",
-  },
-  tripsCardHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 16,
-  },
-  tripsCardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  tripsCardTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-  tripsCardSub: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 1 },
-  tripsCardBody: { borderTopWidth: 1 },
-  tripsEmpty: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  tripsEmptyText: { fontFamily: "DmSans_400Regular", fontSize: 14 },
-  tripRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tripName: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
-  tripMeta: { fontFamily: "DmSans_400Regular", fontSize: 13 },
-  upgradeBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 10, borderRadius: 14, paddingVertical: 14,
-  },
-  upgradeBtnText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
-  signOutBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 10, borderWidth: 1, borderRadius: 14, paddingVertical: 14,
-  },
-  signOutText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-  legalRow: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center",
-    gap: 8, marginTop: 16, marginBottom: 8,
-  },
-  legalLink: { fontFamily: "DmSans_400Regular", fontSize: 12 },
-  legalDot: { fontFamily: "DmSans_400Regular", fontSize: 12 },
-  deleteAccountBtn: { alignItems: "center", paddingVertical: 10 },
-  deleteAccountText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
-  passwordOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center",
-    alignItems: "center", paddingHorizontal: 28,
-  },
-  passwordCard: { width: "100%", borderRadius: 20, padding: 22 },
-  passwordTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 6 },
-  passwordSubtitle: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18, marginBottom: 16 },
-  passwordInput: {
-    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: "DmSans_400Regular", fontSize: 15, marginBottom: 8,
-  },
-  passwordError: { fontFamily: "DmSans_400Regular", fontSize: 13, color: "#ef4444", marginBottom: 8 },
-  passwordConfirmBtn: {
-    borderRadius: 12, paddingVertical: 14, alignItems: "center", justifyContent: "center", marginTop: 4,
-  },
-  passwordConfirmText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
-  passwordCancelBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
-  passwordCancelText: { fontFamily: "DmSans_400Regular", fontSize: 14 },
+  topBarTitle: { fontFamily: "DmSans_700Bold", fontSize: 16 },
+  iconButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", position: "relative" },
+  notificationDot: { position: "absolute", top: 5, right: 5, width: 6, height: 6, borderRadius: 3 },
+  profileIntro: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 18, gap: 14 },
+  avatarWrap: { position: "relative" },
+  avatar: { width: 82, height: 82, borderRadius: 41 },
+  cameraBadge: { position: "absolute", right: -1, bottom: 2, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  identity: { flex: 1 },
+  name: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, marginBottom: 2 },
+  handle: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 8 },
+  locationLine: { flexDirection: "row", alignItems: "center", gap: 5 },
+  locationText: { fontFamily: "DmSans_400Regular", fontSize: 11 },
+  statsRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  stat: { flex: 1, alignItems: "center", gap: 2 },
+  statValue: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 21 },
+  statLabel: { fontFamily: "DmSans_400Regular", fontSize: 11 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 30 },
+  vibeCard: { marginHorizontal: 20, marginTop: 18, padding: 16, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  vibeCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
+  vibeEyebrow: { fontFamily: "DmSans_700Bold", fontSize: 9, letterSpacing: 1.1, marginBottom: 3 },
+  vibeTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  editLink: { fontFamily: "DmSans_600SemiBold", fontSize: 11, paddingTop: 2 },
+  vibePills: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 13, maxWidth: "90%" },
+  vibePill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5 },
+  vibePillText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
+  vibeDescription: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17, marginTop: 13, maxWidth: "78%" },
+  vibeAccent: { position: "absolute", right: -12, bottom: -14, width: 82, height: 82, borderRadius: 41, alignItems: "center", justifyContent: "center" },
+  section: { marginTop: 24, paddingHorizontal: 20 },
+  sectionHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sectionTitle: { fontFamily: "DmSans_700Bold", fontSize: 16 },
+  sectionAction: { fontFamily: "DmSans_600SemiBold", fontSize: 11 },
+  packCard: { borderRadius: 15, borderWidth: 1, padding: 14, marginBottom: 9 },
+  packCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  avatarStack: { flexDirection: "row", alignItems: "center" },
+  stackAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  stackAvatarText: { fontFamily: "DmSans_700Bold", fontSize: 9 },
+  moreAvatar: { marginLeft: -8 },
+  roundArrow: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  packName: { fontFamily: "DmSans_700Bold", fontSize: 14, marginTop: 10 },
+  packMeta: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 2 },
+  packDestination: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 },
+  packDestinationText: { fontFamily: "DmSans_600SemiBold", fontSize: 11, flex: 1 },
+  emptyCard: { borderRadius: 15, borderWidth: 1, padding: 20, alignItems: "center", gap: 6 },
+  emptyTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
+  emptyBody: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", lineHeight: 17, maxWidth: 280 },
+  inlineLoading: { alignItems: "center", paddingVertical: 22 },
+  tripCard: { flexDirection: "row", borderRadius: 15, borderWidth: 1, padding: 9, marginBottom: 9, gap: 11 },
+  tripImage: { width: 88, height: 92, borderRadius: 11 },
+  tripCardBody: { flex: 1, paddingVertical: 2 },
+  tripCardTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tripName: { fontFamily: "DmSans_700Bold", fontSize: 14, flex: 1 },
+  statusPill: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3 },
+  statusText: { fontFamily: "DmSans_600SemiBold", fontSize: 9 },
+  tripDate: { fontFamily: "DmSans_400Regular", fontSize: 10, marginTop: 4 },
+  tripBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 13 },
+  tripMemberLine: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tripMemberText: { fontFamily: "DmSans_400Regular", fontSize: 10 },
+  progressTrack: { height: 4, borderRadius: 2, marginTop: 8, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 2 },
+  wishRow: { flexDirection: "row", alignItems: "center", borderRadius: 13, borderWidth: 1, padding: 11, marginBottom: 8, gap: 10 },
+  wishIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  wishContent: { flex: 1 },
+  wishText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  wishMeta: { fontFamily: "DmSans_400Regular", fontSize: 10, marginTop: 3 },
+  yearCard: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginTop: 18, borderRadius: 16, borderWidth: 1, padding: 16, overflow: "hidden" },
+  yearCardCopy: { flex: 1 },
+  yearEyebrow: { fontFamily: "DmSans_700Bold", fontSize: 9, letterSpacing: 1.1, marginBottom: 4 },
+  yearTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 },
+  yearStats: { flexDirection: "row", gap: 18, marginTop: 14 },
+  yearValue: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20 },
+  yearLabel: { fontFamily: "DmSans_400Regular", fontSize: 9, marginTop: 1 },
+  chart: { width: 80, height: 80, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 4, paddingBottom: 8, position: "relative" },
+  chartBar: { width: 6, borderRadius: 3 },
+  chartIcon: { position: "absolute", right: 1, top: 5 },
+  savedGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  savedTile: { width: "48.7%", minHeight: 70, borderRadius: 13, borderWidth: 1, padding: 11, justifyContent: "space-between" },
+  savedLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11 },
+  signOutButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginHorizontal: 20, marginTop: 24, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
+  signOutText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 });

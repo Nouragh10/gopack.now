@@ -42,12 +42,13 @@ import {
   setAccommodationStatus,
   unlockVotes,
   useTrip,
+  usePackingList,
   useWishes,
   voteWish,
   Wish,
 } from "@/hooks/useFirebase";
 
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 const WISH_PLACEHOLDERS = [
   "Visit a local market at sunrise…",
@@ -62,7 +63,7 @@ const WISH_PLACEHOLDERS = [
   "Catch a live music night…",
 ];
 
-type Tab = "wish" | "vote" | "go";
+type Tab = "overview" | "wish" | "vote" | "go";
 
 function Avatar({ name, index, size = 32 }: { name: string; index: number; size?: number }) {
   const bg = MEMBER_COLORS[index % MEMBER_COLORS.length];
@@ -303,7 +304,7 @@ function SwipeWishStack({
         </Pressable>
         <Pressable
           onPress={onSwipeRight}
-          style={[styles.swipeTapBtn, { backgroundColor: "#E85D3A" }]}
+          style={[styles.swipeTapBtn, { backgroundColor: "#F15A3A" }]}
         >
           <Feather name="heart" size={20} color="#fff" />
         </Pressable>
@@ -390,9 +391,10 @@ export default function TripHubScreen() {
   const router = useRouter();
 
   const { trip, loading } = useTrip(id);
+  const { packingList } = usePackingList(id);
   const wishes = useWishes(id);
 
-  const [activeTab, setActiveTab] = useState<Tab>("wish");
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [wishInput, setWishInput] = useState("");
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const placeholderTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -431,6 +433,26 @@ export default function TripHubScreen() {
   const lockedCount = Object.keys(lockedBy).length;
   const allLocked = memberCount > 0 && lockedCount >= memberCount;
   const myLocked = !!lockedBy[user?.uid ?? ""];
+
+  const pendingDestination = !trip?.destination && !!trip?.destinationSuggestions?.length;
+  const collectingPreferences = !!trip?.collectingPreferences && !trip?.destinationSuggestions?.length;
+  const accomStatus = trip?.accommodationStatus;
+  const destConfirmed = !!trip?.destination;
+  const showAccomBanner = destConfirmed && !accomStatus;
+  const accomVoting = accomStatus === "voting";
+  const accomConfirmed = accomStatus === "confirmed";
+  const accomCollecting = accomStatus === "collecting_prefs";
+  const hasPackingList = !!packingList && Object.values(packingList).some((items) => items.length > 0);
+
+  const checklistSteps = [
+    { id: "dest", done: destConfirmed },
+    { id: "wish", done: wishes.length > 0 },
+    { id: "accom", done: accomConfirmed || accomStatus === "skipped" },
+    { id: "itinerary", done: !!trip?.itinerary },
+    { id: "packing", done: hasPackingList },
+  ];
+  const completedSteps = checklistSteps.filter(s => s.done).length;
+  const totalSteps = checklistSteps.length;
 
 
   const handleAddWish = async () => {
@@ -478,7 +500,7 @@ export default function TripHubScreen() {
   };
 
   const handleCopyId = async () => {
-    await Clipboard.setStringAsync(id ?? "");
+    await Clipboard.setStringAsync(trip?.inviteCode ?? id ?? "");
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -500,16 +522,6 @@ export default function TripHubScreen() {
     );
   }
 
-  const pendingDestination = !trip.destination && !!trip.destinationSuggestions?.length;
-  const collectingPreferences = !!trip.collectingPreferences && !trip.destinationSuggestions?.length;
-
-  const accomStatus = trip.accommodationStatus;
-  const destConfirmed = !!trip.destination;
-  const showAccomBanner = destConfirmed && !accomStatus;
-  const accomCollecting = accomStatus === "collecting_prefs";
-  const accomVoting = accomStatus === "voting";
-  const accomConfirmed = accomStatus === "confirmed";
-
   const waitingMembers = members
     .filter(([uid]) => !lockedBy[uid])
     .map(([, m]) => m.name);
@@ -529,467 +541,243 @@ export default function TripHubScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Feather name="map-pin" size={14} color={colors.primary} />
-          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {trip.destination}
-          </Text>
-        </View>
-        <Pressable onPress={() => setShowInvite(true)} style={[styles.inviteBtn, { borderColor: colors.primary }]}>
-          <Text style={[styles.inviteBtnText, { color: colors.primary }]}>Invite</Text>
-        </Pressable>
-      </View>
-
-      {/* Collecting preferences banner */}
-      {collectingPreferences && (
-        <Pressable
-          onPress={() => router.push(`/destination-preferences/${id}`)}
-          style={[styles.destBanner, { backgroundColor: "#7E57C2" }]}
-        >
-          <Feather name="sliders" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Share your travel preferences so AI can suggest destinations</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Pending destination banner */}
-      {pendingDestination && (
-        <Pressable
-          onPress={() => router.push(`/destination-vote/${id}`)}
-          style={[styles.destBanner, { backgroundColor: colors.primary }]}
-        >
-          <Feather name="zap" size={15} color="#fff" />
-          <Text style={styles.destBannerText}>Your pack is voting on the destination — join the vote</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Accommodation: prompt to choose */}
-      {showAccomBanner && (
-        <Pressable
-          onPress={() => setShowAccomModal(true)}
-          style={styles.accomBanner}
-        >
-          <View style={styles.accomBannerIconWrap}>
-            <Feather name="home" size={20} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.accomBannerTitle}>Book accommodation</Text>
-            <Text style={styles.accomBannerSub}>Choose where the pack is staying · tap to decide</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Accommodation: collecting preferences (legacy) — redirect to vote */}
-      {accomCollecting && (
-        <Pressable
-          onPress={() => router.push(`/accommodation-vote/${id}`)}
-          style={styles.accomBanner}
-        >
-          <View style={styles.accomBannerIconWrap}>
-            <Feather name="home" size={20} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.accomBannerTitle}>Submit your accommodation pick</Text>
-            <Text style={styles.accomBannerSub}>Join the group vote now</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Accommodation: voting in progress */}
-      {accomVoting && (
-        <Pressable
-          onPress={() => router.push(`/accommodation-vote/${id}`)}
-          style={styles.accomBanner}
-        >
-          <View style={styles.accomBannerIconWrap}>
-            <Feather name="home" size={20} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.accomBannerTitle}>Accommodation vote live</Text>
-            <Text style={styles.accomBannerSub}>Your pack is voting — add your voice</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Review banner — shown when trip has ended and no review yet */}
-      {showReviewBanner && (
-        <Pressable
-          onPress={() => router.push(`/review/${id}` as any)}
-          style={[styles.reviewBanner, { backgroundColor: "#F59E0B" }]}
-        >
-          <Feather name="star" size={15} color="#fff" />
-          <Text style={styles.reviewBannerText}>Your trip ended — leave a review for the pack!</Text>
-          <Feather name="arrow-right" size={15} color="#fff" />
-        </Pressable>
-      )}
-
-      {/* Members strip */}
-      <View style={[styles.membersRow, { borderBottomColor: colors.border }]}>
-        {memberNames.slice(0, 5).map((name, i) => (
-          <View key={i} style={{ marginRight: i < Math.min(memberNames.length, 5) - 1 ? -8 : 0 }}>
-            <Avatar name={name} index={i} size={30} />
-          </View>
-        ))}
-        {memberCount > 5 && (
-          <Text style={[styles.memberMore, { color: colors.mutedForeground }]}>+{memberCount - 5}</Text>
-        )}
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        {(["wish", "vote", "go"] as Tab[]).map((tab) => (
-          <Pressable
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}
-          >
-            <Text style={[styles.tabBtnText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
-              {tab === "vote" && !allLocked && lockedCount > 0
-                ? `Vote (${lockedCount}/${memberCount})`
-                : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* ── PACK GATE — host must confirm pack before wishlist unlocks ── */}
-      {!trip?.packConfirmed && (
-        <View style={styles.packGate}>
-          <GoPackIcon size={64} />
-          <Text style={[styles.gateTitle, { color: colors.foreground }]}>
-            {isHost ? "Is the pack complete?" : "Waiting for the host…"}
-          </Text>
-          <Text style={[styles.gateSub, { color: colors.mutedForeground }]}>
-            {isHost
-              ? "Once everyone has joined, confirm the pack to unlock the wishlist and start planning."
-              : `${trip?.members?.[trip?.hostMemberId ?? ""]?.name ?? "The host"} will confirm the pack when everyone is in.`}
-          </Text>
-
-          {/* Member list */}
-          <View style={[styles.gateBadge, { backgroundColor: colors.muted, borderColor: colors.border, gap: 6 }]}>
-            <Feather name="users" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.gateBadgeText, { color: colors.mutedForeground }]}>
-              {memberCount} {memberCount === 1 ? "member" : "members"} · {memberNames.join(", ")}
-            </Text>
-          </View>
-
-          {/* Invite button (always visible) */}
-          <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowInvite(true); }}
-            style={[styles.gateBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
-          >
-            <Feather name="user-plus" size={16} color={colors.foreground} />
-            <Text style={[styles.gateBtnText, { color: colors.foreground }]}>Invite someone</Text>
-          </Pressable>
-
-          {/* Confirm button — host only */}
-          {isHost && (
-            <Pressable
-              onPress={async () => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                await confirmPack(id as string);
-              }}
-              style={[styles.gateBtn, { backgroundColor: colors.primary, marginTop: 0 }]}
-            >
-              <Feather name="check-circle" size={18} color="#fff" />
-              <Text style={styles.gateBtnText}>Pack is complete — let's go!</Text>
-            </Pressable>
-          )}
-
-          <Text style={[styles.gateHint, { color: colors.mutedForeground }]}>
-            {isHost ? "You can always invite more people later" : "You'll get in as soon as the host confirms"}
-          </Text>
-        </View>
-      )}
-
-      {/* ── WISH TAB ── */}
-      {trip?.packConfirmed && activeTab === "wish" && (
+      {activeTab === "overview" && (
         <View style={{ flex: 1 }}>
-          {memberCount < 3 && (
-            <View style={[styles.inviteCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.inviteCardTitle, { color: colors.foreground }]}>Invite the pack</Text>
-                <Text style={[styles.inviteCardSub, { color: colors.mutedForeground }]}>More wishes = better plan</Text>
-              </View>
-              <Pressable
-                onPress={() => setShowInvite(true)}
-                style={[styles.inviteCardBtn, { backgroundColor: colors.primary }]}
-              >
-                <Feather name="user-plus" size={16} color="#fff" />
-              </Pressable>
-            </View>
-          )}
-          <FlatList
-            data={wishes}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <WishItem wish={item} colors={colors} />}
-            ListEmptyComponent={
-              <View style={styles.emptyWish}>
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes yet — add the first one below!</Text>
-              </View>
-            }
-            contentContainerStyle={{ paddingTop: 8 }}
-          />
-          <View style={[styles.addWishBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}>
-            <TextInput
-              style={[styles.addWishInput, { backgroundColor: colors.muted, color: colors.foreground }]}
-              placeholder={WISH_PLACEHOLDERS[placeholderIdx]}
-              placeholderTextColor={colors.mutedForeground}
-              value={wishInput}
-              onChangeText={setWishInput}
-              onSubmitEditing={handleAddWish}
-              returnKeyType="done"
-            />
-            <Pressable
-              onPress={handleAddWish}
-              style={[styles.addWishBtn, { backgroundColor: colors.primary }]}
-              disabled={!wishInput.trim()}
-            >
-              <Feather name="plus" size={22} color="#fff" />
+          <View style={[styles.heroHeader, { paddingTop: topInset }]}>
+            <Pressable onPress={() => router.back()} style={styles.heroBack}>
+              <Feather name="arrow-left" size={24} color="#fff" />
             </Pressable>
-          </View>
-        </View>
-      )}
-
-      {/* ── VOTE TAB ── */}
-      {trip?.packConfirmed && activeTab === "vote" && (
-        <View style={{ flex: 1 }}>
-          {/* Voting progress bar */}
-          <View style={[styles.lockBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>
-                {allLocked ? "Everyone's voted ✓" : `${lockedCount} of ${memberCount} finished voting`}
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTitle}>{trip.destination || (trip as any).packName || "Destination TBD"}</Text>
+              <Text style={styles.heroDates}>
+                {trip.startDate ? new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "Dates TBD"}
+                {trip.startDate && trip.days
+                  ? ` - ${new Date(trip.endDate ?? new Date(new Date(trip.startDate).getTime() + Math.max(0, trip.days - 1) * 86400000)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  : ""}
               </Text>
-              <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}>
-                <View
-                  style={[
-                    styles.lockProgressFill,
-                    {
-                      backgroundColor: allLocked ? "#4CAF50" : colors.primary,
-                      width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%",
-                    },
-                  ]}
-                />
+            </View>
+          </View>
+          
+          <View style={styles.overviewBody}>
+            <View style={styles.membersRowOverview}>
+              <View style={styles.membersStackOverview}>
+                {memberNames.slice(0, 4).map((name, i) => (
+                  <View key={i} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                    <Avatar name={name} index={i} size={36} />
+                  </View>
+                ))}
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.membersCountOverview, { color: colors.foreground }]}>{memberCount} members</Text>
+              </View>
+              <Pressable onPress={() => setShowInvite(true)} style={styles.inviteBtnOverview}>
+                <Feather name="user-plus" size={14} color={colors.primary} />
+                <Text style={styles.inviteBtnOverviewText}>Invite</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.progressContainer}>
+              <Text style={[styles.progressTitle, { color: colors.foreground }]}>Planning progress</Text>
+              <Text style={[styles.progressSubtitle, { color: colors.mutedForeground }]}>{completedSteps} of {totalSteps} steps complete</Text>
+              <View style={[styles.progressBarOverview, { backgroundColor: colors.muted }]}>
+                <View style={[styles.progressFillOverview, { backgroundColor: colors.primary, width: `${totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0}%` }]} />
               </View>
             </View>
-            {myLocked && (
-              <Pressable
-                onPress={async () => {
-                  setLockingVotes(true);
-                  await unlockVotes(id!, user?.uid ?? "");
-                  setLockingVotes(false);
-                }}
-                disabled={lockingVotes}
-                style={[styles.lockBtn, { backgroundColor: colors.primary }]}
-              >
-                {lockingVotes ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Feather name="refresh-cw" size={14} color="#fff" />
-                    <Text style={styles.lockBtnText}>Re-vote</Text>
-                  </>
-                )}
-              </Pressable>
-            )}
-          </View>
 
-          {/* Swipe deck while not done; ranked list once done */}
-          {!myLocked ? (
-            <SwipeWishStack
-              wishes={wishes}
-              uid={user?.uid ?? ""}
-              userName={user?.displayName ?? "Traveler"}
-              tripId={id!}
-              colors={colors}
-              onComplete={async () => {
-                setLockingVotes(true);
-                await lockVotes(id!, user?.uid ?? "");
-                setLockingVotes(false);
-              }}
-            />
-          ) : (
-            <FlatList
-              data={wishes}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => (
-                <VoteCard
-                  wish={item}
-                  rank={index + 1}
-                  memberCount={memberCount}
-                  colors={colors}
-                />
-              )}
-              ListHeaderComponent={
-                <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
-                  <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>Current rankings</Text>
-                  {!allLocked && (
-                    <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: "DmSans_400Regular", marginTop: 3 }}>
-                      Waiting for the rest of the pack to finish voting.
-                    </Text>
-                  )}
-                </View>
-              }
-              ListEmptyComponent={
-                <View style={styles.emptyWish}>
-                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes to vote on yet.</Text>
-                </View>
-              }
-              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: bottomInset + 12 }}
-            />
-          )}
-        </View>
-      )}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset + 20 }}>
+              {checklistSteps.map((step, idx) => {
+                let icon = "circle";
+                let title = "";
+                let onPress = () => {};
+                let statusIcon = step.done ? "check-circle" : "chevron-right";
+                let statusColor = step.done ? "#4CAF50" : colors.mutedForeground;
 
-      {/* ── GO TAB ── */}
-      {trip?.packConfirmed && activeTab === "go" && (
-        <ScrollView
-          contentContainerStyle={[styles.goTab, { paddingBottom: bottomInset + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Member lock-in status */}
-          <View style={[styles.membersLockCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.membersLockTitle, { color: colors.foreground }]}>Vote lock-in status</Text>
-            {members.map(([uid, member], i) => {
-              const isLocked = !!lockedBy[uid];
-              return (
-                <View key={uid} style={[styles.memberLockRow, { borderTopColor: colors.border }]}>
-                  <Avatar name={member.name} index={i} size={28} />
-                  <Text style={[styles.memberLockName, { color: colors.foreground }]}>{member.name}</Text>
-                  {isLocked ? (
-                    <View style={styles.lockedBadge}>
-                      <Feather name="check" size={12} color="#fff" />
-                      <Text style={styles.lockedBadgeText}>Locked</Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>Voting…</Text>
-                  )}
-                </View>
-              );
-            })}
-          </View>
+                switch (step.id) {
+                  case "dest":
+                    icon = "map-pin"; title = "Destination";
+                    onPress = () => router.push(destConfirmed ? `/destination-vote/${id}` : `/destination-preferences/${id}`);
+                    break;
+                  case "pref":
+                    icon = "sliders"; title = "Destination Preferences";
+                    onPress = () => router.push(`/destination-preferences/${id}`);
+                    if (!destConfirmed && collectingPreferences) { statusIcon = "clock"; statusColor = "#F59E0B"; }
+                    break;
+                  case "wish":
+                    icon = "star"; title = "Wishes";
+                    onPress = () => router.push(`/wishlist/${id}`);
+                    break;
+                  case "vote":
+                    icon = "check-square"; title = "Vote on Wishes";
+                    onPress = () => router.push(`/wishlist-vote/${id}`);
+                    if (wishes.length > 0 && !allLocked) { statusIcon = "clock"; statusColor = "#F59E0B"; }
+                    break;
+                  case "accom":
+                    icon = "home"; title = "Accommodation";
+                    onPress = () => showAccomBanner ? setShowAccomModal(true) : router.push(`/accommodation-preferences/${id}`);
+                    if (accomVoting || accomCollecting) { statusIcon = "clock"; statusColor = "#F59E0B"; }
+                    break;
+                  case "itinerary":
+                    icon = "calendar"; title = "Itinerary";
+                    if (trip.itinerary) {
+                      onPress = () => router.push(`/itinerary/${id}`);
+                    } else if (allLocked) {
+                      onPress = () => router.push(`/building/${id}`);
+                      statusIcon = "clock"; statusColor = "#F59E0B";
+                    } else {
+                      onPress = () => setActiveTab("go");
+                      statusIcon = "clock"; statusColor = "#F59E0B";
+                    }
+                    break;
+                  case "packing":
+                    icon = "package"; title = "Packing list";
+                    onPress = () => router.push(`/packing/${id}`);
+                    break;
+                }
 
-          {/* Confirmed accommodation card */}
-          {accomConfirmed && trip.confirmedAccommodation && (() => {
-            const a = trip.confirmedAccommodation!;
-            const openURL = (url: string) => {
-              if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-              else Linking.openURL(url);
-            };
-            const checkIn = trip.startDate ?? "";
-            const checkOut = (() => {
-              if (!trip.startDate) return "";
-              try {
-                const d = new Date(trip.startDate + "T00:00:00");
-                d.setDate(d.getDate() + (trip.days ?? 0));
-                return d.toISOString().split("T")[0];
-              } catch { return ""; }
-            })();
-            const q = encodeURIComponent(`${a.name} ${a.location}`);
-            return (
-              <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <Feather name="home" size={13} color="#26A69A" />
-                  <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION CONFIRMED</Text>
-                </View>
-                <Text style={[styles.accomCardName, { color: colors.foreground }]}>{a.name}</Text>
-                <Text style={[styles.accomCardSub, { color: colors.mutedForeground }]}>
-                  {a.location} · ${a.costPerPerson}/person
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  {a.link ? (
-                    <Pressable
-                      onPress={() => openURL(a.link!)}
-                      style={[styles.accomBookBtn, { backgroundColor: "#26A69A" }]}
-                    >
-                      <Feather name="external-link" size={13} color="#fff" />
-                      <Text style={styles.accomBookBtnText}>View listing</Text>
+                if (step.id === "pref" && destConfirmed) return null; // Hide prefs once confirmed like in wireframe
+
+                return (
+                  <React.Fragment key={step.id}>
+                    <Pressable onPress={onPress} style={[styles.checklistItem, { borderBottomColor: colors.border }]}>
+                      <View style={[styles.checklistIconWrap, { backgroundColor: step.done ? "#4CAF5015" : colors.muted }]}>
+                        <Feather name={icon as any} size={18} color={step.done ? "#4CAF50" : colors.foreground} />
+                      </View>
+                      <Text style={[styles.checklistTitle, { color: colors.foreground }]}>{title}</Text>
+                      <Feather name={statusIcon as any} size={20} color={statusColor} />
                     </Pressable>
-                  ) : (
-                    <>
+                    {step.id === "dest" && !destConfirmed && (
                       <Pressable
-                        onPress={() => openURL(`https://www.airbnb.com/s/${encodeURIComponent(a.location)}/homes?query=${q}${checkIn ? `&checkin=${checkIn}&checkout=${checkOut}` : ""}`)}
-                        style={[styles.accomBookBtn, { backgroundColor: "#FF5A5F" }]}
+                        onPress={() => router.push(`/destination-preferences/${id}`)}
+                        style={[styles.helpDecideBtn, { backgroundColor: "#E85D3A15", borderColor: "#E85D3A40" }]}
                       >
-                        <Feather name="search" size={13} color="#fff" />
-                        <Text style={styles.accomBookBtnText}>Airbnb</Text>
+                        <Feather name="compass" size={15} color="#E85D3A" />
+                        <Text style={styles.helpDecideText}>Help us decide!</Text>
                       </Pressable>
-                      <Pressable
-                        onPress={() => openURL(`https://www.booking.com/search.html?ss=${q}${checkIn ? `&checkin=${checkIn}&checkout=${checkOut}` : ""}`)}
-                        style={[styles.accomBookBtn, { backgroundColor: "#003580" }]}
-                      >
-                        <Feather name="search" size={13} color="#fff" />
-                        <Text style={styles.accomBookBtnText}>Booking.com</Text>
-                      </Pressable>
-                    </>
-                  )}
-                </View>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* Other Tabs (Wish, Vote, Go) */}
+      {activeTab !== "overview" && (
+        <>
+          <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
+            <Pressable onPress={() => setActiveTab("overview")} style={styles.backBtn}>
+              <Feather name="arrow-left" size={22} color={colors.foreground} />
+            </Pressable>
+            <View style={styles.headerCenter}>
+              <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+                {activeTab === 'wish' ? 'Wishes' : activeTab === 'vote' ? 'Vote on Wishes' : 'Itinerary'}
+              </Text>
+            </View>
+          </View>
+
+          {/* ── PACK GATE ── */}
+          {!trip?.packConfirmed && (
+            <View style={styles.packGate}>
+              <GoPackIcon size={64} />
+              <Text style={[styles.gateTitle, { color: colors.foreground }]}>
+                {isHost ? "Is the pack complete?" : "Waiting for the host…"}
+              </Text>
+              <Text style={[styles.gateSub, { color: colors.mutedForeground }]}>
+                {isHost
+                  ? "Once everyone has joined, confirm the pack to unlock the wishlist and start planning."
+                  : `${trip?.members?.[trip?.hostMemberId ?? ""]?.name ?? "The host"} will confirm the pack when everyone is in.`}
+              </Text>
+              <View style={[styles.gateBadge, { backgroundColor: colors.muted, borderColor: colors.border, gap: 6 }]}>
+                <Feather name="users" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.gateBadgeText, { color: colors.mutedForeground }]}>
+                  {memberCount} {memberCount === 1 ? "member" : "members"} · {memberNames.join(", ")}
+                </Text>
               </View>
-            );
-          })()}
-
-          {/* Generate itinerary card */}
-          <Pressable
-            onPress={() => {
-              if (!allLocked) return;
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              router.push(`/building/${id}`);
-            }}
-            style={[styles.goCard, { opacity: allLocked ? 1 : 0.5 }]}
-          >
-            <Text style={styles.goReadyLabel}>
-              {allLocked ? "READY WHEN YOU ARE" : "WAITING FOR PACK"}
-            </Text>
-            <Text style={styles.goCardTitle}>Build the{"\n"}itinerary</Text>
-            {!allLocked && (
-              <Text style={styles.goWaiting}>
-                {waitingMembers.length > 0
-                  ? `Still swiping: ${waitingMembers.join(", ")}`
-                  : "Everyone needs to finish voting first"}
-              </Text>
-            )}
-            {!allLocked && (
-              <Text style={{ color: "#fff", opacity: 0.65, fontSize: 11, fontFamily: "DmSans_400Regular", marginBottom: 4 }}>
-                Head to the Vote tab to swipe through the wishes
-              </Text>
-            )}
-            <View style={[styles.goCardBtn, { backgroundColor: allLocked ? "#E85D3A" : "#7A6E68" }]}>
-              <Feather name={allLocked ? "arrow-right" : "clock"} size={22} color="#fff" />
+              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowInvite(true); }} style={[styles.gateBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}>
+                <Feather name="user-plus" size={16} color={colors.foreground} />
+                <Text style={[styles.gateBtnText, { color: colors.foreground }]}>Invite someone</Text>
+              </Pressable>
+              {isHost && (
+                <Pressable onPress={async () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); await confirmPack(id as string); }} style={[styles.gateBtn, { backgroundColor: colors.primary, marginTop: 0 }]}>
+                  <Feather name="check-circle" size={18} color="#fff" />
+                  <Text style={styles.gateBtnText}>Pack is complete — let's go!</Text>
+                </Pressable>
+              )}
             </View>
-          </Pressable>
+          )}
 
-          {/* Packing list card */}
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push(`/packing/${id}`);
-            }}
-            style={[styles.packCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.packCardLeft}>
-              <Text style={[styles.packCardLabel, { color: colors.primary }]}>AI PACKING LIST</Text>
-              <Text style={[styles.packCardTitle, { color: colors.foreground }]}>Pack smart{"\n"}for the trip</Text>
+          {/* ── WISH TAB ── */}
+          {trip?.packConfirmed && activeTab === "wish" && (
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={wishes}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => <WishItem wish={item} colors={colors} />}
+                ListEmptyComponent={<View style={styles.emptyWish}><Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No wishes yet — add the first one below!</Text></View>}
+                contentContainerStyle={{ paddingTop: 8 }}
+              />
+              <View style={[styles.addWishBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}>
+                <TextInput style={[styles.addWishInput, { backgroundColor: colors.muted, color: colors.foreground }]} placeholder={WISH_PLACEHOLDERS[placeholderIdx]} placeholderTextColor={colors.mutedForeground} value={wishInput} onChangeText={setWishInput} onSubmitEditing={handleAddWish} returnKeyType="done" />
+                <Pressable onPress={handleAddWish} style={[styles.addWishBtn, { backgroundColor: colors.primary }]} disabled={!wishInput.trim()}>
+                  <Feather name="plus" size={22} color="#fff" />
+                </Pressable>
+              </View>
             </View>
-            <View style={[styles.packCardBtn, { backgroundColor: colors.muted }]}>
-              <Feather name="package" size={20} color={colors.foreground} />
-            </View>
-          </Pressable>
+          )}
 
-          <Pressable onPress={() => setShowInvite(true)}>
-            <Text style={[styles.goManageLink, { color: colors.mutedForeground }]}>
-              Manage invite & privacy
-            </Text>
-          </Pressable>
-        </ScrollView>
+          {/* ── VOTE TAB ── */}
+          {trip?.packConfirmed && activeTab === "vote" && (
+            <View style={{ flex: 1 }}>
+              <View style={[styles.lockBar, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.lockBarTitle, { color: colors.foreground }]}>{allLocked ? "Everyone's voted ✓" : `${lockedCount} of ${memberCount} finished voting`}</Text>
+                  <View style={[styles.lockProgress, { backgroundColor: colors.muted }]}><View style={[styles.lockProgressFill, { backgroundColor: allLocked ? "#4CAF50" : colors.primary, width: memberCount > 0 ? `${(lockedCount / memberCount) * 100}%` : "0%" }]} /></View>
+                </View>
+                {myLocked && (
+                  <Pressable onPress={async () => { setLockingVotes(true); await unlockVotes(id!, user?.uid ?? ""); setLockingVotes(false); }} disabled={lockingVotes} style={[styles.lockBtn, { backgroundColor: colors.primary }]}>
+                    {lockingVotes ? <ActivityIndicator color="#fff" size="small" /> : <><Feather name="refresh-cw" size={14} color="#fff" /><Text style={styles.lockBtnText}>Re-vote</Text></>}
+                  </Pressable>
+                )}
+              </View>
+              {!myLocked ? (
+                <SwipeWishStack wishes={wishes} uid={user?.uid ?? ""} userName={user?.displayName ?? "Traveler"} tripId={id!} colors={colors} onComplete={async () => { setLockingVotes(true); await lockVotes(id!, user?.uid ?? ""); setLockingVotes(false); }} />
+              ) : (
+                <FlatList data={wishes} keyExtractor={(item) => item.id} renderItem={({ item, index }) => <VoteCard wish={item} rank={index + 1} memberCount={memberCount} colors={colors} />} ListHeaderComponent={<View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}><Text style={[styles.lockBarTitle, { color: colors.foreground }]}>Current rankings</Text></View>} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 12 }} />
+              )}
+            </View>
+          )}
+
+          {/* ── GO TAB ── */}
+          {trip?.packConfirmed && activeTab === "go" && (
+            <ScrollView contentContainerStyle={[styles.goTab, { paddingBottom: bottomInset + 24 }]} showsVerticalScrollIndicator={false}>
+              {/* Vote lock-in status */}
+              <View style={[styles.membersLockCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.membersLockTitle, { color: colors.foreground }]}>Vote lock-in status</Text>
+                {members.map(([uid, member], i) => (
+                  <View key={uid} style={[styles.memberLockRow, { borderTopColor: colors.border }]}>
+                    <Avatar name={member.name} index={i} size={28} />
+                    <Text style={[styles.memberLockName, { color: colors.foreground }]}>{member.name}</Text>
+                    {!!lockedBy[uid]
+                      ? <View style={styles.lockedBadge}><Feather name="check" size={12} color="#fff" /><Text style={styles.lockedBadgeText}>Locked</Text></View>
+                      : <Text style={[styles.waitingText, { color: colors.mutedForeground }]}>Voting…</Text>}
+                  </View>
+                ))}
+              </View>
+
+              {/* Generate CTA when all locked */}
+              {allLocked && (
+                <Pressable
+                  onPress={() => router.push(`/building/${id}`)}
+                  style={[styles.generateItineraryBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Feather name="zap" size={18} color="#fff" />
+                  <Text style={styles.generateItineraryText}>Generate itinerary</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+          )}
+        </>
       )}
 
       {/* Accommodation choice modal */}
@@ -998,87 +786,38 @@ export default function TripHubScreen() {
           <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <Feather name="home" size={20} color="#26A69A" />
+              <Feather name="home" size={20} color={colors.primary} />
               <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Accommodation</Text>
             </View>
-            <Text style={[styles.sheetLabel, { color: colors.mutedForeground, textTransform: "none", letterSpacing: 0, fontSize: 13, marginBottom: 8 }]}>
-              How do you want to handle where the group stays?
-            </Text>
-
-            <Pressable
-              onPress={() => handleAccomChoice("vote")}
-              style={[styles.accomOption, { backgroundColor: "#26A69A10", borderColor: "#26A69A" }]}
-            >
-              <View style={[styles.accomOptionIcon, { backgroundColor: "#26A69A" }]}>
-                <Feather name="link" size={18} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Submit & vote on links</Text>
-                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Everyone adds their preferred listing — the pack votes, AI breaks ties</Text>
-              </View>
-              <Feather name="arrow-right" size={18} color="#26A69A" />
+            <Text style={[styles.sheetLabel, { color: colors.mutedForeground, textTransform: "none", letterSpacing: 0, fontSize: 13, marginBottom: 8 }]}>How do you want to handle where the group stays?</Text>
+            <Pressable onPress={() => handleAccomChoice("vote")} style={[styles.accomOption, { backgroundColor: colors.primary + "10", borderColor: colors.primary }]}>
+              <View style={[styles.accomOptionIcon, { backgroundColor: colors.primary }]}><Feather name="link" size={18} color="#fff" /></View>
+              <View style={{ flex: 1 }}><Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Submit & vote on links</Text><Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Everyone adds their preferred listing — the pack votes, AI breaks ties</Text></View>
+              <Feather name="arrow-right" size={18} color={colors.primary} />
             </Pressable>
-
-            <Pressable
-              onPress={() => handleAccomChoice("booked")}
-              style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}
-            >
-              <View style={[styles.accomOptionIcon, { backgroundColor: colors.primary }]}>
-                <Feather name="check-circle" size={18} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>We already booked</Text>
-                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Skip this — accommodation is sorted</Text>
-              </View>
+            <Pressable onPress={() => handleAccomChoice("booked")} style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <View style={[styles.accomOptionIcon, { backgroundColor: colors.primary }]}><Feather name="check-circle" size={18} color="#fff" /></View>
+              <View style={{ flex: 1 }}><Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>We already booked</Text><Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Skip this — accommodation is sorted</Text></View>
             </Pressable>
-
-            <Pressable
-              onPress={() => handleAccomChoice("later")}
-              style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}
-            >
-              <View style={[styles.accomOptionIcon, { backgroundColor: colors.muted }]}>
-                <Feather name="clock" size={18} color={colors.mutedForeground} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Decide later</Text>
-                <Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Come back to this when ready</Text>
-              </View>
+            <Pressable onPress={() => { handleAccomChoice("later"); setShowAccomModal(false); }} style={[styles.accomOption, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <View style={[styles.accomOptionIcon, { backgroundColor: colors.mutedForeground }]}><Feather name="clock" size={18} color="#fff" /></View>
+              <View style={{ flex: 1 }}><Text style={[styles.accomOptionTitle, { color: colors.foreground }]}>Decide later</Text><Text style={[styles.accomOptionSub, { color: colors.mutedForeground }]}>Mark as done and come back to it</Text></View>
             </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
-
 
       {/* Invite modal */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowInvite(false)}>
           <Pressable style={[styles.inviteSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <View style={{ alignItems: "center", marginBottom: 4 }}>
-              <Mascot name="luggage-crew" size={80} />
-            </View>
-            <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Invite the pack</Text>
-              <Pressable onPress={() => setShowInvite(false)}>
-                <Feather name="x" size={20} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
+            <View style={{ alignItems: "center", marginBottom: 4 }}><Mascot name="luggage-crew" size={80} /></View>
+            <View style={styles.sheetHeader}><Text style={[styles.sheetTitle, { color: colors.foreground }]}>Invite the pack</Text><Pressable onPress={() => setShowInvite(false)}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable></View>
             <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP LINK</Text>
-            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <Text style={[styles.sheetLinkText, { color: colors.foreground }]} numberOfLines={1}>
-                {inviteLink}
-              </Text>
-              <Pressable onPress={handleCopy} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
-                <Feather name={copied ? "check" : "copy"} size={16} color="#fff" />
-              </Pressable>
-            </View>
-            <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>TRIP ID</Text>
-            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <Text style={[styles.inviteCode, { color: colors.primary }]}>{id}</Text>
-              <Pressable onPress={handleCopyId} style={[styles.copyBtn, { backgroundColor: colors.primary }]}>
-                <Feather name={copiedId ? "check" : "copy"} size={16} color="#fff" />
-              </Pressable>
-            </View>
+            <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}><Text style={[styles.sheetLinkText, { color: colors.foreground }]} numberOfLines={1}>{inviteLink}</Text><Pressable onPress={handleCopy} style={[styles.copyBtn, { backgroundColor: colors.primary }]}><Feather name={copied ? "check" : "copy"} size={16} color="#fff" /></Pressable></View>
+             <Text style={[styles.sheetLabel, { color: colors.mutedForeground }]}>INVITE CODE</Text>
+             <View style={[styles.sheetLinkRow, { backgroundColor: colors.muted, borderColor: colors.border }]}><Text style={[styles.inviteCode, { color: colors.primary }]}>{trip?.inviteCode ?? id}</Text><Pressable onPress={handleCopyId} style={[styles.copyBtn, { backgroundColor: colors.primary }]}><Feather name={copiedId ? "check" : "copy"} size={16} color="#fff" /></Pressable></View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1198,10 +937,10 @@ const styles = StyleSheet.create({
     width: "100%", backgroundColor: "#2B2723",
     borderRadius: 20, padding: 28, gap: 10,
   },
-  goReadyLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2, color: "#E85D3A" },
+  goReadyLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2, color: "#F15A3A" },
   goCardTitle: {
     fontFamily: "PlayfairDisplay_700Bold", fontSize: 30,
-    color: "#FFFDF9", lineHeight: 38,
+    color: "#FFFFFF", lineHeight: 38,
   },
   goWaiting: { fontFamily: "DmSans_400Regular", fontSize: 13, color: "#756C66" },
   goCardBtn: {
@@ -1491,6 +1230,136 @@ const styles = StyleSheet.create({
   allDoneTitle: {
     fontFamily: "PlayfairDisplay_700Bold",
     fontSize: 26,
+  },
+  heroHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    backgroundColor: '#F15A3A', // primary coral
+    minHeight: 140,
+    justifyContent: 'space-between',
+  },
+  heroBack: {
+    marginBottom: 16,
+  },
+  heroContent: {
+    gap: 4,
+  },
+  heroTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 28,
+    color: '#fff',
+  },
+  heroDates: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  overviewBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  membersRowOverview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  membersStackOverview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  membersCountOverview: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 15,
+  },
+  inviteBtnOverview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#F15A3A15',
+    borderRadius: 100,
+  },
+  inviteBtnOverviewText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 14,
+    color: '#F15A3A',
+  },
+  progressContainer: {
+    marginBottom: 24,
+  },
+  progressTitle: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  progressSubtitle: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  progressBarOverview: {
+    height: 6,
+    borderRadius: 3,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  progressFillOverview: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  checklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  checklistIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  checklistTitle: {
+    flex: 1,
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 16,
+  },
+  helpDecideBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 0,
+    marginTop: -1,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  helpDecideText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 14,
+    color: "#E85D3A",
+  },
+  generateItineraryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 24,
+  },
+  generateItineraryText: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 16,
+    color: "#fff",
   },
   allDoneSub: {
     fontFamily: "DmSans_400Regular",

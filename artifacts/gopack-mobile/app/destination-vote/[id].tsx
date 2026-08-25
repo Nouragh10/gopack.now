@@ -40,7 +40,7 @@ import {
   voteDestination,
 } from "@/hooks/useFirebase";
 
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 420);
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
@@ -115,8 +115,12 @@ function TopDestinationCard({
           <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
         </Animated.View>
 
+        <View style={{ width: '100%', height: 180, backgroundColor: colors.muted, borderRadius: 12, marginBottom: 12, alignItems: 'center', justifyContent: 'center' }}>
+          <Feather name="map" size={40} color={colors.mutedForeground} opacity={0.3} />
+        </View>
+
         {myVote ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: myVote === "up" ? "#4CAF5018" : "#9E9E9E18", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: myVote === "up" ? "#4CAF5018" : "#9E9E9E18", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginBottom: 8 }}>
             <Feather name={myVote === "up" ? "heart" : "x"} size={12} color={myVote === "up" ? "#4CAF50" : "#9E9E9E"} />
             <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 12, color: myVote === "up" ? "#4CAF50" : "#9E9E9E" }}>
               {myVote === "up" ? "You loved this" : "You skipped"}
@@ -124,8 +128,8 @@ function TopDestinationCard({
           </View>
         ) : null}
 
-        <Text style={[styles.swipeCardName, { color: colors.foreground }]}>{suggestion.name}</Text>
-        <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 15, color: colors.mutedForeground, lineHeight: 22 }}>
+        <Text style={[styles.swipeCardName, { color: colors.foreground, marginBottom: 4 }]}>{suggestion.name}</Text>
+        <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 15, color: colors.mutedForeground, lineHeight: 22, marginBottom: 12 }}>
           {suggestion.pitch}
         </Text>
 
@@ -233,11 +237,13 @@ function DestinationSwipeStack({
         />
       </View>
       <View style={styles.swipeTapRow}>
-        <Pressable onPress={onSwipeLeft} style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}>
-          <Feather name="x" size={28} color="#ef4444" />
+        <Pressable onPress={onSwipeLeft} style={[styles.swipeActionPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="x" size={20} color="#ef4444" />
+          <Text style={[styles.swipeActionPillText, { color: colors.foreground }]}>Skip</Text>
         </Pressable>
-        <Pressable onPress={onSwipeRight} style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}>
-          <Feather name="heart" size={26} color="#4CAF50" />
+        <Pressable onPress={onSwipeRight} style={[styles.swipeActionPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="heart" size={18} color="#F15A3A" />
+          <Text style={[styles.swipeActionPillText, { color: colors.foreground }]}>Love it</Text>
         </Pressable>
       </View>
     </View>
@@ -275,7 +281,7 @@ function SuggestionCard({
       styles.card,
       {
         backgroundColor: isWinning && allLocked ? "#2B2723" : colors.card,
-        borderColor: isWinning && allLocked ? "#E85D3A" : colors.border,
+        borderColor: isWinning && allLocked ? "#F15A3A" : colors.border,
         borderWidth: isWinning && allLocked ? 2 : 1,
       },
     ]}>
@@ -286,7 +292,7 @@ function SuggestionCard({
       )}
       <View style={styles.cardTop}>
         <View style={{ flex: 1, gap: 6 }}>
-          <Text style={[styles.cardName, { color: isWinning && allLocked ? "#FFFDF9" : colors.foreground }]}>
+          <Text style={[styles.cardName, { color: isWinning && allLocked ? "#FFFFFF" : colors.foreground }]}>
             {suggestion.name}
           </Text>
           <Text style={[styles.cardPitch, { color: isWinning && allLocked ? "#BDB0A0" : colors.mutedForeground }]}>
@@ -859,8 +865,13 @@ const styles = StyleSheet.create({
   swipeLabelRight: { right: 14, borderColor: "#4CAF50" },
   swipeLabelLeft: { left: 14, borderColor: "#ef4444" },
   swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 13, letterSpacing: 1 },
-  swipeTapRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
-  swipeTapBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeTapRow: { flexDirection: "row", gap: 16, marginTop: 12, marginBottom: 4 },
+  swipeActionPill: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 100, borderWidth: 1, paddingHorizontal: 28, paddingVertical: 14,
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  swipeActionPillText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
   swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 11, textAlign: "center", marginTop: 2 },
 
@@ -870,7 +881,7 @@ const styles = StyleSheet.create({
   allDoneSub: { fontFamily: "DmSans_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
 
   card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
-  winBadge: { alignSelf: "flex-start", backgroundColor: "#E85D3A", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  winBadge: { alignSelf: "flex-start", backgroundColor: "#F15A3A", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   winBadgeText: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff", letterSpacing: 1 },
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   cardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, lineHeight: 28 },
@@ -885,7 +896,7 @@ const styles = StyleSheet.create({
   voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
   confirmBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, backgroundColor: "#E85D3A", borderRadius: 12, paddingVertical: 13, marginTop: 4,
+    gap: 8, backgroundColor: "#F15A3A", borderRadius: 100, paddingVertical: 14, marginTop: 4,
   },
   confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
   waitingBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, padding: 14, borderWidth: 1 },

@@ -5,10 +5,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import React, { useState, useEffect } from "react";
+import * as WebBrowser from "expo-web-browser";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -30,20 +32,23 @@ import {
   Activity,
   ItineraryDay,
   TripMember,
+  Wish,
   addActivity,
   updateActivity,
   deleteActivity,
   incrementAiUsage,
   savePack,
   useTrip,
+  useWishes,
 } from "@/hooks/useFirebase";
 import { Mascot } from "@/components/Mascot";
+import { WikiImage } from "@/components/WikiImage";
 
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 const TAG_COLORS: Record<string, string> = {
-  food: "#E85D3A",
-  dining: "#E85D3A",
+  food: "#F15A3A",
+  dining: "#F15A3A",
   culture: "#9C5544",
   museum: "#9C5544",
   art: "#9C5544",
@@ -148,10 +153,18 @@ function buildItineraryHTML(
 
   const daysHtml = days
     .map((day) => {
+      const tagEmoji: Record<string, string> = {
+        food:"🍽", dining:"🍽", culture:"🏛", museum:"🏛", art:"🎨",
+        adventure:"🧗", outdoor:"🌿", nature:"🌊", transport:"🚌",
+        accommodation:"🏠", hotel:"🏠", relax:"🧘", wellness:"🧘",
+        nightlife:"🌙", shopping:"🛍", beach:"🏖",
+      };
+
       const activitiesHtml = day.activities
         .map(
           (act, idx) => {
             const tagColor = getTagColor(act.tag);
+            const emoji = tagEmoji[act.tag?.toLowerCase() ?? ""] ?? "✦";
             const isWish = act.fromWish;
             const isManual = !act.fromWish && act.suggester && act.suggester !== "AI pick";
             const attributionText = isWish
@@ -159,23 +172,28 @@ function buildItineraryHTML(
               : isManual
               ? `+ Added by ${act.suggester}`
               : act.matchedVibe
-              ? `✦ AI · ${act.matchedVibe}`
+              ? `✦ ${act.matchedVibe}`
               : `✦ AI pick`;
-            const attrColor = isWish ? "#D97706" : isManual ? "#26A69A" : "#9E9E9E";
-            const attrBg = isWish ? "#FFFBEB" : isManual ? "#F0FAF9" : "transparent";
+            const attrColor = isWish ? "#D97706" : isManual ? "#26A69A" : "#A8A298";
+            const attrBg  = isWish ? "#FFFBEB" : isManual ? "#F0FAF9" : "#F4F1EC";
+            const isLast  = idx === day.activities.length - 1;
 
             return `
-          <div class="act ${isWish ? "act-wish" : ""}">
-            <div class="act-index">${idx + 1}</div>
-            <div class="act-accent" style="background:${tagColor}"></div>
-            <div class="act-body">
-              <div class="act-header">
-                <span class="act-time">${act.time}</span>
-                <span class="act-attr" style="color:${attrColor};background:${attrBg}">${attributionText}</span>
+          <div class="tl-item">
+            <div class="tl-left">
+              <div class="tl-dot" style="background:${tagColor}">${emoji}</div>
+              ${!isLast ? `<div class="tl-line"></div>` : ""}
+            </div>
+            <div class="tl-card ${isWish ? "tl-card-wish" : ""}">
+              <div class="tl-card-top">
+                <span class="tl-time">${act.time}</span>
+                <span class="tl-attr" style="color:${attrColor};background:${attrBg}">${attributionText}</span>
               </div>
-              <div class="act-name">${act.name}</div>
-              <div class="act-desc">${act.description}</div>
-              ${act.estimatedCost > 0 ? `<div class="act-cost">≈ $${act.estimatedCost} <span style="font-weight:400;opacity:.7">per person</span></div>` : `<div class="act-cost" style="color:#26A69A">Free</div>`}
+              <div class="tl-name">${act.name}</div>
+              <div class="tl-desc">${act.description}</div>
+              <div class="tl-cost" style="${act.estimatedCost === 0 ? "color:#26A69A" : ""}">
+                ${act.estimatedCost === 0 ? "Free ✓" : `≈ $${act.estimatedCost} <span style="font-weight:400;opacity:.65">/ person</span>`}
+              </div>
             </div>
           </div>`;
           }
@@ -194,7 +212,7 @@ function buildItineraryHTML(
             </div>
             ${dayCost > 0 ? `<div class="day-cost">≈ $${dayCost}<span class="day-cost-label">/person</span></div>` : ""}
           </div>
-          <div class="activities-grid">
+          <div class="timeline">
             ${activitiesHtml}
           </div>
         </div>`;
@@ -263,7 +281,7 @@ body{
 }
 .logo-mark{
   width:32px;height:32px;
-  background:#E85D3A;
+  background:#F15A3A;
   border-radius:8px;
   display:flex;align-items:center;justify-content:center;
   font-size:16px;
@@ -275,7 +293,7 @@ body{
 }
 .cover-badge{
   font-size:10px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
-  color:#E85D3A;
+  color:#F15A3A;
   border:1px solid rgba(232,93,58,.4);
   padding:6px 14px;border-radius:20px;
 }
@@ -297,7 +315,7 @@ body{
   font-size:18px;font-weight:500;color:#A39A93;margin-bottom:64px;
   display:flex;align-items:center;gap:10px;
 }
-.cover-dest-dot{width:6px;height:6px;border-radius:50%;background:#E85D3A;flex-shrink:0}
+.cover-dest-dot{width:6px;height:6px;border-radius:50%;background:#F15A3A;flex-shrink:0}
 .cover-rule{height:1px;background:linear-gradient(90deg,rgba(232,93,58,.6),rgba(232,93,58,.1),transparent)}
 .cover-stats{
   display:grid;grid-template-columns:repeat(4,1fr);
@@ -351,7 +369,7 @@ body{
   background:linear-gradient(135deg,#FFF8F5,#FFF0EB);
   border:1px solid rgba(232,93,58,.25);
   border-radius:20px;padding:5px 14px;
-  font-size:12px;font-weight:600;color:#E85D3A;text-transform:capitalize;
+  font-size:12px;font-weight:600;color:#F15A3A;text-transform:capitalize;
 }
 
 /* ─── ACCOMMODATION ─────────────────────────────── */
@@ -388,11 +406,11 @@ body{
 }
 .day-header::after{
   content:"";position:absolute;bottom:-1px;left:0;
-  width:72px;height:3px;border-radius:2px;background:#E85D3A;
+  width:72px;height:3px;border-radius:2px;background:#F15A3A;
 }
 .day-number{
   font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  color:#E85D3A;padding-bottom:6px;white-space:nowrap;min-width:40px;
+  color:#F15A3A;padding-bottom:6px;white-space:nowrap;min-width:40px;
 }
 .day-info{flex:1}
 .day-city{
@@ -408,43 +426,56 @@ body{
 }
 .day-cost-label{font-size:11px;font-weight:500;color:#8C8480;font-family:'Inter',sans-serif}
 
-/* ─── ACTIVITIES ────────────────────────────────── */
-.activities-grid{display:flex;flex-direction:column;gap:12px}
-.act{
-  display:flex;align-items:stretch;
-  border-radius:14px;overflow:hidden;
-  border:1px solid #EDE8DE;
-  background:#FEFCF8;
-  box-shadow:0 1px 2px rgba(26,23,20,.04);
+/* ─── TIMELINE ──────────────────────────────────── */
+.timeline{display:flex;flex-direction:column;padding-left:0}
+.tl-item{display:flex;align-items:stretch;gap:16px;min-height:0}
+.tl-left{
+  display:flex;flex-direction:column;align-items:center;
+  width:40px;flex-shrink:0;
 }
-.act-wish{
-  border-color:rgba(217,119,6,.28);
-  background:linear-gradient(135deg,#FFFBEB,#FFF8EE);
-}
-.act-index{
-  width:38px;flex-shrink:0;
+.tl-dot{
+  width:38px;height:38px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:700;color:#C4BDB6;
-  background:#F8F5F0;border-right:1px solid #EDE8DE;
+  font-size:17px;flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,.13);
 }
-.act-wish .act-index{background:#FFF3D0;color:#D97706;border-color:rgba(217,119,6,.2)}
-.act-accent{width:4px;flex-shrink:0}
-.act-body{flex:1;padding:16px 20px 14px}
-.act-header{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
-.act-time{
-  font-size:11px;font-weight:700;color:#A8A298;
-  letter-spacing:.5px;min-width:58px;
+.tl-line{
+  flex:1;width:2px;background:linear-gradient(to bottom,rgba(0,0,0,.08),rgba(0,0,0,.04));
+  margin:4px 0 4px;border-radius:1px;
 }
-.act-attr{
-  font-size:10px;font-weight:600;letter-spacing:.3px;
-  padding:3px 10px;border-radius:10px;
+.tl-card{
+  flex:1;
+  background:#FEFCF8;
+  border:1px solid #EDE8DE;
+  border-radius:14px;
+  padding:15px 18px 13px;
+  margin-bottom:14px;
+  box-shadow:0 1px 4px rgba(26,23,20,.05),0 4px 12px rgba(26,23,20,.03);
 }
-.act-name{
-  font-size:16px;font-weight:700;color:#1A1714;
-  margin-bottom:6px;line-height:1.3;letter-spacing:-.1px;
+.tl-card-wish{
+  border-color:rgba(217,119,6,.3);
+  background:linear-gradient(135deg,#FFFBEB,#FFF8EE);
+  box-shadow:0 1px 4px rgba(217,119,6,.08),0 4px 12px rgba(217,119,6,.04);
 }
-.act-desc{font-size:12.5px;color:#5A534D;line-height:1.65;margin-bottom:9px}
-.act-cost{font-size:12px;font-weight:700;color:#1A1714;padding-top:2px;border-top:1px solid rgba(26,23,20,.06)}
+.tl-card-top{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+.tl-time{
+  font-size:11px;font-weight:700;color:#A8A298;letter-spacing:.8px;
+  text-transform:uppercase;white-space:nowrap;min-width:58px;
+}
+.tl-attr{
+  font-size:10px;font-weight:600;letter-spacing:.2px;
+  padding:3px 9px;border-radius:9px;
+}
+.tl-name{
+  font-family:'Playfair Display',Georgia,serif;
+  font-size:17px;font-weight:700;color:#1A1714;
+  margin-bottom:5px;line-height:1.28;letter-spacing:-.1px;
+}
+.tl-desc{font-size:12.5px;color:#5A534D;line-height:1.68;margin-bottom:10px}
+.tl-cost{
+  font-size:12px;font-weight:700;color:#1A1714;
+  padding-top:8px;border-top:1px solid rgba(26,23,20,.06);
+}
 
 /* ─── TOTALS ─────────────────────────────────────── */
 .totals-section{
@@ -460,7 +491,7 @@ body{
 }
 .totals-circle{
   width:72px;height:72px;border-radius:50%;
-  background:linear-gradient(135deg,#E85D3A,#D44E2D);
+  background:linear-gradient(135deg,#F15A3A,#E6492D);
   display:flex;align-items:center;justify-content:center;
   font-size:30px;flex-shrink:0;
   box-shadow:0 0 0 12px rgba(232,93,58,.1);
@@ -483,7 +514,7 @@ body{
   font-size:18px;color:#FFFDF9;font-weight:700;
   display:flex;align-items:center;gap:10px;
 }
-.footer-dot{width:8px;height:8px;border-radius:50%;background:#E85D3A}
+.footer-dot{width:8px;height:8px;border-radius:50%;background:#F15A3A}
 .footer-meta{font-size:11px;color:#4A4440;text-align:right;line-height:1.8}
 </style>
 </head>
@@ -498,7 +529,7 @@ body{
   <div class="cover-top">
     <div class="logo">
       <div class="logo-mark">🎒</div>
-      <div class="logo-name">GoPackNow</div>
+      <div class="logo-name">packyo</div>
     </div>
     <div class="cover-badge">Group Travel Itinerary</div>
   </div>
@@ -589,7 +620,7 @@ ${
 <div class="footer">
   <div class="footer-logo">
     <div class="footer-dot"></div>
-    GoPackNow
+    packyo
   </div>
   <div class="footer-meta">
     Generated on ${generatedDate}<br>
@@ -622,9 +653,12 @@ interface ActivityCardProps {
   activity: Activity;
   actIndex: number;
   dayNumber: number;
+  dayCity: string;
   destination: string;
   startDate?: string | null;
   colors: any;
+  wishes: Wish[];
+  onCardPress: () => void;
   onEdit: (act: Activity, idx: number, day: number) => void;
   onRedo: (act: Activity, idx: number, day: number) => void;
   onDelete: (idx: number, day: number) => void;
@@ -634,96 +668,65 @@ function ActivityCard({
   activity,
   actIndex,
   dayNumber,
+  dayCity,
   destination,
   startDate,
   colors,
+  wishes,
+  onCardPress,
   onEdit,
   onRedo,
   onDelete,
 }: ActivityCardProps) {
-  const tagColor = getTagColor(activity.tag);
-
-  const openURL = (url: string) => {
-    if (Platform.OS === "web") {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      Linking.openURL(url);
-    }
-  };
-
-  const openMaps = () => {
-    const query = encodeURIComponent(`${activity.name}, ${destination}`);
-    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    if (Platform.OS === "web") {
-      window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
-    } else {
-      Linking.openURL(googleMapsUrl).catch(() => {});
-    }
-  };
+  // Find the matching wish to get its live vote count
+  const matchedWish = activity.fromWish
+    ? wishes.find((w) => w.authorName === activity.suggester)
+    : null;
+  const wishVotes = matchedWish?.score ?? 0;
 
   return (
-    <View style={[styles.actCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.actTagBar, { backgroundColor: tagColor }]} />
+    <Pressable
+      style={({ pressed }) => [styles.actRow, { opacity: pressed ? 0.85 : 1 }]}
+      onPress={onCardPress}
+    >
+      <Text style={[styles.actTime, { color: colors.foreground }]}>{activity.time}</Text>
       <View style={styles.actContent}>
-        <View style={styles.actTop}>
-          <Text style={[styles.actTime, { color: colors.mutedForeground }]}>{activity.time}</Text>
-          {activity.fromWish && <Feather name="star" size={12} color="#FFA726" />}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 2, marginLeft: "auto" }}>
-            <Pressable onPress={() => onEdit(activity, actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
-              <Feather name="edit-2" size={13} color={colors.mutedForeground} />
-            </Pressable>
-            <Pressable onPress={() => onRedo(activity, actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
-              <Feather name="rotate-ccw" size={13} color={colors.mutedForeground} />
-            </Pressable>
-            <Pressable onPress={() => onDelete(actIndex, dayNumber)} style={{ padding: 4, borderRadius: 6 }}>
-              <Feather name="trash-2" size={13} color="#ef4444" />
-            </Pressable>
-          </View>
+        <View style={styles.actHeaderRow}>
+          <Text style={[styles.actName, { color: colors.foreground }]}>{activity.name}</Text>
         </View>
-        <Text style={[styles.actName, { color: colors.foreground }]}>{activity.name}</Text>
-        {activity.suggester ? (
-          <Text style={[styles.actSuggester, { color: colors.primary }]}>
-            {activity.fromWish
-              ? `✦ ${activity.suggester}'s wish`
-              : activity.suggester === "AI pick"
-              ? activity.matchedVibe
-                ? `✦ AI pick · ${activity.matchedVibe}`
-                : `✦ AI pick`
-              : `✦ Added by ${activity.suggester}`}
-          </Text>
-        ) : null}
-        <Text style={[styles.actDesc, { color: colors.mutedForeground }]} numberOfLines={3}>
+
+        {/* Attribution badge */}
+        {activity.fromWish ? (
+          <View style={styles.attributionBadge}>
+            <Feather name="star" size={11} color="#F59E0B" />
+            <Text style={styles.attributionText}>
+              {activity.suggester}'s wish
+              {wishVotes > 0 ? ` · ↑ ${wishVotes} vote${wishVotes !== 1 ? "s" : ""}` : ""}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.attributionBadge, styles.aiPickBadge]}>
+            <Feather name="zap" size={11} color="#6B7280" />
+            <Text style={[styles.attributionText, { color: "#6B7280" }]}>Packyo AI pick</Text>
+          </View>
+        )}
+
+        <Text style={[styles.actDesc, { color: colors.mutedForeground }]} numberOfLines={2}>
           {activity.description}
         </Text>
-        {activity.estimatedCost > 0 && (
-          <Text style={[styles.actCost, { color: colors.mutedForeground }]}>
-            ~${activity.estimatedCost} est. per person
-          </Text>
-        )}
-        {activity.lastRedoBy ? (
-          <Text style={[styles.actRedoBy, { color: colors.mutedForeground }]}>
-            ↻ Last changed by {activity.lastRedoBy}
-          </Text>
-        ) : null}
         <View style={styles.actActions}>
-          <Pressable
-            onPress={() => {
-              const url = `https://www.viator.com/searchResults/all?text=${encodeURIComponent(`${activity.name} ${destination}`)}`;
-              if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-              else Linking.openURL(url);
-            }}
-            style={[styles.actActionBtn, { borderColor: "#F59E0B", backgroundColor: "#FFF8EC" }]}
-          >
-            <Feather name="star" size={13} color="#D97706" />
-            <Text style={[styles.actActionText, { color: "#D97706" }]}>Reserve</Text>
+          <Pressable onPress={(e) => { e.stopPropagation?.(); onEdit(activity, actIndex, dayNumber); }}>
+            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Edit</Text>
           </Pressable>
-          <Pressable onPress={openMaps} style={[styles.actActionBtn, { borderColor: colors.border }]}>
-            <Feather name="map-pin" size={13} color={colors.foreground} />
-            <Text style={[styles.actActionText, { color: colors.foreground }]}>Maps</Text>
+          <Pressable onPress={(e) => { e.stopPropagation?.(); onRedo(activity, actIndex, dayNumber); }}>
+            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Redo</Text>
+          </Pressable>
+          <Pressable onPress={(e) => { e.stopPropagation?.(); onDelete(actIndex, dayNumber); }}>
+            <Text style={[styles.actionText, { color: colors.destructive }]}>Remove</Text>
           </Pressable>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -741,17 +744,20 @@ interface EditState {
 /* ── Screen ──────────────────────────────────────────────────────────── */
 
 export default function ItineraryScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const { trip, loading } = useTrip(id);
+  const wishes = useWishes(id);
 
+  const [activeTab, setActiveTab] = useState<"itinerary" | "info" | "map">("itinerary");
   const [selectedDay, setSelectedDay] = useState(1);
   const [editModal, setEditModal] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [showExportSheet, setShowExportSheet] = useState(false);
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
@@ -796,6 +802,14 @@ export default function ItineraryScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
 
+  const handleBack = () => {
+    if (returnTo === "tripHub" && id) {
+      router.replace({ pathname: "/trip/[id]", params: { id } } as any);
+      return;
+    }
+    router.back();
+  };
+
   const itinerary = trip?.itinerary;
   const days = itinerary?.days ?? [];
   const currentDay = days.find((d) => d.dayNumber === selectedDay) ?? days[0];
@@ -819,76 +833,59 @@ export default function ItineraryScreen() {
     });
   };
 
-  const handleRedo = (act: Activity, idx: number, dayNum: number) => {
-    const options = getRedoOptions(act.tag);
+  const handleRedo = async (act: Activity, idx: number, dayNum: number) => {
     const day = days.find((d) => d.dayNumber === dayNum);
-    const buttons = options.map(({ label, redoType }) => ({
-      text: label,
-      onPress: async () => {
-        const key = `${dayNum}-${idx}`;
-        setRedoLoading(key);
-        try {
-          const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-          const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
-          const allTripActivities = days.flatMap((d) => d.activities.map((a) => a.name)).filter((n) => n !== act.name);
-          const resp = await fetch(`${baseUrl}/api/redo-activity`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              activity: act,
-              city: day?.city ?? "",
-              theme: day?.theme ?? "",
-              destination: trip?.destination ?? "",
-              redoType,
-              otherActivities,
-              allTripActivities,
-              userId: user?.uid,
-              isPlusUser: false,
-            }),
-          });
-          if (!resp.ok) {
-            const errBody = await resp.json().catch(() => ({})) as { error?: string };
-            throw new Error(errBody.error ?? "Could not replace activity. Please try again.");
-          }
-          const { activity: newAct } = await resp.json();
-          if (!newAct?.name) {
-            throw new Error("AI returned an incomplete activity. Please try again.");
-          }
-          const redoByName = user?.displayName ?? user?.email ?? "A member";
-          await updateActivity(id!, dayNum, idx, {
-            ...newAct,
-            time: act.time,
-            lastRedoBy: redoByName,
-          });
-          // Usage tracking is best-effort — never let a failure here make an
-          // already-successful redo look like it failed.
-          incrementAiUsage(id!, "activityRedos").catch(() => {});
-        } catch (err) {
-          Alert.alert("Could not change activity", (err as Error).message || "Please try again.");
-        } finally {
-          setRedoLoading(null);
-        }
-      },
-    }));
-    buttons.push({ text: "Cancel", style: "cancel" } as any);
-    Alert.alert("Change activity", "What would you like to do?", buttons as any);
+    const key = `${dayNum}-${idx}`;
+    setRedoLoading(key);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
+      const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
+      const allTripActivities = days.flatMap((d) => d.activities.map((a) => a.name)).filter((n) => n !== act.name);
+      const resp = await fetch(`${baseUrl}/api/redo-activity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activity: act,
+          city: day?.city ?? "",
+          theme: day?.theme ?? "",
+          destination: trip?.destination ?? "",
+          redoType: "whole",
+          otherActivities,
+          allTripActivities,
+          userId: user?.uid,
+          isPlusUser: false,
+        }),
+      });
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({})) as { error?: string };
+        throw new Error(errBody.error ?? "Could not replace activity. Please try again.");
+      }
+      const { activity: newAct } = await resp.json();
+      if (!newAct?.name) {
+        throw new Error("AI returned an incomplete activity. Please try again.");
+      }
+      const redoByName = user?.displayName ?? user?.email ?? "A member";
+      await updateActivity(id!, dayNum, idx, {
+        ...newAct,
+        time: act.time,
+        lastRedoBy: redoByName,
+      });
+      incrementAiUsage(id!, "activityRedos").catch(() => {});
+    } catch (err) {
+      Alert.alert("Could not change activity", (err as Error).message || "Please try again.");
+    } finally {
+      setRedoLoading(null);
+    }
   };
 
-  const handleDelete = (idx: number, dayNum: number) => {
-    Alert.alert("Delete activity", "Remove this activity from the itinerary?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteActivity(id!, dayNum, idx);
-          } catch (err) {
-            Alert.alert("Delete failed", (err as Error).message || "Could not delete activity. Please try again.");
-          }
-        },
-      },
-    ]);
+  const handleDelete = async (idx: number, dayNum: number) => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await deleteActivity(id!, dayNum, idx);
+    } catch (err) {
+      Alert.alert("Delete failed", (err as Error).message || "Could not delete activity. Please try again.");
+    }
   };
 
   const handleAddActivity = () => {
@@ -943,7 +940,7 @@ export default function ItineraryScreen() {
         "",
       ]),
       totalCost > 0 ? `💰 Estimated total: ~$${totalCost}/person` : "",
-      "Built with GoPackNow 🎒",
+      "Built with packyo ✦",
     ].filter(Boolean);
     await Share.share({ message: lines.join("\n") });
   };
@@ -977,7 +974,7 @@ export default function ItineraryScreen() {
 
       const lines: string[] = [
         "BEGIN:VCALENDAR", "VERSION:2.0",
-        "PRODID:-//GoPackNow//AI Travel Planner//EN",
+        "PRODID:-//packyo//AI Travel Planner//EN",
         "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
         `X-WR-CALNAME:${itinerary.title || trip.destination || "Trip"}`,
       ];
@@ -1074,7 +1071,7 @@ export default function ItineraryScreen() {
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Mascot name="map-mate" size={130} />
         <Text style={[styles.emptyText, { color: colors.mutedForeground, marginTop: 8 }]}>No itinerary yet.</Text>
-        <Pressable onPress={() => router.back()} style={[styles.backLink, { borderColor: colors.border }]}>
+        <Pressable onPress={handleBack} style={[styles.backLink, { borderColor: colors.border }]}>
           <Text style={[styles.backLinkText, { color: colors.foreground }]}>Go back</Text>
         </Pressable>
       </View>
@@ -1083,153 +1080,239 @@ export default function ItineraryScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Pressable onPress={handleBack} style={styles.backBtn}>
+            <Feather name="arrow-left" size={20} color={colors.foreground} />
           </Pressable>
-          <View style={styles.headerTitles}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={[styles.headerLabel, { color: colors.primary }]}>YOUR GOPACKNOW ITINERARY</Text>
-            </View>
-            <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
-              {trip.destination}
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => { setSavePackName(`${trip.destination} Crew`); setShowSavePackModal(true); Haptics.selectionAsync(); }}
-              style={[styles.iconBtn, { borderColor: colors.border }]}
-            >
-              <Feather name="users" size={16} color={colors.foreground} />
-            </Pressable>
-            <Pressable onPress={handleShare} style={[styles.iconBtn, { borderColor: colors.border }]}>
-              <Feather name="share" size={16} color={colors.foreground} />
-            </Pressable>
-            <Pressable
-              onPress={handleExportCalendar}
-              style={[styles.iconBtn, { borderColor: colors.border }]}
-            >
-              <Feather name="calendar" size={16} color={colors.foreground} />
-            </Pressable>
-            <Pressable
-              onPress={handleExportPDF}
-              disabled={exportingPDF}
-              style={[styles.iconBtn, { borderColor: colors.border }]}
-            >
-              {exportingPDF ? (
-                <ActivityIndicator color={colors.foreground} size="small" />
-              ) : (
-                <Feather name="file-text" size={16} color={colors.foreground} />
-              )}
-            </Pressable>
-          </View>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Itinerary</Text>
         </View>
-
-        {members.length > 0 && (
-          <View style={styles.membersRow}>
-            {members.slice(0, 5).map((m, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.memberAvatar,
-                  {
-                    backgroundColor: MEMBER_COLORS[i % MEMBER_COLORS.length],
-                    marginLeft: i > 0 ? -8 : 0,
-                  },
-                ]}
-              >
-                <Text style={styles.memberInitial}>{m.name[0].toUpperCase()}</Text>
-              </View>
-            ))}
-            <Text style={[styles.membersLabel, { color: colors.mutedForeground }]}>
-              {"  "}
-              {members.map((m) => m.name).join(", ")}
-            </Text>
-          </View>
-        )}
+        <View style={styles.headerTabs}>
+          {(["itinerary", "info", "map"] as const).map((t) => (
+            <Pressable
+              key={t}
+              style={[styles.headerTab, activeTab === t && { borderBottomColor: colors.foreground }]}
+              onPress={() => setActiveTab(t)}
+            >
+              <Text style={[
+                styles.headerTabText,
+                activeTab === t
+                  ? { color: colors.foreground, fontFamily: "DmSans_600SemiBold" }
+                  : { color: colors.mutedForeground },
+              ]}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
-      <View style={[styles.dayScrollWrap, { borderBottomColor: colors.border }]}>
+      {/* ── INFO TAB ── */}
+      {activeTab === "info" && (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dayScroll}
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + 100 }}
         >
-          {days.map((day) => {
-            const isSelected = day.dayNumber === selectedDay;
-            return (
-              <Pressable
-                key={day.dayNumber}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedDay(day.dayNumber);
-                }}
-                style={[
-                  styles.dayChip,
-                  {
-                    backgroundColor: isSelected ? colors.primary : colors.muted,
-                    borderColor: isSelected ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.dayChipText, { color: isSelected ? "#fff" : colors.foreground }]}>
-                  Day {day.dayNumber}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 20 }}
-      >
-        {currentDay && (
-          <>
-            <View style={styles.dayHeader}>
-              <Text style={[styles.dayCity, { color: colors.foreground }]}>{currentDay.city}</Text>
-              <Text style={[styles.dayTheme, { color: colors.mutedForeground }]}>{currentDay.theme}</Text>
-            </View>
-
-            <>
-                {currentDay.activities.map((act, i) => (
-                  <View key={i}>
-                    <ActivityCard
-                      activity={act}
-                      actIndex={i}
-                      dayNumber={currentDay.dayNumber}
-                      destination={trip.destination}
-                      startDate={trip.startDate}
-                      colors={colors}
-                      onEdit={handleEdit}
-                      onRedo={handleRedo}
-                      onDelete={handleDelete}
-                    />
-                    {redoLoading === `${currentDay.dayNumber}-${i}` && (
-                      <View style={{ alignItems: "center", padding: 8 }}>
-                        <ActivityIndicator color={colors.primary} size="small" />
-                        <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }}>Finding a new activity…</Text>
+          <Text style={[styles.titleDest, { color: colors.foreground, marginBottom: 16 }]}>{trip.destination}</Text>
+          {days.flatMap((day) =>
+            day.activities.map((act, i) => {
+              const photoQ = act.photoQuery ?? `${act.name} ${trip.destination}`;
+              void photoQ; // used by WikiImage via name/context props
+              return (
+                <Pressable
+                  key={`${day.dayNumber}-${i}`}
+                  onPress={() => router.push({
+                    pathname: "/activity-detail",
+                    params: {
+                      name: act.name, description: act.description, time: act.time,
+                      tag: act.tag, estimatedCost: String(act.estimatedCost),
+                      photoQuery: photoQ, lat: String(act.lat ?? ""), lng: String(act.lng ?? ""),
+                      city: day.city, fromWish: String(act.fromWish), suggester: act.suggester,
+                      matchedVibe: act.matchedVibe ?? "", labels: JSON.stringify(act.labels ?? []),
+                    },
+                  })}
+                  style={({ pressed }) => [styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.88 : 1 }]}
+                >
+                  <WikiImage name={act.name} context={trip.destination} style={styles.infoCardPhoto} />
+                  <View style={styles.infoCardBody}>
+                    <Text style={[styles.infoCardDay, { color: colors.mutedForeground }]}>Day {day.dayNumber} · {act.time}</Text>
+                    <Text style={[styles.infoCardName, { color: colors.foreground }]} numberOfLines={2}>{act.name}</Text>
+                    <Text style={[styles.infoCardDesc, { color: colors.mutedForeground }]} numberOfLines={3}>{act.description}</Text>
+                    <View style={styles.infoCardFooter}>
+                      <View style={[styles.infoChip, { backgroundColor: colors.muted }]}>
+                        <Feather name="dollar-sign" size={11} color={colors.mutedForeground} />
+                        <Text style={[styles.infoChipText, { color: colors.mutedForeground }]}>
+                          {act.estimatedCost === 0 ? "Free" : `~$${act.estimatedCost}`}
+                        </Text>
                       </View>
-                    )}
+                      {act.fromWish && (
+                        <View style={[styles.infoChip, { backgroundColor: "#F59E0B15" }]}>
+                          <Feather name="star" size={11} color="#F59E0B" />
+                          <Text style={[styles.infoChipText, { color: "#F59E0B" }]}>{act.suggester}'s wish</Text>
+                        </View>
+                      )}
+                      <Feather name="chevron-right" size={14} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
+
+      {/* ── MAP TAB ── */}
+      {activeTab === "map" && (() => {
+        const allActs = days.flatMap((d) => d.activities.map((a) => ({ name: a.name, city: d.city, lat: a.lat, lng: a.lng })));
+        const buildRouteUrl = () => {
+          if (allActs.length === 0) return `https://maps.google.com/?q=${encodeURIComponent(trip.destination)}`;
+          const stops = allActs.map((a) =>
+            (a.lat && a.lng && a.lat !== 0) ? `${a.lat},${a.lng}` : encodeURIComponent(`${a.name} ${a.city}`)
+          );
+          if (stops.length === 1) return `https://www.google.com/maps/search/?api=1&query=${stops[0]}`;
+          return `https://www.google.com/maps/dir/${stops.join("/")}`;
+        };
+        return (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: bottomInset + 100 }}
+          >
+            {/* Hero CTA */}
+            <Pressable
+              onPress={() => WebBrowser.openBrowserAsync(buildRouteUrl())}
+              style={[styles.mapHeroCard, { backgroundColor: colors.primary }]}
+            >
+              <View style={styles.mapHeroIconBg}>
+                <Feather name="map" size={36} color="#fff" />
+              </View>
+              <Text style={styles.mapHeroTitle}>View Full Route</Text>
+              <Text style={styles.mapHeroSub}>
+                {allActs.length} stops · {days.length} day{days.length !== 1 ? "s" : ""} · {trip.destination}
+              </Text>
+              <View style={styles.mapHeroBtn}>
+                <Feather name="external-link" size={14} color={colors.primary} />
+                <Text style={[styles.mapHeroBtnText, { color: colors.primary }]}>Open in Google Maps</Text>
+              </View>
+            </Pressable>
+
+            {/* Per-day stops */}
+            {days.map((day) => (
+              <View key={day.dayNumber} style={[styles.mapDayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.mapDayHeader}>
+                  <View style={[styles.mapDayBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.mapDayBadgeText}>{day.dayNumber}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.mapDayLabel, { color: colors.mutedForeground }]}>Day {day.dayNumber}</Text>
+                    <Text style={[styles.mapDayCity, { color: colors.foreground }]}>{day.city}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      const stops = day.activities.map((a) =>
+                        (a.lat && a.lng && a.lat !== 0) ? `${a.lat},${a.lng}` : encodeURIComponent(`${a.name} ${day.city}`)
+                      );
+                      WebBrowser.openBrowserAsync(
+                        stops.length <= 1
+                          ? `https://www.google.com/maps/search/?api=1&query=${stops[0] ?? encodeURIComponent(day.city)}`
+                          : `https://www.google.com/maps/dir/${stops.join("/")}`
+                      );
+                    }}
+                    style={[styles.mapDayOpenBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                  >
+                    <Feather name="map-pin" size={12} color={colors.primary} />
+                    <Text style={[styles.mapDayOpenText, { color: colors.primary }]}>Day route</Text>
+                  </Pressable>
+                </View>
+                {day.activities.map((act, i) => (
+                  <View key={i} style={[styles.mapStopRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                    <View style={[styles.mapStopDot, { backgroundColor: i === 0 ? colors.primary : colors.border }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.mapStopTime, { color: colors.mutedForeground }]}>{act.time}</Text>
+                      <Text style={[styles.mapStopName, { color: colors.foreground }]}>{act.name}</Text>
+                    </View>
                   </View>
                 ))}
-                <Pressable
-                  onPress={handleAddActivity}
-                  style={[styles.addActBtn, { borderColor: colors.border }]}
-                >
-                  <Feather name="plus" size={16} color={colors.mutedForeground} />
-                  <Text style={[styles.addActText, { color: colors.mutedForeground }]}>Add activity</Text>
-                </Pressable>
-              </>
-          </>
-        )}
+              </View>
+            ))}
+          </ScrollView>
+        );
+      })()}
 
-        {/* Confirmed accommodation card */}
+      {/* ── ITINERARY TAB ── */}
+      {activeTab === "itinerary" && <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomInset + 100 }}
+      >
+        <View style={styles.titleRow}>
+          <Text style={[styles.titleDest, { color: colors.foreground }]}>{trip.destination}</Text>
+        </View>
+
+        {days.map((day) => (
+          <View key={day.dayNumber} style={styles.dayBlock}>
+            <View style={styles.dayHeader}>
+              <Text style={[styles.dayMeta, { color: colors.mutedForeground }]}>
+                Day {day.dayNumber} • {getDayDate(trip.startDate, day.dayNumber) ? new Date(getDayDate(trip.startDate, day.dayNumber)!.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3")).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ""}
+              </Text>
+              <Text style={[styles.dayCity, { color: colors.foreground }]}>{day.city}</Text>
+            </View>
+
+            <View style={styles.dayActivities}>
+              {day.activities.map((act, i) => (
+                <View key={i}>
+                  <ActivityCard
+                    activity={act}
+                    actIndex={i}
+                    dayNumber={day.dayNumber}
+                    dayCity={day.city}
+                    destination={trip.destination}
+                    startDate={trip.startDate}
+                    colors={colors}
+                    wishes={wishes}
+                    onCardPress={() => router.push({
+                      pathname: "/activity-detail",
+                      params: {
+                        name: act.name,
+                        description: act.description,
+                        time: act.time,
+                        tag: act.tag,
+                        estimatedCost: String(act.estimatedCost),
+                        photoQuery: act.photoQuery ?? `${act.name} ${trip.destination}`,
+                        lat: String(act.lat ?? ""),
+                        lng: String(act.lng ?? ""),
+                        city: day.city,
+                        fromWish: String(act.fromWish),
+                        suggester: act.suggester,
+                        matchedVibe: act.matchedVibe ?? "",
+                        labels: JSON.stringify(act.labels ?? []),
+                      },
+                    })}
+                    onEdit={handleEdit}
+                    onRedo={handleRedo}
+                    onDelete={handleDelete}
+                  />
+                  {redoLoading === `${day.dayNumber}-${i}` && (
+                    <View style={{ alignItems: "center", padding: 8 }}>
+                      <ActivityIndicator color={colors.primary} size="small" />
+                    </View>
+                  )}
+                </View>
+              ))}
+              <Pressable
+                onPress={handleAddActivity}
+                style={styles.addActBtn}
+              >
+                <Feather name="plus" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.addActText, { color: colors.mutedForeground }]}>Add activity</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+
         {accom && (
-          <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: "#26A69A" }]}>
+          <View style={[styles.accomCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.accomCardHead}>
               <Feather name="home" size={14} color="#26A69A" />
               <Text style={[styles.accomCardLabel, { color: "#26A69A" }]}>ACCOMMODATION</Text>
@@ -1238,111 +1321,119 @@ export default function ItineraryScreen() {
             <Text style={[styles.accomCardMeta, { color: colors.mutedForeground }]}>
               {accom.location}{accom.type ? ` · ${accom.type}` : ""}
             </Text>
-            <View style={styles.accomCostRow}>
-              <Feather name="dollar-sign" size={13} color="#26A69A" />
-              <Text style={[styles.accomCostText, { color: "#26A69A" }]}>
-                ~${accomCost} per person (total stay)
-              </Text>
-            </View>
-            {/* Booking buttons */}
-            <View style={styles.accomBtns}>
-              {accom.link ? (
-                <Pressable
-                  onPress={() => {
-                    if (Platform.OS === "web") window.open(accom.link, "_blank", "noopener,noreferrer");
-                    else Linking.openURL(accom.link!);
-                  }}
-                  style={[styles.accomBtn, { backgroundColor: "#26A69A" }]}
-                >
-                  <Feather name="external-link" size={13} color="#fff" />
-                  <Text style={[styles.accomBtnText, { color: "#fff" }]}>View listing</Text>
-                </Pressable>
-              ) : (
-                <>
-                  <Pressable
-                    onPress={() => {
-                      const q = encodeURIComponent(`${accom.name} ${accom.location}`);
-                      const ci = trip.startDate ?? "";
-                      const co = (() => {
-                        if (!trip.startDate) return "";
-                        try {
-                          const d = new Date(trip.startDate + "T00:00:00");
-                          d.setDate(d.getDate() + (trip.days ?? 0));
-                          return d.toISOString().split("T")[0];
-                        } catch { return ""; }
-                      })();
-                      const url = `https://www.airbnb.com/s/${encodeURIComponent(accom.location)}/homes?query=${q}${ci ? `&checkin=${ci}&checkout=${co}` : ""}`;
-                      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-                      else Linking.openURL(url);
-                    }}
-                    style={[styles.accomBtn, { backgroundColor: "#FF5A5F" }]}
-                  >
-                    <Feather name="search" size={13} color="#fff" />
-                    <Text style={[styles.accomBtnText, { color: "#fff" }]}>Airbnb</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      const q = encodeURIComponent(`${accom.name} ${accom.location}`);
-                      const ci = trip.startDate ?? "";
-                      const co = (() => {
-                        if (!trip.startDate) return "";
-                        try {
-                          const d = new Date(trip.startDate + "T00:00:00");
-                          d.setDate(d.getDate() + (trip.days ?? 0));
-                          return d.toISOString().split("T")[0];
-                        } catch { return ""; }
-                      })();
-                      const url = `https://www.booking.com/search.html?ss=${q}${ci ? `&checkin=${ci}&checkout=${co}` : ""}`;
-                      if (Platform.OS === "web") window.open(url, "_blank", "noopener,noreferrer");
-                      else Linking.openURL(url);
-                    }}
-                    style={[styles.accomBtn, { backgroundColor: "#003580" }]}
-                  >
-                    <Feather name="search" size={13} color="#fff" />
-                    <Text style={[styles.accomBtnText, { color: "#fff" }]}>Booking.com</Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
           </View>
         )}
 
-        {totalCost > 0 && (
-          <View style={[styles.costCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="dollar-sign" size={18} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>
-                ESTIMATED TOTAL (ALL DAYS{accom ? " + ACCOMMODATION" : ""})
+        {/* Not included — excluded wishes */}
+        {(() => {
+          const excludedWishes = wishes.filter(w => w.score < 0);
+          if (excludedWishes.length === 0) return null;
+          return (
+            <View style={styles.notIncludedBlock}>
+              <View style={styles.notIncludedHeader}>
+                <Feather name="slash" size={13} color="#9CA3AF" />
+                <Text style={[styles.notIncludedTitle, { color: colors.mutedForeground }]}>Not included</Text>
+              </View>
+              <Text style={[styles.notIncludedSub, { color: colors.mutedForeground }]}>
+                These were the pack's lowest-rated wishes and were excluded from the itinerary.
               </Text>
-              <Text style={[styles.costValue, { color: colors.foreground }]}>
-                ~${totalCost} per person
-              </Text>
-              {accom && (
-                <Text style={[styles.costBreakdown, { color: colors.mutedForeground }]}>
-                  Activities ~${totalCost - accomCost}  ·  Stay ~${accomCost}
-                </Text>
-              )}
+              {excludedWishes.map((w) => {
+                const upCount = Object.keys(w.upvoters ?? {}).length;
+                const downCount = Object.keys(w.downvoters ?? {}).length;
+                return (
+                  <View key={w.id} style={[styles.excludedRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.excludedText, { color: colors.mutedForeground }]}>{w.text}</Text>
+                      <Text style={[styles.excludedAuthor, { color: colors.mutedForeground }]}>Added by {w.authorName}</Text>
+                    </View>
+                    <View style={styles.excludedVotes}>
+                      <Feather name="thumbs-up" size={11} color="#9CA3AF" />
+                      <Text style={styles.excludedVoteNum}>{upCount}</Text>
+                      <Feather name="thumbs-down" size={11} color="#9CA3AF" style={{ marginLeft: 6 }} />
+                      <Text style={styles.excludedVoteNum}>{downCount}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          </View>
-        )}
-      </ScrollView>
+          );
+        })()}
+      </ScrollView>}
 
-      <View style={[styles.footer, { paddingBottom: bottomInset, borderTopColor: colors.border }]}>
-        <Pressable
-          onPress={() => router.push(`/packing/${id}`)}
-          style={[styles.footerBtn, { borderColor: colors.border }]}
-        >
-          <Feather name="package" size={15} color={colors.foreground} />
-          <Text style={[styles.footerBtnText, { color: colors.foreground }]}>Packing</Text>
+      <View style={[styles.bottomBar, { paddingBottom: bottomInset + 12, backgroundColor: colors.background, borderTopColor: colors.border }]}>
+        <Pressable style={styles.bottomAction} onPress={handleShare}>
+          <Feather name="share" size={20} color={colors.foreground} />
+          <Text style={[styles.bottomActionText, { color: colors.foreground }]}>Share</Text>
         </Pressable>
         <Pressable
-          onPress={() => router.push(`/chat/${id}`)}
-          style={[styles.footerBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+          style={styles.bottomAction}
+          onPress={() => { Haptics.selectionAsync(); setShowExportSheet(true); }}
         >
-          <Feather name="message-circle" size={15} color="#fff" />
-          <Text style={[styles.footerBtnText, { color: "#fff" }]}>Pack chat</Text>
+          {exportingPDF ? <ActivityIndicator size="small" color={colors.foreground} /> : <Feather name="download" size={20} color={colors.foreground} />}
+          <Text style={[styles.bottomActionText, { color: colors.foreground }]}>Export</Text>
+        </Pressable>
+        <Pressable style={styles.bottomAction} onPress={() => router.push(`/chat/${id}`)}>
+          <Feather name="message-circle" size={20} color={colors.foreground} />
+          <Text style={[styles.bottomActionText, { color: colors.foreground }]}>Chat</Text>
+        </Pressable>
+        <Pressable style={styles.bottomAction} onPress={() => { setSavePackName(`${trip.destination} Crew`); setShowSavePackModal(true); Haptics.selectionAsync(); }}>
+          <Feather name="package" size={20} color={colors.primary} />
+          <Text style={[styles.bottomActionText, { color: colors.primary }]}>Save as pack!</Text>
         </Pressable>
       </View>
+
+      {/* ── EXPORT SHEET ── */}
+      <Modal
+        visible={showExportSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExportSheet(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowExportSheet(false)}>
+          <Pressable style={[styles.exportSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Export itinerary</Text>
+            <Text style={[styles.exportSubtitle, { color: colors.mutedForeground }]}>Choose a format to share or save</Text>
+
+            <Pressable
+              style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
+              onPress={() => { setShowExportSheet(false); setTimeout(handleExportCalendar, 200); }}
+            >
+              <View style={[styles.exportOptIcon, { backgroundColor: "#EBF5FB" }]}>
+                <Text style={{ fontSize: 22 }}>📅</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.exportOptTitle, { color: colors.foreground }]}>Calendar (.ics)</Text>
+                <Text style={[styles.exportOptSub, { color: colors.mutedForeground }]}>Add all activities to your calendar app</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
+              onPress={() => { setShowExportSheet(false); setTimeout(handleExportPDF, 200); }}
+            >
+              <View style={[styles.exportOptIcon, { backgroundColor: "#FDF3EF" }]}>
+                <Text style={{ fontSize: 22 }}>📄</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.exportOptTitle, { color: colors.foreground }]}>PDF</Text>
+                <Text style={[styles.exportOptSub, { color: colors.mutedForeground }]}>Beautiful itinerary document to share</Text>
+              </View>
+              {exportingPDF
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+            </Pressable>
+
+            <Pressable
+              style={[styles.exportCancel, { backgroundColor: colors.muted }]}
+              onPress={() => setShowExportSheet(false)}
+            >
+              <Text style={[styles.exportCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={editModal !== null}
@@ -1423,8 +1514,6 @@ export default function ItineraryScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-
-      {/* Pack saved toast — Ticket Pal celebrates the win */}
       {packSavedName ? (
         <View style={[styles.savedToast, { backgroundColor: colors.primary }]} pointerEvents="none">
           <Mascot name="ticket-pal" size={40} style={{ marginRight: -4 }} />
@@ -1432,7 +1521,6 @@ export default function ItineraryScreen() {
         </View>
       ) : null}
 
-      {/* Save Pack modal */}
       <Modal
         visible={showSavePackModal}
         transparent
@@ -1448,10 +1536,10 @@ export default function ItineraryScreen() {
               </View>
               <Text style={[styles.packModalTitle, { color: colors.foreground }]}>Save this group as a Pack?</Text>
               <Text style={[styles.packModalSub, { color: colors.mutedForeground }]}>
-                One tap to invite everyone next time, no link sharing needed.
+                One tap to invite everyone next time.
               </Text>
               {savePackError ? (
-                <Text style={{ fontFamily: "DmSans_500Medium", fontSize: 13, color: "#E85D3A", textAlign: "center" }}>
+                <Text style={{ fontFamily: "DmSans_500Medium", fontSize: 13, color: "#F15A3A", textAlign: "center" }}>
                   {savePackError}
                 </Text>
               ) : null}
@@ -1497,204 +1585,150 @@ export default function ItineraryScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  header: { paddingHorizontal: 16, paddingBottom: 0, borderBottomWidth: 1 },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 10 },
-  backBtn: { padding: 4, marginTop: 2 },
-  headerTitles: { flex: 1, gap: 3 },
-  headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
-  headerDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, letterSpacing: -0.5 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pdfBtn: {
+  header: { paddingHorizontal: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 12 },
+  backBtn: { padding: 4, marginLeft: -4 },
+  headerTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16, flex: 1, textAlign: "center", marginRight: 24 },
+  headerTabs: { flexDirection: "row", justifyContent: "space-between" },
+  headerTab: { flex: 1, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent", alignItems: "center" },
+  headerTabText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
+  
+  titleRow: { paddingVertical: 16, marginTop: 8 },
+  titleDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28 },
+
+  dayBlock: { marginBottom: 32 },
+  dayHeader: { marginBottom: 16 },
+  dayMeta: { fontFamily: "DmSans_500Medium", fontSize: 13, marginBottom: 4 },
+  dayCity: { fontFamily: "DmSans_600SemiBold", fontSize: 18 },
+  
+  dayActivities: { gap: 16 },
+  actRow: { flexDirection: "row", gap: 16 },
+  actTime: { width: 44, fontFamily: "DmSans_500Medium", fontSize: 13, marginTop: 2 },
+  actContent: { flex: 1, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(0,0,0,0.05)" },
+  actHeaderRow: { flexDirection: "row", alignItems: "center" },
+  actName: { fontFamily: "DmSans_600SemiBold", fontSize: 15, lineHeight: 20 },
+  actDesc: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 20, marginTop: 4 },
+  actActions: { flexDirection: "row", gap: 12, marginTop: 8 },
+  actionText: { fontFamily: "DmSans_500Medium", fontSize: 12 },
+
+  addActBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: 60, marginTop: 4 },
+  addActText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
+
+  attributionBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    borderRadius: 17,
-    paddingHorizontal: 12,
-    height: 34,
-  },
-  pdfBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
-  membersRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingBottom: 12,
-    flexWrap: "wrap",
-  },
-  memberAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "#fff",
-  },
-  memberInitial: { fontFamily: "DmSans_700Bold", fontSize: 11, color: "#fff" },
-  membersLabel: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 1 },
-  dayScrollWrap: { borderBottomWidth: 1, height: 50 },
-  dayScroll: { paddingHorizontal: 16, paddingVertical: 9, gap: 8, flexDirection: "row", alignItems: "center" },
-  dayChip: {
-    paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-  },
-  dayChipText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, lineHeight: 18 },
-  dayHeader: { paddingTop: 10, paddingBottom: 8 },
-  dayCity: { fontFamily: "DmSans_600SemiBold", fontSize: 18, marginBottom: 2 },
-  dayTheme: { fontFamily: "DmSans_400Regular", fontSize: 14 },
-  actCard: {
-    flexDirection: "row",
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
-    overflow: "hidden",
-  },
-  actTagBar: { width: 4 },
-  actContent: { flex: 1, padding: 14, gap: 4 },
-  actTop: { flexDirection: "row", alignItems: "center", gap: 6 },
-  actTime: { fontFamily: "DmSans_500Medium", fontSize: 12 },
-  editBtn: { marginLeft: "auto", padding: 2 },
-  actName: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-  actSuggester: { fontFamily: "DmSans_500Medium", fontSize: 12 },
-  actDesc: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18 },
-  actCost: { fontFamily: "DmSans_500Medium", fontSize: 12 },
-  actRedoBy: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 4, fontStyle: "italic" },
-  actActions: { flexDirection: "row", gap: 8, marginTop: 6 },
-  actActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  actActionText: { fontFamily: "DmSans_500Medium", fontSize: 12 },
-  addActBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: 12,
-    paddingVertical: 12,
-    marginTop: 2,
-    marginBottom: 8,
-  },
-  addActText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
-  lockedCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    marginTop: 4,
-    gap: 8,
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lockedIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    gap: 4,
+    marginTop: 3,
     marginBottom: 2,
   },
-  lockedTitle: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 17,
-    textAlign: "center",
-  },
-  lockedSub: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 16,
-    marginBottom: 2,
-  },
-  lockedCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#E85D3A",
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginTop: 2,
-    width: "100%",
-    justifyContent: "center",
-  },
-  lockedCtaText: {
-    fontFamily: "DmSans_700Bold",
-    fontSize: 12,
-    color: "#fff",
-  },
-  costCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 4,
-  },
-  costLabel: {
+  attributionText: {
     fontFamily: "DmSans_500Medium",
     fontSize: 11,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 2,
+    color: "#F59E0B",
   },
-  costValue: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
-  costBreakdown: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 3 },
+  aiPickBadge: {},
 
-  accomCard: {
-    borderRadius: 14, borderWidth: 1.5, padding: 14, marginTop: 4, gap: 3,
+  notIncludedBlock: { marginTop: 24, marginBottom: 12 },
+  notIncludedHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  notIncludedTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  notIncludedSub: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  excludedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 10,
+    marginBottom: 6,
+    gap: 10,
+    opacity: 0.7,
   },
+  excludedText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
+  excludedAuthor: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 2 },
+  excludedVotes: { flexDirection: "row", alignItems: "center", gap: 3 },
+  excludedVoteNum: { fontFamily: "DmSans_500Medium", fontSize: 11, color: "#9CA3AF" },
+
+  accomCard: { borderRadius: 14, borderWidth: 1.5, padding: 16, marginTop: 12, marginBottom: 24, gap: 4 },
   accomCardHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   accomCardLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 1.5 },
-  accomCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 17 },
-  accomCardMeta: { fontFamily: "DmSans_400Regular", fontSize: 12, textTransform: "capitalize" },
-  accomCostRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  accomCostText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
-  accomBtns: { flexDirection: "row", gap: 8, marginTop: 10 },
-  accomBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+  accomCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 },
+  accomCardMeta: { fontFamily: "DmSans_400Regular", fontSize: 14, textTransform: "capitalize" },
+
+  bottomBar: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    flexDirection: "row",
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
-  accomBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  bottomAction: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: 4 },
+  bottomActionText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
+
+  /* Info tab */
+  infoCard: {
+    flexDirection: "row",
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  infoCardPhoto: { width: 100, height: 110 },
+  infoCardBody: { flex: 1, padding: 12, gap: 4 },
+  infoCardDay: { fontFamily: "DmSans_500Medium", fontSize: 11 },
+  infoCardName: { fontFamily: "DmSans_700Bold", fontSize: 14, lineHeight: 18 },
+  infoCardDesc: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17, flex: 1 },
+  infoCardFooter: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  infoChip: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  infoChipText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
+
+  /* Map tab */
+  mapHeroCard: {
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 8,
+  },
+  mapHeroIconBg: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  mapHeroTitle: { fontFamily: "DmSans_700Bold", fontSize: 22, color: "#fff" },
+  mapHeroSub: { fontFamily: "DmSans_400Regular", fontSize: 14, color: "rgba(255,255,255,0.8)", textAlign: "center" },
+  mapHeroBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, marginTop: 8 },
+  mapHeroBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
+  mapDayCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  mapDayHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  mapDayBadge: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  mapDayBadgeText: { fontFamily: "DmSans_700Bold", fontSize: 13, color: "#fff" },
+  mapDayLabel: { fontFamily: "DmSans_400Regular", fontSize: 11 },
+  mapDayCity: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  mapDayOpenBtn: { marginLeft: "auto" as any, flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  mapDayOpenText: { fontFamily: "DmSans_600SemiBold", fontSize: 12 },
+  mapStopRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  mapStopDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
+  mapStopTime: { fontFamily: "DmSans_400Regular", fontSize: 11, marginBottom: 1 },
+  mapStopName: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 
   emptyText: { fontFamily: "DmSans_400Regular", fontSize: 15 },
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
-  footer: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  footerBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 13,
-    borderWidth: 1,
-  },
-  footerBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   editSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, gap: 8 },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
-  sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 8 },
+  sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 4 },
+  exportSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  exportSubtitle: { fontFamily: "DmSans_400Regular", fontSize: 13, marginBottom: 20 },
+  exportOption: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 10,
+  },
+  exportOptIcon: { width: 48, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  exportOptTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15, marginBottom: 2 },
+  exportOptSub: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17 },
+  exportCancel: { borderRadius: 12, padding: 14, alignItems: "center", marginTop: 6 },
+  exportCancelText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   fieldLabel: {
     fontFamily: "DmSans_500Medium",
     fontSize: 12,
@@ -1729,7 +1763,7 @@ const styles = StyleSheet.create({
   packModalSaveBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingVertical: 13 },
   packModalSaveText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
   savedToast: {
-    position: "absolute", bottom: 40, left: 20, right: 20,
+    position: "absolute", bottom: 100, left: 20, right: 20,
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
     shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,

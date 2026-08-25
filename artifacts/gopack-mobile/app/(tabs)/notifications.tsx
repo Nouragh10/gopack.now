@@ -1,7 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -13,319 +12,264 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { useTrips, useInvites, acceptInvite, dismissInvite, PackInvite } from "@/hooks/useFirebase";
+import { useAuth } from "@/context/AuthContext";
+import { useNotifications, AppNotification } from "@/hooks/useFirebase";
 
-interface AppNotification {
-  id: string;
-  icon: string;
-  color: string;
-  title: string;
-  subtitle: string;
-  tripId?: string;
-  time: number;
-  type?: "itinerary" | "default";
-}
+/* ── Icon config per notification type ─────────────────────────── */
+const TYPE_META: Record<
+  AppNotification["type"],
+  { icon: string; bg: string; label: string }
+> = {
+  itinerary_ready:  { icon: "map",           bg: "#4CAF50", label: "Trips" },
+  accom_vote:       { icon: "home",           bg: "#E85D3A", label: "Trips" },
+  dest_vote:        { icon: "navigation",     bg: "#7E57C2", label: "Trips" },
+  votes_complete:   { icon: "check-circle",   bg: "#4CAF50", label: "Trips" },
+  dest_confirmed:   { icon: "flag",           bg: "#F59E0B", label: "Trips" },
+  new_member:       { icon: "user-plus",      bg: "#2196F3", label: "Trips" },
+  chat:             { icon: "message-circle", bg: "#7E57C2", label: "Mentions" },
+  invite:           { icon: "user-plus",      bg: "#E85D3A", label: "Trips" },
+};
 
 function timeAgo(ts: number): string {
-  const diff = (Date.now() - ts) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
+  return `${Math.floor(diff / 86_400_000)}d`;
 }
+
+const TABS = ["All", "Trips", "Mentions"] as const;
+type Tab = (typeof TABS)[number];
 
 export default function NotificationsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { trips } = useTrips(user?.uid);
-  const invites = useInvites(user?.uid);
-  const [accepting, setAccepting] = useState<string | null>(null);
-
-  const handleAcceptInvite = async (invite: PackInvite) => {
-    if (!user) return;
-    setAccepting(invite.id);
-    try {
-      await acceptInvite(invite.packId, user.uid, user.displayName ?? "Traveler", invite.tripId);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.push(`/trip/${invite.tripId}` as any);
-    } catch {}
-    setAccepting(null);
-  };
-
-  const handleDismissInvite = async (invite: PackInvite) => {
-    if (!user) return;
-    try { await dismissInvite(user.uid, invite.packId, invite.tripId); } catch {}
-  };
+  const [activeTab, setActiveTab] = useState<Tab>("All");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
 
-  const notifications = useMemo<AppNotification[]>(() => {
-    const notes: AppNotification[] = [];
-    const uid = user?.uid ?? "";
-    const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const { notifications, loading } = useNotifications(user?.uid);
 
-    for (const trip of trips) {
-      const createdAt = new Date(trip.createdAt ?? 0).getTime();
+  const visible =
+    activeTab === "All"
+      ? notifications
+      : notifications.filter(
+          (n) => TYPE_META[n.type]?.label === activeTab
+        );
 
-      // Itinerary ready
-      if (trip.itinerary) {
-        notes.push({
-          id: `itinerary-${trip.id}`,
-          icon: "map",
-          color: "#E85D3A",
-          title: "Itinerary ready!",
-          subtitle: `Your ${trip.destination} itinerary has been built. Tap to view.`,
-          tripId: trip.id,
-          time: createdAt + 3600000,
-          type: "itinerary",
-        });
-      }
-
-      // Destination vote available
-      if (trip.destinationSuggestions?.length) {
-        notes.push({
-          id: `dest-${trip.id}`,
-          icon: "zap",
-          color: "#7E57C2",
-          title: "Vote on destinations",
-          subtitle: `Your pack is choosing where to go — cast your vote.`,
-          tripId: trip.id,
-          time: createdAt + 1800000,
-        });
-      }
-
-      // Accommodation voting in progress
-      if (trip.accommodationStatus === "voting") {
-        notes.push({
-          id: `accom-vote-${trip.id}`,
-          icon: "home",
-          color: "#26A69A",
-          title: "Vote on accommodation",
-          subtitle: `Choose where to stay in ${trip.destination}.`,
-          tripId: trip.id,
-          time: createdAt + 2000000,
-        });
-      }
-
-      // Accommodation confirmed
-      if (trip.accommodationStatus === "confirmed" && trip.confirmedAccommodation) {
-        notes.push({
-          id: `accom-confirmed-${trip.id}`,
-          icon: "check-circle",
-          color: "#4CAF50",
-          title: "Accommodation booked!",
-          subtitle: `${trip.confirmedAccommodation.name} confirmed for ${trip.destination}.`,
-          tripId: trip.id,
-          time: createdAt + 2500000,
-        });
-      }
-
-      // New members who joined recently (excluding self)
-      for (const [memberId, member] of Object.entries(trip.members ?? {})) {
-        if (memberId === uid) continue;
-        const joinedAt = new Date((member as any).joinedAt ?? 0).getTime();
-        if (joinedAt > sevenDaysAgo) {
-          notes.push({
-            id: `join-${trip.id}-${memberId}`,
-            icon: "user-plus",
-            color: "#4CAF50",
-            title: `${(member as any).name} joined`,
-            subtitle: `${(member as any).name} joined your ${trip.destination} trip.`,
-            tripId: trip.id,
-            time: joinedAt,
-          });
-        }
-      }
-
-      // Preferences collection started
-      if (trip.collectingPreferences) {
-        notes.push({
-          id: `prefs-${trip.id}`,
-          icon: "sliders",
-          color: "#7E57C2",
-          title: "Share your preferences",
-          subtitle: `Add your travel preferences for ${trip.destination}.`,
-          tripId: trip.id,
-          time: createdAt + 500,
-        });
-      }
+  function handlePress(n: AppNotification) {
+    if (n.type === "accom_vote") {
+      router.push({ pathname: "/accommodation-vote/[id]", params: { id: n.tripId } } as any);
+    } else if (n.type === "dest_vote") {
+      router.push({ pathname: "/destination-vote/[id]", params: { id: n.tripId } } as any);
+    } else if (n.type === "itinerary_ready") {
+      router.push({ pathname: "/itinerary/[id]", params: { id: n.tripId } } as any);
+    } else if (n.type === "chat") {
+      router.push({ pathname: "/chat/[id]", params: { id: n.tripId } } as any);
+    } else {
+      router.push({ pathname: "/trip/[id]", params: { id: n.tripId } } as any);
     }
-
-    return notes.sort((a, b) => b.time - a.time);
-  }, [trips, user?.uid]);
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 16 }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Notifications</Text>
-        {notifications.length > 0 && (
-          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-            <Text style={styles.badgeText}>{notifications.length}</Text>
-          </View>
-        )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset }}>
-        {/* Pack invites — action required */}
-        {invites.map((invite) => (
-          <View key={invite.id} style={[styles.inviteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.noteIcon, { backgroundColor: "#7E57C220" }]}>
-              <Feather name="users" size={18} color="#7E57C2" />
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.noteTitle, { color: colors.foreground }]}>
-                {invite.fromName} invited you to a trip
-              </Text>
-              <Text style={[styles.noteSub, { color: colors.mutedForeground }]}>
-                {invite.destination} · via {invite.packName}
-              </Text>
-              <View style={styles.inviteBtns}>
-                <Pressable
-                  onPress={() => handleAcceptInvite(invite)}
-                  disabled={!!accepting}
-                  style={[styles.joinBtn, { backgroundColor: "#7E57C2", opacity: accepting === invite.id ? 0.6 : 1 }]}
-                >
-                  {accepting === invite.id ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.joinBtnText}>Join trip</Text>
-                  )}
-                </Pressable>
-                <Pressable
-                  onPress={() => handleDismissInvite(invite)}
-                  style={[styles.dismissBtn, { borderColor: colors.border }]}
-                >
-                  <Text style={[styles.dismissText, { color: colors.mutedForeground }]}>Dismiss</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        ))}
-
-        {/* Regular notifications */}
-        {notifications.map((note) => (
+      {/* Tabs */}
+      <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
+        {TABS.map((tab) => (
           <Pressable
-            key={note.id}
-            onPress={() => {
-              if (!note.tripId) return;
-              if (note.type === "itinerary") {
-                router.push(`/itinerary/${note.tripId}` as any);
-              } else {
-                router.push(`/trip/${note.tripId}` as any);
-              }
-            }}
-            style={[styles.noteRow, { borderBottomColor: colors.border }]}
+            key={tab}
+            onPress={() => setActiveTab(tab)}
+            style={[
+              styles.tab,
+              activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+            ]}
           >
-            <View style={[styles.noteIcon, { backgroundColor: note.color + "1A" }]}>
-              <Feather name={note.icon as any} size={18} color={note.color} />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.noteTitle, { color: colors.foreground }]}>{note.title}</Text>
-              <Text style={[styles.noteSub, { color: colors.mutedForeground }]} numberOfLines={2}>
-                {note.subtitle}
-              </Text>
-            </View>
-            <View style={styles.noteRight}>
-              <Text style={[styles.noteTime, { color: colors.mutedForeground }]}>{timeAgo(note.time)}</Text>
-              <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
-            </View>
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === tab ? colors.foreground : colors.mutedForeground },
+                activeTab === tab && { fontFamily: "DmSans_700Bold" },
+              ]}
+            >
+              {tab}
+            </Text>
           </Pressable>
         ))}
+      </View>
 
-        {/* Empty state */}
-        {notifications.length === 0 && invites.length === 0 && (
-          <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
-              <Feather name="bell" size={28} color={colors.mutedForeground} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
-            <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
-              You'll be notified when your pack adds wishes, joins trips, or your itinerary is ready.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {/* Body */}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color="#E85D3A" />
+        </View>
+      ) : !user ? (
+        <View style={styles.center}>
+          <Feather name="bell-off" size={40} color={colors.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Sign in to see notifications</Text>
+        </View>
+      ) : visible.length === 0 ? (
+        <View style={styles.center}>
+          <Feather name="bell" size={40} color={colors.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
+          <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+            No notifications yet — join or create a trip to get started.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: bottomInset, paddingTop: 4 }}
+        >
+          {visible.map((n) => {
+            const meta = TYPE_META[n.type];
+            return (
+              <Pressable
+                key={n.id}
+                onPress={() => handlePress(n)}
+                style={({ pressed }) => [
+                  styles.row,
+                  { borderBottomColor: colors.border },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                {/* Icon */}
+                <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
+                  <Feather name={meta.icon as any} size={16} color="#fff" />
+                </View>
+
+                {/* Content */}
+                <View style={styles.content}>
+                  <View style={styles.topRow}>
+                    <Text style={[styles.noteTitle, { color: colors.foreground }]} numberOfLines={1}>
+                      {n.text}
+                    </Text>
+                    <Text style={[styles.time, { color: colors.mutedForeground }]}>
+                      {timeAgo(n.timestamp)}
+                    </Text>
+                  </View>
+                  {n.subtext ? (
+                    <Text style={[styles.subtext, { color: colors.mutedForeground }]} numberOfLines={2}>
+                      {n.subtext}
+                    </Text>
+                  ) : null}
+                  {/* Trip label chip */}
+                  <View style={[styles.tripChip, { backgroundColor: colors.muted }]}>
+                    <Text style={[styles.tripChipText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {n.tripName}
+                    </Text>
+                  </View>
+                  {/* CTA for actionable items */}
+                  {n.actionable && (
+                    <View style={styles.actions}>
+                      <Pressable
+                        onPress={() => handlePress(n)}
+                        style={[styles.solidBtn, { backgroundColor: colors.primary }]}
+                      >
+                        <Text style={styles.solidBtnText}>Vote now</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+
+                {/* Chevron */}
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+  header: { paddingHorizontal: 24, paddingBottom: 16 },
+  title: { fontFamily: "DmSans_700Bold", fontSize: 28 },
+
+  tabs: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 28,
-    letterSpacing: -0.5,
-    flex: 1,
-  },
-  badge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { fontFamily: "DmSans_700Bold", fontSize: 12, color: "#fff" },
-  empty: {
+  tab: { marginRight: 24, paddingVertical: 12 },
+  tabText: { fontFamily: "DmSans_500Medium", fontSize: 15 },
+
+  center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 40,
-    gap: 14,
-    marginTop: -60,
+    gap: 12,
+    paddingHorizontal: 32,
   },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  emptyTitle: {
-    fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 22,
-    letterSpacing: -0.3,
-  },
+  emptyTitle: { fontFamily: "DmSans_700Bold", fontSize: 18 },
   emptyBody: {
     fontFamily: "DmSans_400Regular",
     fontSize: 14,
-    lineHeight: 21,
     textAlign: "center",
+    lineHeight: 20,
   },
-  noteRow: {
+
+  row: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
   },
-  noteIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    marginTop: 2,
   },
-  noteTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
-  noteSub: { fontFamily: "DmSans_400Regular", fontSize: 13, lineHeight: 18 },
-  noteRight: { alignItems: "flex-end", gap: 4 },
-  noteTime: { fontFamily: "DmSans_400Regular", fontSize: 11 },
-  inviteCard: {
-    flexDirection: "row", alignItems: "flex-start", gap: 14,
-    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "transparent",
-    marginHorizontal: 12, marginVertical: 6, borderRadius: 16, borderWidth: 1,
+  content: { flex: 1 },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 4,
   },
-  inviteBtns: { flexDirection: "row", gap: 8, marginTop: 4 },
-  joinBtn: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, alignItems: "center", justifyContent: "center", minWidth: 80 },
-  joinBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
-  dismissBtn: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1 },
-  dismissText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
+  noteTitle: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 15,
+    flex: 1,
+  },
+  time: { fontFamily: "DmSans_400Regular", fontSize: 12, flexShrink: 0, paddingTop: 2 },
+  subtext: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  tripChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  tripChipText: { fontFamily: "DmSans_500Medium", fontSize: 11 },
+  actions: { marginTop: 8 },
+  solidBtn: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  solidBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff" },
 });

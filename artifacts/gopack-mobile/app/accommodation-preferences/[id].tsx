@@ -43,7 +43,7 @@ const PRIORITIES = [
   { value: "luxury", label: "Luxury" },
 ] as const;
 
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 function Avatar({ name, index, size = 28 }: { name: string; index: number; size?: number }) {
   const bg = MEMBER_COLORS[index % MEMBER_COLORS.length];
@@ -202,14 +202,14 @@ export default function AccommodationPreferencesScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerLabel, { color: TEAL }]}>ACCOMMODATION</Text>
+          <Text style={[styles.headerLabel, { color: colors.primary }]}>STEP 1 OF 4</Text>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Everyone's preferences</Text>
         </View>
       </View>
 
       {/* Progress bar */}
       <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
-        <View style={[styles.progressFill, { backgroundColor: TEAL, width: totalMembers > 0 ? `${(submittedCount / totalMembers) * 100}%` : "0%" }]} />
+        <View style={[styles.progressFill, { backgroundColor: colors.primary, width: totalMembers > 0 ? `${(submittedCount / totalMembers) * 100}%` : "0%" }]} />
       </View>
 
       <ScrollView
@@ -253,7 +253,7 @@ export default function AccommodationPreferencesScreen() {
             <Pressable
               onPress={handleGenerate}
               disabled={generating}
-              style={[styles.generateBtn, { backgroundColor: TEAL, opacity: generating ? 0.7 : 1 }]}
+              style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: generating ? 0.7 : 1 }]}
             >
               {generating ? (
                 <View style={styles.btnRow}>
@@ -296,12 +296,12 @@ export default function AccommodationPreferencesScreen() {
 
           {/* Max cost per person */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Max budget per person (total trip)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Max budget per person / night</Text>
             <View style={styles.daysRow}>
               <Pressable onPress={() => setMaxCost((c) => Math.max(50, c - 50))} style={[styles.dayBtn, { borderColor: colors.border }]}>
                 <Feather name="minus" size={18} color={colors.foreground} />
               </Pressable>
-              <Text style={[styles.daysNum, { color: TEAL }]}>${maxCost}</Text>
+              <Text style={[styles.daysNum, { color: colors.primary }]}>${maxCost}</Text>
               <Pressable onPress={() => setMaxCost((c) => Math.min(5000, c + 50))} style={[styles.dayBtn, { borderColor: colors.border }]}>
                 <Feather name="plus" size={18} color={colors.foreground} />
               </Pressable>
@@ -310,7 +310,7 @@ export default function AccommodationPreferencesScreen() {
 
           {/* Type */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Preferred type</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Accommodation type</Text>
             <View style={styles.chipGrid}>
               {TYPES.map((t) => {
                 const selected = type === t.value;
@@ -318,10 +318,10 @@ export default function AccommodationPreferencesScreen() {
                   <Pressable
                     key={t.value}
                     onPress={() => setType(t.value)}
-                    style={[styles.typeChip, { backgroundColor: selected ? TEAL : colors.muted, borderColor: selected ? TEAL : colors.border }]}
+                    style={[styles.typeChip, { backgroundColor: selected ? colors.primary + "15" : colors.card, borderColor: selected ? colors.primary : colors.border }]}
                   >
-                    <Feather name={t.icon as any} size={14} color={selected ? "#fff" : colors.foreground} />
-                    <Text style={[styles.chipText, { color: selected ? "#fff" : colors.foreground }]}>{t.label}</Text>
+                    <Feather name={t.icon as any} size={14} color={selected ? colors.primary : colors.foreground} />
+                    <Text style={[styles.chipText, { color: selected ? colors.primary : colors.foreground }]}>{t.label}</Text>
                   </Pressable>
                 );
               })}
@@ -330,7 +330,7 @@ export default function AccommodationPreferencesScreen() {
 
           {/* Rooms */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Number of rooms needed</Text>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Number of rooms</Text>
             <View style={styles.daysRow}>
               <Pressable onPress={() => setRooms((r) => Math.max(1, r - 1))} style={[styles.dayBtn, { borderColor: colors.border }]}>
                 <Feather name="minus" size={18} color={colors.foreground} />
@@ -347,7 +347,7 @@ export default function AccommodationPreferencesScreen() {
           <View>
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Preferred area / near what? (optional)</Text>
             <View style={[styles.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="map-pin" size={16} color={TEAL} />
+              <Feather name="map-pin" size={16} color={colors.primary} />
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
                 placeholder="e.g. city center, near the beach…"
@@ -369,7 +369,7 @@ export default function AccommodationPreferencesScreen() {
                   <Pressable
                     key={a}
                     onPress={() => toggleAmenity(a)}
-                    style={[styles.chip, { backgroundColor: selected ? TEAL : colors.muted, borderColor: selected ? TEAL : colors.border }]}
+                    style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
                   >
                     <Text style={[styles.chipText, { color: selected ? "#fff" : colors.foreground }]}>{a}</Text>
                   </Pressable>
@@ -388,7 +388,7 @@ export default function AccommodationPreferencesScreen() {
                   <Pressable
                     key={p.value}
                     onPress={() => setPriority(p.value)}
-                    style={[styles.chip, { flex: 1, backgroundColor: selected ? TEAL : colors.muted, borderColor: selected ? TEAL : colors.border }]}
+                    style={[styles.chip, { flex: 1, backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
                   >
                     <Text style={[styles.chipText, { color: selected ? "#fff" : colors.foreground }]}>{p.label}</Text>
                   </Pressable>
@@ -410,7 +410,7 @@ export default function AccommodationPreferencesScreen() {
                   <Pressable
                     key={c.value}
                     onPress={() => setCancellation(c.value as AccommodationPreference["cancellation"])}
-                    style={[styles.chip, { flex: 1, backgroundColor: selected ? TEAL : colors.muted, borderColor: selected ? TEAL : colors.border }]}
+                    style={[styles.chip, { flex: 1, backgroundColor: selected ? colors.primary : colors.muted, borderColor: selected ? colors.primary : colors.border }]}
                   >
                     <Text style={[styles.chipText, { color: selected ? "#fff" : colors.foreground }]}>{c.label}</Text>
                   </Pressable>
@@ -423,15 +423,12 @@ export default function AccommodationPreferencesScreen() {
           <Pressable
             onPress={handleSubmit}
             disabled={submitting}
-            style={[styles.submitBtn, { backgroundColor: TEAL, opacity: submitting ? 0.6 : 1 }]}
+            style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.6 : 1 }]}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <View style={styles.btnRow}>
-                <Feather name={alreadySubmitted ? "refresh-cw" : "check"} size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>{alreadySubmitted ? "Update preferences" : "Submit preferences"}</Text>
-              </View>
+              <Text style={styles.submitBtnText}>{alreadySubmitted ? "Update" : "Next"}</Text>
             )}
           </Pressable>
         </View>
@@ -488,12 +485,12 @@ const styles = StyleSheet.create({
   chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: "center" },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  chipText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
 
   daysRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  dayBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  daysNum: { fontFamily: "DmSans_700Bold", fontSize: 22, minWidth: 60, textAlign: "center" },
+  dayBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  daysNum: { fontFamily: "DmSans_700Bold", fontSize: 24, minWidth: 60, textAlign: "center" },
   daysLabel: { fontFamily: "DmSans_400Regular", fontSize: 14 },
 
   inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },

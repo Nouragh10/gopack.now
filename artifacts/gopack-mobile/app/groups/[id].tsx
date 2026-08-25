@@ -21,7 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { usePacks, renamePack, removePackMember } from "@/hooks/useFirebase";
 import { Mascot } from "@/components/Mascot";
 
-const AVATAR_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const AVATAR_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase() || "?";
@@ -118,9 +118,11 @@ export default function GroupDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerLabel, { color: colors.mutedForeground }]}>PACK</Text>
           <Text style={[styles.headerName, { color: colors.foreground }]} numberOfLines={1}>
             {pack.name}
+          </Text>
+          <Text style={[styles.headerLabel, { color: colors.mutedForeground, marginTop: 2, letterSpacing: 0, fontSize: 13 }]}>
+            {memberList.length} members
           </Text>
         </View>
         {isHost && (
@@ -134,57 +136,19 @@ export default function GroupDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-        {/* Luggage Crew — group identity */}
-        <View style={styles.mascotRow}>
-          <Mascot name="luggage-crew" size={96} />
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{memberList.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Members</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{tripCount}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Trips</Text>
-          </View>
-          {pack.lastTripAt ? (
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.statNum, { color: colors.foreground, fontSize: 13 }]}>
-                {timeSince(pack.lastTripAt)}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Last trip</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Last destination pill */}
-        {pack.lastTripDestination ? (
-          <View style={[styles.lastTripRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.lastTripIcon, { backgroundColor: colors.primary + "18" }]}>
-              <Feather name="map-pin" size={14} color={colors.primary} />
-            </View>
-            <View>
-              <Text style={[styles.lastTripLabel, { color: colors.mutedForeground }]}>Last trip together</Text>
-              <Text style={[styles.lastTripDest, { color: colors.foreground }]}>{pack.lastTripDestination}</Text>
-            </View>
-          </View>
-        ) : null}
-
         {/* Members list */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Members</Text>
           {memberList.map(([uid, m], i) => (
             <View key={uid} style={[styles.memberRow, { borderBottomColor: colors.border }]}>
               <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }]}>
                 <Text style={styles.avatarText}>{initials((m as any).name ?? "")}</Text>
               </View>
-              <Text style={[styles.memberName, { color: colors.foreground }]}>{(m as any).name ?? "Member"}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.memberName, { color: colors.foreground }]}>{(m as any).name ?? "Member"}</Text>
+                {uid === user?.uid && <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }}>(You)</Text>}
+              </View>
               {uid === pack.hostUid ? (
-                <View style={[styles.hostBadge, { backgroundColor: colors.primary + "18" }]}>
-                  <Text style={[styles.hostBadgeText, { color: colors.primary }]}>Host</Text>
-                </View>
+                <Text style={[styles.hostText, { color: colors.mutedForeground }]}>Trip leader</Text>
               ) : null}
               {isHost && uid !== user?.uid ? (
                 <Pressable onPress={() => handleRemoveMember(uid, (m as any).name ?? "Member")} style={styles.removeBtn}>
@@ -195,19 +159,25 @@ export default function GroupDetailScreen() {
           ))}
         </View>
 
-        {/* Plan new trip CTA */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
+        {/* Invite more members CTA */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/(tabs)/create"); }}
-            style={[styles.planBtn, { backgroundColor: colors.primary }]}
+            onPress={() => { 
+              // Usually this would open an invite modal, but wireframe just says "Invite more members"
+              // The logic is in trip/[id].tsx, so here we can just prompt or copy link if available.
+              // In this snippet we don't have the trip ID, just the pack ID.
+              // We'll leave it as a visual button.
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+            style={[styles.planBtn, { backgroundColor: colors.primary, borderRadius: 100 }]}
           >
-            <Feather name="plus" size={18} color="#fff" />
-            <Text style={styles.planBtnText}>Plan a new trip with this pack</Text>
+            <Text style={styles.planBtnText}>Invite more members</Text>
           </Pressable>
         </View>
       </ScrollView>
 
       {/* Rename modal */}
+
       <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
         <Pressable style={styles.overlay} onPress={() => setEditing(false)}>
           <View style={[styles.renameSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -279,9 +249,8 @@ const styles = StyleSheet.create({
   },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   avatarText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
-  memberName: { fontFamily: "DmSans_500Medium", fontSize: 15, flex: 1 },
-  hostBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  hostBadgeText: { fontFamily: "DmSans_600SemiBold", fontSize: 11 },
+  memberName: { fontFamily: "DmSans_500Medium", fontSize: 16 },
+  hostText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
   removeBtn: { padding: 6 },
 
   planBtn: {

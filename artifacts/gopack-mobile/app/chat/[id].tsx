@@ -18,7 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { ChatMessage, sendMessage, useChat, useTrip } from "@/hooks/useFirebase";
 
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 function colorForUid(uid: string, members: Record<string, { name: string; joinedAt: string; isHost: boolean }>) {
   const idx = Object.keys(members ?? {}).indexOf(uid);
@@ -41,7 +41,7 @@ function MessageBubble({ msg, isMe, members, colors }: {
           <Text style={styles.msgAvatarText}>{initial}</Text>
         </View>
       )}
-      <View style={{ maxWidth: "72%" }}>
+      <View style={[{ maxWidth: "75%" }, isMe ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
         {!isMe && (
           <Text style={[styles.msgAuthor, { color: colors.mutedForeground }]}>
             {msg.authorName}
@@ -51,8 +51,8 @@ function MessageBubble({ msg, isMe, members, colors }: {
           style={[
             styles.bubble,
             isMe
-              ? { backgroundColor: colors.primary }
-              : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 },
+              ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
+              : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderBottomLeftRadius: 4 },
           ]}
         >
           <Text style={[styles.bubbleText, { color: isMe ? "#fff" : colors.foreground }]}>
@@ -100,14 +100,17 @@ export default function ChatScreen() {
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Pack chat</Text>
-        <View style={[styles.headerBadge, { backgroundColor: colors.muted }]}>
-          <Text style={[styles.headerBadgeText, { color: colors.mutedForeground }]}>
-            {Object.keys(trip?.members ?? {}).length}
+        <View style={styles.headerTitles}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>{trip?.destination ?? "Trip Chat"}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
+            {Object.keys(trip?.members ?? {}).length} members
           </Text>
         </View>
+        <Pressable style={styles.headerMenu}>
+          <Feather name="more-horizontal" size={20} color={colors.foreground} />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -143,10 +146,10 @@ export default function ChatScreen() {
           }
         />
 
-        <View style={[styles.inputBar, { borderTopColor: colors.border, paddingBottom: bottomInset + 8 }]}>
+        <View style={[styles.inputBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: bottomInset + 8 }]}>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground }]}
-            placeholder="Message the pack..."
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, color: colors.foreground }]}
+            placeholder={`Message ${trip?.destination ?? "the pack"}...`}
             placeholderTextColor={colors.mutedForeground}
             value={text}
             onChangeText={setText}
@@ -162,7 +165,7 @@ export default function ChatScreen() {
               { backgroundColor: text.trim() ? colors.primary : colors.muted },
             ]}
           >
-            <Feather name="send" size={18} color={text.trim() ? "#fff" : colors.mutedForeground} />
+            <Feather name="arrow-up" size={18} color={text.trim() ? "#fff" : colors.mutedForeground} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -176,51 +179,52 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    gap: 10,
+    gap: 16,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { flex: 1, fontFamily: "DmSans_600SemiBold", fontSize: 17 },
-  headerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  headerBadgeText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
-  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 12 },
+  backBtn: { padding: 4, marginLeft: -4 },
+  headerTitles: { flex: 1, alignItems: "center" },
+  headerTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16 },
+  headerSubtitle: { fontFamily: "DmSans_400Regular", fontSize: 13, marginTop: 2 },
+  headerMenu: { padding: 4, marginRight: -4 },
+  msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginBottom: 16 },
   msgRowRight: { flexDirection: "row-reverse" },
   msgAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  msgAvatarText: { color: "#fff", fontSize: 12, fontFamily: "DmSans_700Bold" },
-  msgAuthor: { fontFamily: "DmSans_500Medium", fontSize: 11, marginBottom: 4, marginLeft: 4 },
+  msgAvatarText: { color: "#fff", fontSize: 13, fontFamily: "DmSans_700Bold" },
+  msgAuthor: { fontFamily: "DmSans_500Medium", fontSize: 12, marginBottom: 4, marginLeft: 2 },
   bubble: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  bubbleText: { fontFamily: "DmSans_400Regular", fontSize: 15, lineHeight: 20 },
+  bubbleText: { fontFamily: "DmSans_400Regular", fontSize: 15, lineHeight: 22 },
   inputBar: {
     flexDirection: "row",
     gap: 10,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
   },
   input: {
     flex: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     fontFamily: "DmSans_400Regular",
     fontSize: 15,
-    maxHeight: 100,
+    maxHeight: 120,
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -14,7 +14,7 @@ const avatarColors = ["#E85D3A", "#7F77DD", "#1D9E75", "#378ADD", "#BA7517"];
 
 const exploreTrips = [
   { dest: "Tokyo", days: 5, rating: 5, review: "The AI nailed our itinerary — every wish made it in.", by: "Razan's pack", vibes: ["Culture", "Foodie"] },
-  { dest: "Paris", days: 4, rating: 5, review: "Planning 8 people used to be chaos. GoPackNow sorted us in minutes.", by: "Noura's crew", vibes: ["Shopping", "Nightlife"] },
+  { dest: "Paris", days: 4, rating: 5, review: "Planning 8 people used to be chaos. Packyo sorted us in minutes.", by: "Noura's crew", vibes: ["Shopping", "Nightlife"] },
   { dest: "Bali", days: 7, rating: 4, review: "Perfect balance of beach and culture. The packing list was a lifesaver.", by: "Sam & friends", vibes: ["Relaxation", "Adventure"] },
 ];
 
@@ -43,7 +43,7 @@ export default function Landing() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-5 border-b border-border">
         <div className="font-display font-bold text-2xl tracking-tight">
-          go<span className="text-primary">pack</span>
+          pack<span className="text-primary">yo</span>
         </div>
         <div className="flex items-center gap-6">
           <Link href="/explore" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-explore">

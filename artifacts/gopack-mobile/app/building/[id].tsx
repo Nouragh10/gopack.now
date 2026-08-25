@@ -8,9 +8,11 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 
 import { useAuth } from "@/context/AuthContext";
+import { useColors } from "@/hooks/useColors";
 import { saveItinerary, useTrip, useWishes } from "@/hooks/useFirebase";
 
 const MESSAGES = [
@@ -24,6 +26,7 @@ export default function BuildingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const colors = useColors();
   const { trip } = useTrip(id);
   const wishes = useWishes(id);
 
@@ -32,18 +35,8 @@ export default function BuildingScreen() {
   const hasStarted = useRef(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 3000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    ).start();
-
     Animated.timing(progressAnim, {
       toValue: 0.85,
       duration: 8000,
@@ -66,23 +59,16 @@ export default function BuildingScreen() {
       try {
         const memberPrefs = Object.values((trip as any).memberPreferences ?? {}) as Array<Record<string, unknown>>;
 
-        // Days: average of all member preferences, rounded. Fall back to trip.days if no prefs exist.
         const prefDays = memberPrefs.map(p => Number(p.days)).filter(d => d > 0);
         const resolvedDays = prefDays.length > 0
           ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
           : (trip.days ?? 5);
 
-        // ── Wish selection: fairness-cap algorithm ──────────────────────
-        // Step 0: exclude negatively-scored wishes (the group said no)
         const positiveWishes = [...wishes]
           .filter(w => w.score >= 0)
           .sort((a, b) => b.score - a.score);
 
-        // Step 1: cap scales with trip length (~1.5 guaranteed slots/day)
         const guaranteedCap = Math.floor(resolvedDays * 1.5);
-
-        // Step 2: fairness pass — each member who submitted ≥1 wish gets
-        // their highest-scoring wish guaranteed (score ≥ 0 only)
         const guaranteedSet: typeof positiveWishes = [];
         const usedWishIds = new Set<string>();
         const seenAuthors = new Set<string>();
@@ -96,7 +82,6 @@ export default function BuildingScreen() {
           }
         }
 
-        // Step 3: fill remaining guaranteed slots by net score (member-agnostic)
         for (const w of positiveWishes) {
           if (guaranteedSet.length >= guaranteedCap) break;
           if (!usedWishIds.has(w.id)) {
@@ -105,7 +90,6 @@ export default function BuildingScreen() {
           }
         }
 
-        // Step 4: candidates — remaining score ≥ 0 wishes, up to 15
         const candidateWishes = positiveWishes
           .filter(w => !usedWishIds.has(w.id))
           .slice(0, 15);
@@ -116,13 +100,11 @@ export default function BuildingScreen() {
           votes: w.score,
         });
 
-        // Vibes: union of all member vibe selections. Fall back to trip.vibes if no prefs exist.
         const prefVibes = memberPrefs.flatMap(p => (p.vibes as string[] | undefined) ?? []);
         const resolvedVibes = prefVibes.length > 0
           ? [...new Set(prefVibes)]
           : (trip.vibes?.length ? trip.vibes : ["culture", "food"]);
 
-        // Pace: majority vote across member preferences.
         const paceVotes: Record<string, number> = {};
         for (const pref of memberPrefs) {
           const p = (pref.pace as string) ?? "balanced";
@@ -170,24 +152,18 @@ export default function BuildingScreen() {
     run();
   }, [trip]);
 
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
   return (
-    <View style={styles.root}>
-      <Animated.View style={{ transform: [{ rotate }] }}>
-        <Feather name="send" size={56} color="#E85D3A" />
-      </Animated.View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {!error && <ActivityIndicator size="large" color={colors.primary} style={{ transform: [{ scale: 1.2 }] }} />}
+      
+      <Text style={[styles.message, { color: colors.foreground }]}>{error ? "Something went wrong." : MESSAGES[msgIndex]}</Text>
 
-      <Text style={styles.message}>{error ? "Something went wrong." : MESSAGES[msgIndex]}</Text>
-
-      <View style={styles.progressTrack}>
+      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
         <Animated.View
           style={[
             styles.progressFill,
             {
+              backgroundColor: colors.primary,
               width: progressAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["0%", "100%"],
@@ -199,9 +175,9 @@ export default function BuildingScreen() {
 
       {error && (
         <>
-          <Text style={styles.errorHint}>{error}</Text>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>← Go back</Text>
+          <Text style={[styles.errorHint, { color: colors.mutedForeground }]}>{error}</Text>
+          <Pressable onPress={() => router.back()} style={[styles.backBtn, { borderColor: colors.border }]}>
+            <Text style={[styles.backBtnText, { color: colors.foreground }]}>Go back</Text>
           </Pressable>
         </>
       )}
@@ -212,48 +188,41 @@ export default function BuildingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#2B2723",
     alignItems: "center",
     justifyContent: "center",
-    gap: 24,
+    gap: 32,
     paddingHorizontal: 40,
   },
   message: {
-    fontFamily: "PlayfairDisplay_400Regular",
-    fontSize: 22,
-    color: "#FFFDF9",
+    fontFamily: "DmSans_500Medium",
+    fontSize: 20,
     textAlign: "center",
-    lineHeight: 30,
+    lineHeight: 28,
   },
   progressTrack: {
     width: "100%",
-    height: 4,
-    backgroundColor: "#332E2B",
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#E85D3A",
-    borderRadius: 2,
+    borderRadius: 3,
   },
   errorHint: {
     fontFamily: "DmSans_400Regular",
     fontSize: 14,
-    color: "#756C66",
     textAlign: "center",
   },
   backBtn: {
     marginTop: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#4A4440",
   },
   backBtnText: {
     fontFamily: "DmSans_600SemiBold",
     fontSize: 15,
-    color: "#FFFDF9",
   },
 });

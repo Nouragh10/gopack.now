@@ -24,20 +24,29 @@ export default function JoinScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [link, setLink] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
   const handleJoin = async () => {
-    const trimmed = code.trim();
-    if (!trimmed || !user) return;
+    const inviteInput = code.trim() || link.trim();
+    if (!inviteInput) {
+      setError("Enter an invite code or paste an invite link.");
+      return;
+    }
+    if (!user) {
+      setError("You must be signed in to join a trip.");
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const tripId = await joinTrip(
-        trimmed,
+        inviteInput,
         user.uid,
         user.displayName ?? "Traveler",
       );
@@ -66,38 +75,66 @@ export default function JoinScreen() {
           style={styles.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={24} color={colors.foreground} />
         </Pressable>
       </View>
 
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Join the pack</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Paste the Trip ID shared by your group to join their trip.
-        </Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Join a trip</Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.foreground }]}>Enter invite code</Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.card,
+                borderColor: error ? colors.destructive : colors.border,
+                color: colors.foreground,
+              },
+            ]}
+             placeholder="ABC123"
+            placeholderTextColor={colors.mutedForeground}
+            value={code}
+            onChangeText={(t) => {
+              setCode(t);
+              setLink("");
+              setError(null);
+            }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleJoin}
+          />
+        </View>
 
-        <TextInput
-          style={[
-            styles.codeInput,
-            {
-              backgroundColor: colors.card,
-              borderColor: error ? colors.destructive : colors.border,
-              color: colors.foreground,
-            },
-          ]}
-          placeholder="Paste trip ID here"
-          placeholderTextColor={colors.mutedForeground}
-          value={code}
-          onChangeText={(t) => {
-            setCode(t);
-            setError(null);
-          }}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={handleJoin}
-          autoFocus
-        />
+        <Text style={[styles.orText, { color: colors.mutedForeground }]}>or</Text>
+
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: colors.foreground }]}>Paste invite link</Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.card,
+                borderColor: error ? colors.destructive : colors.border,
+                color: colors.foreground,
+              },
+            ]}
+             placeholder="packyo.com/join/ABC123"
+            placeholderTextColor={colors.mutedForeground}
+            value={link}
+            onChangeText={(t) => {
+              setLink(t);
+              setCode("");
+              setError(null);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleJoin}
+          />
+        </View>
 
         {error && (
           <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
@@ -105,28 +142,22 @@ export default function JoinScreen() {
 
         <Pressable
           onPress={handleJoin}
-          disabled={loading || code.trim().length < 4}
+          disabled={loading || (!code.trim() && !link.trim())}
           style={[
             styles.joinBtn,
-            { backgroundColor: code.trim().length >= 4 ? colors.primary : colors.muted },
+            { backgroundColor: code.trim() || link.trim() ? colors.primary : colors.muted },
           ]}
         >
           {loading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <>
-              <Feather name="users" size={18} color="#fff" />
-              <Text style={styles.joinBtnText}>Join trip</Text>
-            </>
+            <Text style={styles.joinBtnText}>Join Trip</Text>
           )}
         </Pressable>
 
-        <View style={[styles.hint, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Feather name="info" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            Ask the trip host to open the Invite sheet and share their Trip ID with you.
-          </Text>
-        </View>
+        <Text style={[styles.helpText, { color: colors.mutedForeground }]}>
+          Need an invite?{"\n"}Ask your trip leader for the code or invite link.
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -138,21 +169,31 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   content: {
     flex: 1,
-    paddingHorizontal: 28,
-    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 16,
     gap: 16,
-    marginTop: -60,
   },
-  title: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 30 },
-  subtitle: { fontFamily: "DmSans_400Regular", fontSize: 15, lineHeight: 22 },
-  codeInput: {
-    borderRadius: 14,
-    borderWidth: 1.5,
-    paddingHorizontal: 20,
+  title: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 32, marginBottom: 12 },
+  inputGroup: {
+    gap: 8,
+  },
+  label: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 14,
+  },
+  input: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     fontFamily: "DmSans_400Regular",
-    fontSize: 15,
-    marginTop: 8,
+    fontSize: 16,
+  },
+  orText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    marginVertical: 4,
   },
   errorText: {
     fontFamily: "DmSans_400Regular",
@@ -160,28 +201,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   joinBtn: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    borderRadius: 14,
+    borderRadius: 24,
     paddingVertical: 16,
-    marginTop: 4,
+    marginTop: 16,
   },
   joinBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
-  hint: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginTop: 4,
-  },
-  hintText: {
-    flex: 1,
+  helpText: {
     fontFamily: "DmSans_400Regular",
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginTop: 24,
   },
 });

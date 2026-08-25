@@ -41,13 +41,67 @@ function extractAndParseJson(text: string): unknown {
   const stripped = text
     .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
     .trim();
-  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-  const raw = jsonMatch ? jsonMatch[0] : stripped;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return JSON.parse(jsonrepair(raw));
+
+  const candidates: string[] = [stripped];
+  const seen = new Set(candidates);
+
+  // Find complete object/array slices without using a greedy regex. Greedy
+  // matching can swallow multiple JSON blocks or trailing prose, and it also
+  // cannot tell braces inside quoted strings from structural braces.
+  for (let start = 0; start < stripped.length; start++) {
+    if (stripped[start] !== "{" && stripped[start] !== "[") continue;
+    const opening = stripped[start];
+    const closing = opening === "{" ? "}" : "]";
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < stripped.length; index++) {
+      const char = stripped[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+      if (char === "{" || char === "[") stack.push(char);
+      else if (char === "}" || char === "]") {
+        const expected = stack[stack.length - 1] === "{" ? "}" : "]";
+        if (char !== expected) break;
+        stack.pop();
+        if (stack.length === 0 && char === closing) {
+          const candidate = stripped.slice(start, index + 1);
+          if (!seen.has(candidate)) {
+            candidates.push(candidate);
+            seen.add(candidate);
+          }
+          break;
+        }
+      }
+    }
   }
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (parseError) {
+      lastError = parseError;
+      try {
+        return JSON.parse(jsonrepair(candidate));
+      } catch (repairError) {
+        lastError = repairError;
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("AI response did not contain valid JSON.");
 }
 
 type ItineraryActivity = {
@@ -57,6 +111,35 @@ type ItineraryActivity = {
 };
 type ItineraryDay = { activities: ItineraryActivity[]; [key: string]: unknown };
 type ItineraryShape = { days: ItineraryDay[]; [key: string]: unknown };
+
+function isItineraryShape(value: unknown): value is ItineraryShape {
+  if (!value || typeof value !== "object") return false;
+  const days = (value as { days?: unknown }).days;
+  return Array.isArray(days) && days.every((day) => (
+    day !== null &&
+    typeof day === "object" &&
+    Array.isArray((day as { activities?: unknown }).activities)
+  ));
+}
+
+function parseItineraryResponse(text: string): ItineraryShape {
+  const variants = [text, `{${text}`];
+  let lastError: unknown;
+
+  for (const variant of variants) {
+    try {
+      const parsed = extractAndParseJson(variant);
+      if (isItineraryShape(parsed)) return parsed;
+      lastError = new Error("AI response did not contain an itinerary days array.");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("AI response did not contain a valid itinerary.");
+}
 
 async function verifyItineraryVenues(
   itinerary: ItineraryShape,
@@ -117,8 +200,8 @@ ${JSON.stringify(itinerary)}`;
       log.warn({ chars: allText.length }, "Venue verification response truncated, keeping original itinerary");
       return itinerary;
     }
-    const verified = extractAndParseJson(allText) as ItineraryShape;
-    if (!verified?.days || !Array.isArray(verified.days)) {
+    const verified = extractAndParseJson(allText);
+    if (!isItineraryShape(verified)) {
       log.warn({}, "Venue verification returned malformed shape, keeping original itinerary");
       return itinerary;
     }
@@ -314,11 +397,12 @@ Trip details:
 - Budget level: ${budget}
 ${startDate ? `- Start date: ${startDate}` : ""}
 
-━━━ SECTION A — GROUP WISHES (two-tier, priority-ordered) ━━━
+${(guaranteedList.length === 0 && candidateList.length === 0) ? `━━━ NO WISHES PROVIDED — FULL AI ITINERARY ━━━
+The group has not added any wishes yet. Generate a world-class, opinionated itinerary for ${destination} entirely from your own expertise. Base every activity on the group's vibes (${vibes.join(", ")}) and budget level (${budget}). Every activity must use "fromWish": false and "suggester": "AI pick".` : `━━━ SECTION A — GROUP WISHES (two-tier, priority-ordered) ━━━
 
 TIER 1 — GUARANTEED (non-negotiable):
 These wishes were democratically selected by the group and MUST all appear as real named activities in the itinerary — every single one, no exceptions:
-${guaranteedList.length > 0 ? guaranteedList.join("\n") : "None."}
+${guaranteedList.join("\n")}
 
 Each guaranteed wish counts as exactly ONE activity slot. Mark with "fromWish": true and the author's name as "suggester". If the total number of guaranteed wishes exceeds the total activity slots available, add extra activities to those days to absorb them all — do NOT drop any guaranteed wish.
 
@@ -328,7 +412,7 @@ ${candidateList.length > 0 ? candidateList.join("\n") : "None."}
 
 Candidates also use "fromWish": true and the author's name as "suggester".
 
-CONFLICT RESOLUTION: If two guaranteed wishes are geographically incompatible on the same day (e.g., opposite ends of the city with no reasonable way to visit both), split them across different days rather than degrading pacing or cramming both in. Record any such adjustment in the top-level "conflicts" array (one string per conflict, e.g. "Moved 'X' from Day 1 to Day 3 — too far from other Day 1 activities"). If there are no conflicts, return an empty array.
+CONFLICT RESOLUTION: If two guaranteed wishes are geographically incompatible on the same day (e.g., opposite ends of the city with no reasonable way to visit both), split them across different days rather than degrading pacing or cramming both in. Record any such adjustment in the top-level "conflicts" array (one string per conflict, e.g. "Moved 'X' from Day 1 to Day 3 — too far from other Day 1 activities"). If there are no conflicts, return an empty array.`}
 
 ━━━ SECTION B — AI PICKS (fill all remaining slots) ━━━
 After placing all guaranteed wishes (and any candidates that fit), fill the remaining activity slots (target: ${totalActivities} total activities across ${days} days) with original AI recommendations — diverse, specific, real-world venues the group would love.
@@ -359,6 +443,11 @@ ${vibeGuide}
   WELLNESS (one person's session): spa / hammam $40–120, yoga or fitness class $15–40, surf lesson $50–90
   Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer free or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
   NEVER output 25 as a default. NEVER divide a venue's price by the group size. Every activity must have a cost that honestly reflects what one individual pays for that specific venue/experience.
+11. COORDINATES & PHOTO — For every activity include:
+  - "photoQuery": a 3–5 word image-search phrase that will return a great photo of this specific activity (e.g. "Uluwatu Temple cliff sunset" or "Tsukiji Fish Market Tokyo morning")
+  - "lat": exact latitude of the venue as a decimal number (e.g. -8.8291)
+  - "lng": exact longitude of the venue as a decimal number (e.g. 115.0849)
+  These must be accurate for the real venue. Never omit them.
 
 Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -380,7 +469,10 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
           "matchedVibe": "culture",
           "estimatedCost": 0,
           "labels": ["Must-try"],
-          "nearPrevious": false
+          "nearPrevious": false,
+          "photoQuery": "Activity name city keyword",
+          "lat": 0.0,
+          "lng": 0.0
         }
       ]
     }
@@ -411,7 +503,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       return;
     }
 
-    const allText = "{" + (data.content ?? [])
+    const allText = (data.content ?? [])
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
@@ -420,7 +512,39 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       req.log.warn({ chars: allText.length }, "Itinerary response truncated at max_tokens");
     }
 
-    const itinerary = extractAndParseJson(allText) as ItineraryShape;
+    let itinerary: ItineraryShape;
+    try {
+      itinerary = parseItineraryResponse(allText);
+    } catch (firstParseError) {
+      req.log.warn(
+        { chars: allText.length, error: firstParseError instanceof Error ? firstParseError.message : String(firstParseError) },
+        "Itinerary response was malformed; requesting a compact retry",
+      );
+
+      const retryBody = {
+        ...body,
+        messages: [{
+          role: "user",
+          content: `${prompt}
+
+IMPORTANT RETRY: The previous response was not valid JSON. Return a compact, complete JSON object now. Keep every required field and exactly the requested number of days and activities, but keep descriptions under 8 words. Do not use markdown, comments, or any text outside the JSON object.`,
+        }, { role: "assistant", content: "{" }],
+      };
+      const retryResponse = await callAnthropic(retryBody);
+      const retryData = await (retryResponse as unknown as globalThis.Response).json() as {
+        content?: Array<{ type: string; text?: string }>;
+        error?: { message: string };
+        stop_reason?: string;
+      };
+      if (!(retryResponse as unknown as globalThis.Response).ok) {
+        throw new Error(retryData.error?.message ?? "AI itinerary retry failed. Please try again.");
+      }
+      const retryText = (retryData.content ?? [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("");
+      itinerary = parseItineraryResponse(retryText);
+    }
     const dedupedItinerary = await dedupeItineraryVenues(itinerary, destination, req.log);
     res.json(dedupedItinerary);
   } catch (err) {
@@ -1151,13 +1275,19 @@ router.post("/redo-activity", async (req: Request, res: Response): Promise<void>
     ? `TASK: Keep the same category (${activity.tag}) but suggest a DIFFERENT specific ${sameTypeHint[activity.tag] ?? "venue or location"} in ${city}. Same vibe, completely new place. The name must be a different real venue.`
     : `TASK: Replace this with a COMPLETELY DIFFERENT activity of a different type that fits the day theme "${theme}" in ${city}. Pick any of these tags: food, culture, adventure, relaxation, nightlife, shopping, travel.`;
 
-  const prompt = `You are a travel planner replacing one activity in an itinerary.
+  const prompt = `You are a travel researcher and planner. Your job is to find a REAL, currently-open venue in ${city} and return it as JSON.
+
+USE web_search to:
+1. Search for top venues in ${city} that match the criteria below.
+2. Pick the best real candidate — well-known, long-established, findable on Google Maps.
+3. Verify it is currently open: search "<venue name> ${city} open hours 2025" or "<venue name> ${city} closed" to confirm.
+4. If your first pick fails verification, search for an alternative and verify that one instead.
+Only suggest a venue once you have search evidence it exists and is open.
 
 Current activity being replaced:
 - Name: ${activity.name}
 - Type: ${activity.tag}
 - Time: ${activity.time}
-- Description: ${activity.description}
 
 Destination: ${destination}
 City: ${city}
@@ -1167,25 +1297,26 @@ ${tripWide}
 
 ${task}
 
-Keep the same time slot (${activity.time}).
-Name: must be a real, specific venue that you are highly confident actually exists in ${city} and can be found on Google Maps — NOT generic like "a nice restaurant", and NOT invented. Prefer iconic, well-known, long-established places over obscure guesses.
-SAME-AREA RULE: the venue must be within ${city} itself, close enough to the day's other activities to reach by a short walk or quick taxi/transit ride — never in a different suburb, town, or a location requiring a long drive out of the area.
-Must be currently open and operating — do NOT suggest anything permanently closed, demolished, or out of business. If you are not certain a specific venue exists or is still open, pick a different, safer, well-known venue instead.
-Description: ONE sentence, max 15 words.
-Cost: what ONE individual traveler pays at the counter or on Viator/GetYourGuide — NEVER the group total divided by the number of travelers. Each traveler pays their own full individual price. Use the activity TYPE, not just budget tier:
-  FREE $0: open landmarks, temples/churches with no entry fee, public parks, beaches, viewpoints
-  PAID ADMISSION $5–30: museums, palaces, archaeological sites (use known single-ticket admission price)
-  GUIDED TOURS $30–150 per person: food tours $40–80, city tours $30–60, cooking classes $60–130, boat trips $40–100, wine tastings $35–80
-  FOOD (one person's meal): street food $3–12, casual local restaurant $8–20, mid-range sit-down $20–55, upscale $55–120, fine dining $100–250
-  NIGHTLIFE (one person's spend): local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
-  WELLNESS (one person's session): spa/hammam $40–120, yoga class $15–40
-  Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
-  NEVER output 25 as a default. NEVER divide by group size. Give the honest individual cost for this specific venue/experience.
+RULES:
+- Keep the same time slot (${activity.time}).
+- The venue must be physically located in ${city} — not a different suburb, town, or region.
+- Must be currently open and operating (confirmed by web search).
+- Prefer iconic, well-known, long-established places (10+ years) over trendy or obscure ones.
+- Description: ONE sentence, max 15 words.
+- Cost = what ONE individual traveler pays (never group total divided by size):
+    FREE $0: open parks, beaches, viewpoints, temples with no entry fee
+    PAID ADMISSION $5–30: museums, palaces, archaeological sites
+    GUIDED TOURS $30–150: food tours $40–80, cooking classes $60–130, boat trips $40–100
+    FOOD (one person's meal): street food $3–12, casual $8–20, mid-range $20–55, upscale $55–120
+    NIGHTLIFE: local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
+    WELLNESS: spa/hammam $40–120, yoga class $15–40
+    Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
+  NEVER output 25 as a default. NEVER divide by group size.
 
-Respond with ONLY valid JSON (no markdown):
+After your research, your FINAL message must be ONLY valid JSON (no markdown, no preamble):
 {
   "time": "${activity.time}",
-  "name": "Specific real venue name",
+  "name": "Specific real venue name you verified exists",
   "description": "One sentence max 15 words.",
   "tag": "${redoType === "same_type" ? activity.tag : "culture"}",
   "fromWish": false,
@@ -1197,11 +1328,13 @@ Respond with ONLY valid JSON (no markdown):
 
   try {
     const body = {
-      model: "claude-haiku-4-5",
+      model: "claude-sonnet-4-5",
       max_tokens: 8192,
+      system: "You are a travel research API. Use web_search to find and verify real venues. Your FINAL message must be only valid JSON starting with { — no preamble, no markdown.",
       messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
     };
-    const response = await callAnthropic(body);
+    const response = await callAnthropic(body, 2, { "anthropic-beta": "web-search-2025-03-05" });
     const data = await (response as unknown as globalThis.Response).json() as {
       content?: Array<{ type: string; text?: string }>;
       error?: { message: string };
@@ -1211,7 +1344,9 @@ Respond with ONLY valid JSON (no markdown):
       res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
-    const allText = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    // Take the last text block — that's the JSON after all the search tool calls
+    const textBlocks = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "");
+    const allText = textBlocks[textBlocks.length - 1] ?? textBlocks.join("");
     const newActivity = extractAndParseJson(allText);
     res.json({ activity: newActivity });
   } catch (err) {

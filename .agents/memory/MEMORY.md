@@ -13,3 +13,5 @@
 - [Vite preview cache routing](vite-preview-cache-routing.md) — keep Vite’s optimizer cache outside node_modules or path previews return 502s for client modules.
 - [Expo web auth startup](expo-web-auth-startup.md) — empty initial routes need router-ready auth redirects or Expo web previews crash.
 - [Optional API services](api-optional-service-startup.md) — lazy-init feature integrations so missing email/admin credentials do not block AI routes.
+- [GitHub connector publishing](github-connector-publishing.md) — use GitHub's authenticated Git API when local HTTPS push credentials fail.
+- [Wishlist flow screens](wishlist-flow-screens.md) — three dedicated screens for wish add/browse, voting, and results; trip hub checklist now routes to /wishlist/[id] and /wishlist-vote/[id].

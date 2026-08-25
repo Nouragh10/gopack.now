@@ -9,25 +9,27 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import {
+  addPackItem,
   savePackingList,
   togglePackItem,
   usePackingList,
   useTrip,
 } from "@/hooks/useFirebase";
 
-const CATEGORY_META: Record<string, { label: string; icon: string }> = {
-  essentials: { label: "Essentials", icon: "shield" },
-  clothing: { label: "Clothing", icon: "wind" },
-  toiletries: { label: "Toiletries", icon: "droplet" },
-  tech: { label: "Tech & Gadgets", icon: "cpu" },
-  activities: { label: "Activity Gear", icon: "activity" },
-  tips: { label: "Pro Tips", icon: "zap" },
+const CATEGORY_META: Record<string, { label: string; color: string }> = {
+  essentials: { label: "Essentials", color: "#F15A3A" },
+  clothing: { label: "Clothing", color: "#68B7A0" },
+  toiletries: { label: "Toiletries", color: "#A77BD6" },
+  tech: { label: "Tech & Gadgets", color: "#F4BC55" },
+  activities: { label: "Activity Gear", color: "#EE9D54" },
+  tips: { label: "Pro Tips", color: "#6EA6D8" },
 };
 
 const CATEGORY_ORDER = ["essentials", "clothing", "toiletries", "tech", "activities", "tips"];
@@ -41,9 +43,13 @@ export default function PackingScreen() {
   const { packingList, loading } = usePackingList(id);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
+  const [newItem, setNewItem] = useState("");
+  const [savingItem, setSavingItem] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
   const handleGenerate = async () => {
     if (!trip || !id) return;
@@ -69,8 +75,6 @@ export default function PackingScreen() {
       if (!data.list || typeof data.list !== "object" || Object.keys(data.list).length === 0) {
         throw new Error("AI returned an incomplete packing list. Please try again.");
       }
-      // Drop any category the AI didn't return as a proper array of items —
-      // saving a malformed shape would crash the list screen on render.
       const cleanList = Object.fromEntries(
         Object.entries(data.list).filter(
           (entry): entry is [string, string[]] =>
@@ -95,6 +99,30 @@ export default function PackingScreen() {
     await togglePackItem(id, category, index, checked);
   };
 
+  const openAddItem = (category: string) => {
+    setAddingToCategory((current) => current === category ? null : category);
+    setNewItem("");
+    setAddError(null);
+  };
+
+  const handleAddItem = async (category: string) => {
+    const text = newItem.trim();
+    if (!id || !text || savingItem) return;
+
+    setSavingItem(true);
+    setAddError(null);
+    try {
+      await addPackItem(id, category, text);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNewItem("");
+      setAddingToCategory(null);
+    } catch {
+      setAddError("Couldn’t add that item. Please try again.");
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
   const totalItems = packingList
     ? Object.entries(packingList)
         .filter(([cat]) => cat !== "tips")
@@ -109,16 +137,20 @@ export default function PackingScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: colors.background }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </Pressable>
-        <View style={styles.headerTitles}>
-          <Text style={[styles.headerLabel, { color: colors.primary }]}>PACKING LIST</Text>
-          <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
-            {trip?.destination ?? "…"}
-          </Text>
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Packing List</Text>
+      </View>
+      
+      <View style={styles.subHeader}>
+        <Text style={[styles.headerDest, { color: colors.foreground }]} numberOfLines={1}>
+          {trip?.destination ?? "…"}
+        </Text>
+        <Text style={[styles.headerMeta, { color: colors.mutedForeground }]}>
+          {trip?.days ?? 0} days • {trip?.startDate ? new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "Dates pending"}
+        </Text>
       </View>
 
       {loading ? (
@@ -146,78 +178,50 @@ export default function PackingScreen() {
               {generating ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Feather name="zap" size={18} color="#fff" />
+                <Text style={styles.genBtnText}>Generate packing list</Text>
               )}
-              <Text style={styles.genBtnText}>
-                {generating ? "Generating…" : "Generate packing list"}
-              </Text>
             </Pressable>
           </View>
         </View>
       ) : (
         <>
-          {totalItems > 0 && (
-            <View style={[styles.progressBar, { backgroundColor: colors.muted }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { backgroundColor: colors.primary, width: `${(checkedItems / totalItems) * 100}%` as any },
-                ]}
-              />
-              <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
-                {checkedItems}/{totalItems} packed
-              </Text>
-            </View>
-          )}
-
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: bottomInset + 20 }}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomInset + 100 }}
           >
             {CATEGORY_ORDER.filter((cat) => packingList[cat]?.length > 0).map((cat) => {
-              const meta = CATEGORY_META[cat] ?? { label: cat, icon: "list" };
+              const meta = CATEGORY_META[cat] ?? { label: cat, color: colors.mutedForeground };
               const items = packingList[cat] ?? [];
               const isTips = cat === "tips";
 
               return (
                 <View key={cat} style={styles.section}>
-                  <View style={styles.sectionHeader}>
-                    <Feather name={meta.icon as any} size={15} color={colors.primary} />
-                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                      {meta.label}
-                    </Text>
+                  <View style={[styles.sectionHeader, { backgroundColor: meta.color }]}>
+                    <Text style={styles.sectionTitle}>{meta.label}</Text>
                   </View>
 
                   {items.map((item, idx) => (
                     isTips ? (
-                      <View
-                        key={idx}
-                        style={[styles.tipRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                      >
-                        <Feather name="zap" size={13} color={colors.primary} />
-                        <Text style={[styles.tipText, { color: colors.foreground }]}>
-                          {typeof item === "string" ? item : item.text}
+                      <View key={idx} style={styles.tipRow}>
+                        <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
+                          • {typeof item === "string" ? item : item.text}
                         </Text>
                       </View>
                     ) : (
                       <Pressable
                         key={idx}
                         onPress={() => handleToggle(cat, idx, !item.checked)}
-                        style={[
-                          styles.itemRow,
-                          { borderBottomColor: colors.border },
-                        ]}
+                        style={styles.itemRow}
                       >
                         <View
                           style={[
                             styles.checkbox,
-                            {
-                              borderColor: item.checked ? colors.primary : colors.border,
-                              backgroundColor: item.checked ? colors.primary : "transparent",
-                            },
+                            item.checked 
+                              ? { backgroundColor: colors.primary, borderColor: colors.primary } 
+                              : { borderColor: colors.border },
                           ]}
                         >
-                          {item.checked && <Feather name="check" size={13} color="#fff" />}
+                          {item.checked && <Feather name="check" size={14} color="#fff" />}
                         </View>
                         <Text
                           style={[
@@ -233,25 +237,62 @@ export default function PackingScreen() {
                       </Pressable>
                     )
                   ))}
+
+                  {addingToCategory === cat ? (
+                    <View style={styles.addItemForm}>
+                      <TextInput
+                        value={newItem}
+                        onChangeText={setNewItem}
+                        placeholder={`Add to ${meta.label.toLowerCase()}…`}
+                        placeholderTextColor={colors.mutedForeground}
+                        style={[styles.addItemInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={() => handleAddItem(cat)}
+                        editable={!savingItem}
+                      />
+                      <Pressable
+                        onPress={() => handleAddItem(cat)}
+                        disabled={!newItem.trim() || savingItem}
+                        style={[styles.addItemConfirm, { backgroundColor: colors.primary, opacity: !newItem.trim() || savingItem ? 0.5 : 1 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add item to ${meta.label}`}
+                      >
+                        {savingItem ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Feather name="check" size={17} color="#fff" />
+                        )}
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => openAddItem(cat)}
+                      style={({ pressed }) => [styles.addItemButton, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : "transparent" }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add an item to ${meta.label}`}
+                    >
+                      <Feather name="plus" size={16} color={colors.primary} />
+                      <Text style={[styles.addItemButtonText, { color: colors.primary }]}>Add item</Text>
+                    </Pressable>
+                  )}
+                  {addingToCategory === cat && addError ? (
+                    <Text style={[styles.addError, { color: colors.destructive }]}>{addError}</Text>
+                  ) : null}
                 </View>
               );
             })}
-
-            <Pressable
-              onPress={handleGenerate}
-              disabled={generating}
-              style={[styles.regenBtn, { borderColor: colors.border }]}
-            >
-              {generating ? (
-                <ActivityIndicator color={colors.primary} size="small" />
-              ) : (
-                <Feather name="refresh-cw" size={15} color={colors.mutedForeground} />
-              )}
-              <Text style={[styles.regenText, { color: colors.mutedForeground }]}>
-                Regenerate list
-              </Text>
-            </Pressable>
           </ScrollView>
+
+          <View style={[styles.bottomCta, { paddingBottom: bottomInset + 16, backgroundColor: colors.background, borderTopColor: colors.border }]}>
+             <Pressable onPress={handleGenerate} disabled={generating} style={[styles.fullBtn, { backgroundColor: colors.primary }]}>
+                {generating ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.fullBtnText}>View full checklist</Text>
+                )}
+             </Pressable>
+          </View>
         </>
       )}
     </View>
@@ -262,16 +303,20 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    gap: 10,
+    paddingBottom: 12,
+    gap: 16,
   },
-  backBtn: { padding: 4, marginTop: 2 },
-  headerTitles: { flex: 1, gap: 4 },
-  headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 2 },
-  headerDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, letterSpacing: -0.5 },
+  backBtn: { padding: 4, marginLeft: -4 },
+  headerTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 16, flex: 1, textAlign: "center", marginRight: 24 },
+  subHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  headerDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28, letterSpacing: -0.5 },
+  headerMeta: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyCard: {
     width: "100%",
@@ -300,62 +345,94 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   genBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
-  progressBar: {
-    height: 36,
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-  },
-  progressFill: { position: "absolute", left: 0, top: 0, bottom: 0 },
-  progressText: {
-    fontFamily: "DmSans_500Medium",
-    fontSize: 12,
-    paddingHorizontal: 16,
-    zIndex: 1,
-  },
-  section: { marginTop: 20 },
+  section: { marginTop: 24 },
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 12,
   },
-  sectionTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
+  sectionTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", textTransform: "uppercase", letterSpacing: 1 },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
+    paddingVertical: 10,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  itemText: { fontFamily: "DmSans_400Regular", fontSize: 15, flex: 1 },
+  itemText: { fontFamily: "DmSans_500Medium", fontSize: 16, flex: 1 },
+  addItemButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    marginTop: 4,
+  },
+  addItemButtonText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  addItemForm: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  addItemInput: {
+    flex: 1,
+    minHeight: 40,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+  },
+  addItemConfirm: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addError: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 12,
+    marginTop: 6,
+  },
   tipRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 6,
+    paddingVertical: 4,
   },
-  tipText: { fontFamily: "DmSans_400Regular", fontSize: 14, flex: 1, lineHeight: 20 },
-  regenBtn: {
-    flexDirection: "row",
+  tipText: { fontFamily: "DmSans_400Regular", fontSize: 15, flex: 1, lineHeight: 22 },
+  bottomCta: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  fullBtn: {
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 13,
-    marginTop: 24,
   },
-  regenText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
+  fullBtnText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 16,
+    color: "#fff",
+  },
 });

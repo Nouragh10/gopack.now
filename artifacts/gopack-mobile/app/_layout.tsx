@@ -5,16 +5,12 @@ import {
   DMSans_700Bold,
   useFonts,
 } from "@expo-google-fonts/dm-sans";
-import {
-  PlayfairDisplay_400Regular,
-  PlayfairDisplay_700Bold,
-} from "@expo-google-fonts/playfair-display";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setBaseUrl } from "@/lib/api-client";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -56,26 +52,36 @@ function RootLayoutNav() {
     }
   }, [user, loading, segments, navigationState?.key]);
 
-  if (loading || !navigationState?.key) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFDF9" }}>
-        <ActivityIndicator color="#E85D3A" size="large" />
-      </View>
-    );
-  }
-
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-      <Stack.Screen name="trip/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="building/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="itinerary/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="packing/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="join" options={{ headerShown: false }} />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <>
+      {/* The Stack must mount before useRootNavigationState() receives a key.
+          Keeping this navigator mounted avoids a web startup deadlock. */}
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="trip/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="building/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="itinerary/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="discover-itinerary/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="packing/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="join" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+      {(loading || !navigationState?.key) && (
+        <View
+          pointerEvents="none"
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#FCFBF8",
+          }}
+        >
+          <ActivityIndicator color="#F15A3A" size="large" />
+        </View>
+      )}
+    </>
   );
 }
 
@@ -85,8 +91,10 @@ export default function RootLayout() {
     DmSans_500Medium: DMSans_500Medium,
     DmSans_600SemiBold: DMSans_600SemiBold,
     DmSans_700Bold: DMSans_700Bold,
-    PlayfairDisplay_400Regular,
-    PlayfairDisplay_700Bold,
+    // Keep the legacy style keys while rendering the new packyo sans-serif
+    // typography throughout existing screens.
+    PlayfairDisplay_400Regular: DMSans_400Regular,
+    PlayfairDisplay_700Bold: DMSans_700Bold,
   });
   // Browser previews can render before remote font restoration finishes.
   // Keep native font gating while avoiding a blank/spinner-only web preview.
@@ -109,8 +117,8 @@ export default function RootLayout() {
 
   if (!startupReady) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFDF9" }}>
-        <ActivityIndicator color="#E85D3A" size="large" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FCFBF8" }}>
+        <ActivityIndicator color="#F15A3A" size="large" />
       </View>
     );
   }

@@ -16,17 +16,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { auth, signInGuest, signInWithEmail, signUpWithEmail, signOut } from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
+import colors from "@/constants/colors";
 
-const DARK = "#1A1412";
-const CARD = "#2A221D";
-const PRIMARY = "#E85D3A";
-const MUTED = "#756C66";
-const INPUT_BG = "#332820";
+const PRIMARY = colors.light.primary;
+const MUTED = colors.light.mutedForeground;
+const INPUT_BG = "#FFFFFF";
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "signup" | "verify">("signin");
+  const [mode, setMode] = useState<"landing" | "signin" | "signup" | "verify">("landing");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -58,7 +57,6 @@ export default function SignInScreen() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async () => {
@@ -118,13 +116,10 @@ export default function SignInScreen() {
     setLoading(true);
     setError("");
     try {
-      // Sign in and check emailVerified — this is the source of truth
       const cred = await signInWithEmail(email.trim(), password);
       if (cred.user.emailVerified) {
-        // Verified — routing guard in _layout.tsx will allow entry to tabs
         router.replace("/(tabs)");
       } else {
-        // Not yet verified — sign back out and wait
         await signOut();
         setError("Email not verified yet. Check your inbox and click the link.");
       }
@@ -183,7 +178,7 @@ export default function SignInScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => { setMode("signin"); setError(""); setResent(false); }}
+            onPress={() => { setMode("landing"); setError(""); setResent(false); }}
             style={styles.toggleBtn}
           >
             <Text style={[styles.toggleText, { color: MUTED }]}>Back to sign in</Text>
@@ -193,8 +188,62 @@ export default function SignInScreen() {
     );
   }
 
+  if (mode === "landing") {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <ScrollView contentContainerStyle={styles.landingScroll}>
+          <View style={styles.logoSection}>
+            <View style={styles.logoRow}>
+              <GoPackIcon size={32} />
+              <Text style={styles.wordmark}>packyo</Text>
+            </View>
+            <Text style={styles.landingTitle}>Planned together.{"\n"}Better trips.</Text>
+            <Text style={styles.landingSub}>
+              Group voting, wishlist picks,{"\n"}AI itineraries — all in one place.
+            </Text>
+          </View>
+
+          <View style={styles.authButtons}>
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={() => { setMode("signin"); setError(""); }}
+            >
+              <Text style={styles.primaryBtnText}>Sign in with email</Text>
+            </Pressable>
+
+            <Pressable style={styles.outlineBtn} onPress={() => {}}>
+              <Feather name="globe" size={18} color="#241F1B" style={styles.btnIcon} />
+              <Text style={styles.outlineBtnText}>Continue with Google</Text>
+            </Pressable>
+
+            <Pressable style={styles.outlineBtn} onPress={() => {}}>
+              <Feather name="aperture" size={18} color="#241F1B" style={styles.btnIcon} />
+              <Text style={styles.outlineBtnText}>Continue with Apple</Text>
+            </Pressable>
+
+            <Pressable onPress={handleGuest} style={styles.guestBtn}>
+              <Text style={styles.guestBtnText}>Continue as guest</Text>
+            </Pressable>
+
+            <Text style={styles.signupText}>
+              Don't have an account?{" "}
+              <Text style={styles.signupLink} onPress={() => { setMode("signup"); setError(""); }}>
+                Sign up
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable onPress={() => setMode("landing")} style={styles.backBtn}>
+          <Feather name="arrow-left" size={24} color="#241F1B" />
+        </Pressable>
+      </View>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -204,11 +253,9 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.logoSection}>
-            <GoPackIcon size={72} />
-            <Text style={styles.wordmark}>GoPackNow</Text>
-            <Text style={styles.tagline}>Plan trips together</Text>
-          </View>
+          <Text style={styles.formTitle}>
+            {mode === "signin" ? "Sign In" : "Sign Up"}
+          </Text>
 
           <View style={styles.form}>
             {mode === "signup" && (
@@ -259,7 +306,7 @@ export default function SignInScreen() {
             {!!error && <Text style={styles.errorText}>{error}</Text>}
 
             <Pressable
-              style={[styles.primaryBtn, loading && styles.disabledBtn]}
+              style={[styles.primaryBtn, loading && styles.disabledBtn, { marginTop: 16 }]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -267,35 +314,7 @@ export default function SignInScreen() {
                 {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Create Account"}
               </Text>
             </Pressable>
-
-            <Pressable
-              onPress={() => {
-                setMode((m) => (m === "signin" ? "signup" : "signin"));
-                setError("");
-              }}
-              style={styles.toggleBtn}
-            >
-              <Text style={styles.toggleText}>
-                {mode === "signin"
-                  ? "New here? Create an account"
-                  : "Already have an account? Sign in"}
-              </Text>
-            </Pressable>
           </View>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Pressable
-            style={styles.guestBtn}
-            onPress={handleGuest}
-            disabled={loading}
-          >
-            <Text style={styles.guestText}>Continue as guest</Text>
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -305,52 +324,136 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: DARK,
+    backgroundColor: colors.light.background,
+  },
+  landingScroll: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 80,
+    paddingBottom: 40,
+    justifyContent: "space-between",
+  },
+  logoSection: {
+    alignItems: "flex-start",
+  },
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 40,
+  },
+  wordmark: {
+    fontFamily: "DmSans_700Bold",
+    fontSize: 28,
+    color: "#241F1B",
+    letterSpacing: -0.5,
+  },
+  landingTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 40,
+    lineHeight: 46,
+    color: "#241F1B",
+    marginBottom: 16,
+    letterSpacing: -0.5,
+  },
+  landingSub: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#241F1B",
+  },
+  authButtons: {
+    gap: 12,
+    marginTop: 40,
+  },
+  primaryBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 24,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  primaryBtnText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  outlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#E8E1D9",
+  },
+  btnIcon: {
+    marginRight: 10,
+  },
+  outlineBtnText: {
+    fontFamily: "DmSans_600SemiBold",
+    fontSize: 16,
+    color: "#241F1B",
+  },
+  guestBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  guestBtnText: {
+    fontFamily: "DmSans_500Medium",
+    fontSize: 15,
+    color: "#241F1B",
+  },
+  signupText: {
+    textAlign: "center",
+    fontFamily: "DmSans_400Regular",
+    fontSize: 14,
+    color: MUTED,
+    marginTop: 16,
+  },
+  signupLink: {
+    color: PRIMARY,
+    fontFamily: "DmSans_600SemiBold",
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
   },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingBottom: 40,
-    justifyContent: "center",
-    minHeight: "100%",
   },
-  logoSection: {
-    alignItems: "center",
-    marginBottom: 48,
-    marginTop: 20,
-  },
-  wordmark: {
+  formTitle: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 36,
-    color: PRIMARY,
-    letterSpacing: -0.5,
-    marginBottom: 6,
-  },
-  tagline: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 15,
-    color: MUTED,
-    letterSpacing: 0.2,
+    fontSize: 32,
+    color: "#241F1B",
+    marginBottom: 24,
   },
   form: {
-    gap: 12,
-    marginBottom: 24,
+    gap: 16,
   },
   input: {
     backgroundColor: INPUT_BG,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingVertical: 16,
+    fontSize: 16,
     fontFamily: "DmSans_400Regular",
-    color: "#FFFDF9",
+    color: "#241F1B",
     borderWidth: 1,
-    borderColor: "#3D3028",
+    borderColor: "#E8E1D9",
   },
   passwordRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 0,
   },
   eyeBtn: {
     position: "absolute",
@@ -359,20 +462,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryBtn: {
-    backgroundColor: PRIMARY,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 4,
-  },
   disabledBtn: {
     opacity: 0.6,
-  },
-  primaryBtnText: {
-    fontFamily: "DmSans_600SemiBold",
-    fontSize: 16,
-    color: "#FFFFFF",
   },
   toggleBtn: {
     alignItems: "center",
@@ -386,43 +477,8 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: "DmSans_400Regular",
     fontSize: 13,
-    color: "#E85D3A",
+    color: "#EF4444",
     textAlign: "center",
-  },
-  resentText: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 13,
-    color: "#4CAF50",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#332820",
-  },
-  dividerText: {
-    fontFamily: "DmSans_400Regular",
-    fontSize: 13,
-    color: MUTED,
-  },
-  guestBtn: {
-    borderWidth: 1,
-    borderColor: "#332820",
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  guestText: {
-    fontFamily: "DmSans_500Medium",
-    fontSize: 15,
-    color: MUTED,
   },
   verifyContainer: {
     flex: 1,
@@ -435,7 +491,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 24,
-    backgroundColor: CARD,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
@@ -443,7 +499,7 @@ const styles = StyleSheet.create({
   verifyTitle: {
     fontFamily: "PlayfairDisplay_700Bold",
     fontSize: 28,
-    color: "#FFFDF9",
+    color: "#241F1B",
     textAlign: "center",
   },
   verifyBody: {
@@ -455,7 +511,7 @@ const styles = StyleSheet.create({
   },
   verifyEmail: {
     fontFamily: "DmSans_600SemiBold",
-    color: "#FFFDF9",
+    color: "#241F1B",
   },
   verifyHint: {
     fontFamily: "DmSans_400Regular",
@@ -464,5 +520,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     paddingHorizontal: 8,
+  },
+  resentText: {
+    fontFamily: "DmSans_400Regular",
+    fontSize: 13,
+    color: "#4CAF50",
+    textAlign: "center",
+    marginBottom: 4,
   },
 });

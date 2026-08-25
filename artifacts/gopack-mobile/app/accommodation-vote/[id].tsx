@@ -42,7 +42,7 @@ import {
 } from "@/hooks/useFirebase";
 
 const TEAL = "#26A69A";
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 420);
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
@@ -150,11 +150,15 @@ function TopAccommodationCard({
         {firstPhoto && !imgFailed ? (
           <Image
             source={{ uri: firstPhoto }}
-            style={{ width: CARD_WIDTH - 28, height: 130, borderRadius: 10 }}
+            style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12 }}
             resizeMode="cover"
             onError={() => setImgFailed(true)}
           />
-        ) : null}
+        ) : (
+          <View style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name="home" size={40} color={colors.mutedForeground} opacity={0.3} />
+          </View>
+        )}
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <TypeBadge type={suggestion.type} colors={colors} />
@@ -330,11 +334,13 @@ function AccommodationSwipeStack({
         />
       </View>
       <View style={styles.swipeTapRow}>
-        <Pressable onPress={onSwipeLeft} style={[styles.swipeTapBtn, { borderColor: "#ef444440", backgroundColor: "#ef444408" }]}>
-          <Feather name="x" size={28} color="#ef4444" />
+        <Pressable onPress={onSwipeLeft} style={[styles.swipeActionPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="x" size={20} color="#ef4444" />
+          <Text style={[styles.swipeActionPillText, { color: colors.foreground }]}>Skip</Text>
         </Pressable>
-        <Pressable onPress={onSwipeRight} style={[styles.swipeTapBtn, { borderColor: "#4CAF5040", backgroundColor: "#4CAF5008" }]}>
-          <Feather name="heart" size={26} color="#4CAF50" />
+        <Pressable onPress={onSwipeRight} style={[styles.swipeActionPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="heart" size={18} color="#F15A3A" />
+          <Text style={[styles.swipeActionPillText, { color: colors.foreground }]}>Love it</Text>
         </Pressable>
       </View>
     </View>
@@ -389,7 +395,7 @@ function AccommodationCard({
             <TypeBadge type={suggestion.type} colors={colors} />
             <StarRating rating={suggestion.rating} />
           </View>
-          <Text style={[styles.cardName, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.name}</Text>
+          <Text style={[styles.cardName, { color: winner ? "#FFFFFF" : colors.foreground }]}>{suggestion.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Feather name="map-pin" size={11} color={winner ? "#BDB0A0" : colors.mutedForeground} />
             <Text style={[styles.cardLocation, { color: winner ? "#BDB0A0" : colors.mutedForeground }]}>{suggestion.location}</Text>
@@ -404,12 +410,12 @@ function AccommodationCard({
       </View>
       <View style={[styles.whyBox, { backgroundColor: winner ? "#3A3330" : colors.muted }]}>
         <Feather name="zap" size={12} color={TEAL} />
-        <Text style={[styles.whyText, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.whyItFits}</Text>
+        <Text style={[styles.whyText, { color: winner ? "#FFFFFF" : colors.foreground }]}>{suggestion.whyItFits}</Text>
       </View>
       <View style={styles.costRow}>
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Total</Text>
-          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>${(suggestion.totalCost ?? 0).toLocaleString()}</Text>
+        <Text style={[styles.costValue, { color: winner ? "#FFFFFF" : colors.foreground }]}>${(suggestion.totalCost ?? 0).toLocaleString()}</Text>
         </View>
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
@@ -419,7 +425,7 @@ function AccommodationCard({
         <View style={[styles.costDivider, { backgroundColor: colors.border }]} />
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.mutedForeground }]}>Rooms</Text>
-          <Text style={[styles.costValue, { color: winner ? "#FFFDF9" : colors.foreground }]}>{suggestion.rooms} × {suggestion.beds} beds</Text>
+        <Text style={[styles.costValue, { color: winner ? "#FFFFFF" : colors.foreground }]}>{suggestion.rooms} × {suggestion.beds} beds</Text>
         </View>
       </View>
       {(suggestion.tags ?? []).length > 0 && (
@@ -689,8 +695,8 @@ export default function AccommodationVoteScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerLabel, { color: TEAL }]}>WHERE TO STAY?</Text>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Choose accommodation</Text>
+          <Text style={[styles.headerLabel, { color: colors.primary }]}>STEP 4 OF 4</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Which stay works best?</Text>
         </View>
         <Pressable onPress={() => setShowAddLink(true)} style={[styles.addBtn, { borderColor: TEAL }]}>
           <Feather name="plus" size={14} color={TEAL} />
@@ -914,8 +920,13 @@ const styles = StyleSheet.create({
   swipeLabelRight: { right: 14, borderColor: "#4CAF50" },
   swipeLabelLeft: { left: 14, borderColor: "#ef4444" },
   swipeLabelText: { fontFamily: "DmSans_700Bold", fontSize: 13, letterSpacing: 1 },
-  swipeTapRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
-  swipeTapBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2 },
+  swipeTapRow: { flexDirection: "row", gap: 16, marginTop: 12, marginBottom: 4 },
+  swipeActionPill: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 100, borderWidth: 1, paddingHorizontal: 28, paddingVertical: 14,
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  swipeActionPillText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   swipeCardName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 18, lineHeight: 24 },
   swipeHint: { fontFamily: "DmSans_400Regular", fontSize: 11, textAlign: "center", marginTop: 2 },
 
@@ -955,7 +966,7 @@ const styles = StyleSheet.create({
   linkBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
   voterRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   voterNames: { fontFamily: "DmSans_400Regular", fontSize: 12, flex: 1 },
-  confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 13, marginTop: 4 },
+  confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 100, paddingVertical: 14, marginTop: 4 },
   confirmBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
   aiTieBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderRadius: 16, padding: 14 },
   aiTieBtnText: { fontFamily: "DmSans_700Bold", fontSize: 14 },

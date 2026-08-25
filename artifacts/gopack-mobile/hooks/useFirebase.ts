@@ -68,6 +68,7 @@ export interface Trip {
   vibes: string[];
   budget: string;
   startDate: string | null;
+  endDate?: string | null;
   members: Record<string, TripMember>;
   hostMemberId: string;
   createdAt: string;
@@ -105,6 +106,10 @@ export interface Wish {
   createdAt: number;
 }
 
+export interface ProfileWish extends Wish {
+  tripDestination: string;
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -132,6 +137,38 @@ export interface Activity {
   labels: string[];
   nearPrevious: boolean;
   lastRedoBy?: string;
+  photoQuery?: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface PublicItineraryActivity {
+  time: string;
+  name: string;
+  category?: string;
+  description?: string;
+  estimatedCost?: number;
+}
+
+export interface PublicItineraryDay {
+  day: number;
+  city?: string;
+  theme: string;
+  activities: PublicItineraryActivity[];
+}
+
+export interface PublicReview {
+  id: string;
+  text: string;
+  destination: string;
+  days: number;
+  rating: number;
+  highlight: string;
+  photos: string[];
+  memberNames: string[];
+  reviewedAt: string;
+  vibes: string[];
+  itineraryDays: PublicItineraryDay[] | null;
 }
 
 export interface PackItem {
@@ -165,6 +202,16 @@ async function addLocalTripId(uid: string, tripId: string): Promise<void> {
         JSON.stringify([...ids, tripId]),
       );
     }
+  } catch {}
+}
+
+async function removeLocalTripId(uid: string, tripId: string): Promise<void> {
+  try {
+    const ids = await getLocalTripIds(uid);
+    await AsyncStorage.setItem(
+      storageKey(uid),
+      JSON.stringify(ids.filter((id) => id !== tripId)),
+    );
   } catch {}
 }
 
@@ -261,12 +308,15 @@ export function useTrip(tripId: string | undefined) {
         data.itinerary.days.length > 0
       ) {
         const itineraryDays = (data.itinerary.days as any[]).map((d: any, di: number) => ({
-          day: d.day ?? di + 1,
+          day: d.day ?? d.dayNumber ?? di + 1,
+          city: d.city || data.destination || "",
           theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
           activities: (d.activities || []).slice(0, 5).map((a: any) => ({
             time: a.time || "",
             name: a.name || "",
-            category: a.category || "",
+            category: a.category || a.tag || "",
+            description: a.description || "",
+            ...(typeof a.estimatedCost === "number" ? { estimatedCost: a.estimatedCost } : {}),
           })),
         }));
         const patched = { ...data.review, itineraryDays };
@@ -302,6 +352,58 @@ export function useWishes(tripId: string | undefined) {
   }, [tripId]);
 
   return wishes;
+}
+
+export function useRecentWishes(uid: string | undefined, tripIds: string[]) {
+  const [wishes, setWishes] = useState<ProfileWish[]>([]);
+  const [loading, setLoading] = useState(true);
+  const tripKey = tripIds.join("|");
+
+  useEffect(() => {
+    if (!uid || tripIds.length === 0) {
+      setWishes([]);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all(
+      tripIds.map(async (tripId) => {
+        const snap = await get(ref(db, `trips/${tripId}`));
+        if (!snap.exists()) return [];
+        const trip = snap.val() as { destination?: string; wishes?: Record<string, any> };
+        return Object.entries(trip.wishes ?? {})
+          .filter(([, wish]) => wish?.authorId === uid)
+          .map(([id, wish]) => ({
+            id,
+            text: wish.text ?? "",
+            authorId: wish.authorId ?? uid,
+            authorName: wish.authorName ?? "",
+            upvoters: wish.upvoters ?? {},
+            downvoters: wish.downvoters ?? {},
+            score: Object.keys(wish.upvoters ?? {}).length - Object.keys(wish.downvoters ?? {}).length,
+            createdAt: wish.createdAt ?? 0,
+            tripDestination: trip.destination ?? "Trip",
+          }) as ProfileWish);
+      }),
+    )
+      .then((groups) => {
+        if (cancelled) return;
+        setWishes(groups.flat().sort((a, b) => b.createdAt - a.createdAt));
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWishes([]);
+        setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [uid, tripKey]);
+
+  return { wishes, loading };
 }
 
 /* ── useChat ──────────────────────────────────────────────────────── */
@@ -341,33 +443,83 @@ export function usePackingList(tripId: string | undefined) {
 
 /* ── usePublicReviews ─────────────────────────────────────────────── */
 
-export function usePublicReviews(limit = 6) {
-  const [reviews, setReviews] = useState<any[]>([]);
+function normalizePublicItineraryDays(days: any): PublicItineraryDay[] | null {
+  if (!Array.isArray(days)) return null;
+  return days.map((day: any, dayIndex: number) => ({
+    day: Number(day?.day ?? day?.dayNumber ?? dayIndex + 1),
+    city: day?.city ?? "",
+    theme: day?.theme ?? day?.title ?? `Day ${dayIndex + 1}`,
+    activities: Array.isArray(day?.activities)
+      ? day.activities.map((activity: any) => ({
+          time: activity?.time ?? "",
+          name: activity?.name ?? "",
+          category: activity?.category ?? activity?.tag ?? "",
+          description: activity?.description ?? "",
+          estimatedCost: typeof activity?.estimatedCost === "number" ? activity.estimatedCost : undefined,
+        }))
+      : [],
+  }));
+}
+
+function normalizePublicReview(id: string, review: any): PublicReview {
+  return {
+    id,
+    text: review?.text ?? review?.review ?? "",
+    destination: review?.destination ?? "",
+    days: review?.days ?? 0,
+    rating: review?.rating ?? 0,
+    highlight: review?.highlight ?? "",
+    photos: review?.photos ?? [],
+    memberNames: review?.memberNames ?? (review?.authorName ? [review.authorName] : []),
+    reviewedAt: review?.reviewedAt ?? "",
+    // Normalize vibes: stored as lowercase keys, display as capitalized labels.
+    vibes: (review?.vibes ?? (review?.vibeLabel ? review.vibeLabel.split(" & ") : []))
+      .map((v: string) => v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()),
+    itineraryDays: normalizePublicItineraryDays(review?.itineraryDays),
+  };
+}
+
+export function usePublicReviews(limit = 6): PublicReview[] {
+  const [reviews, setReviews] = useState<PublicReview[]>([]);
 
   useEffect(() => {
     return onValue(ref(db, "reviews"), (snap) => {
       const data = snap.val();
       if (!data) return;
-      const list = Object.entries(data).map(([id, r]: [string, any]) => ({
-        id,
-        text: r.text ?? r.review ?? "",
-        destination: r.destination ?? "",
-        days: r.days ?? 0,
-        rating: r.rating ?? 0,
-        highlight: r.highlight ?? "",
-        photos: r.photos ?? [],
-        memberNames: r.memberNames ?? (r.authorName ? [r.authorName] : []),
-        reviewedAt: r.reviewedAt ?? "",
-        // Normalize vibes: stored as lowercase keys, display as capitalized labels
-        vibes: (r.vibes ?? (r.vibeLabel ? r.vibeLabel.split(" & ") : []))
-          .map((v: string) => v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()),
-        itineraryDays: r.itineraryDays ?? null,
-      }));
+      const list = Object.entries(data).map(([id, review]) => normalizePublicReview(id, review));
       setReviews(list.slice(0, limit));
     });
   }, [limit]);
 
   return reviews;
+}
+
+export function usePublicReview(reviewId: string | undefined) {
+  const [review, setReview] = useState<PublicReview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!reviewId) {
+      setReview(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    return onValue(
+      ref(db, `reviews/${reviewId}`),
+      (snap) => {
+        setReview(snap.exists() ? normalizePublicReview(reviewId, snap.val()) : null);
+        setLoading(false);
+      },
+      () => {
+        setReview(null);
+        setLoading(false);
+      },
+    );
+  }, [reviewId]);
+
+  return { review, loading };
 }
 
 /* ── submitTripReview ─────────────────────────────────────────────── */
@@ -403,12 +555,15 @@ export async function submitTripReview(
   const memberEntries = Object.values(trip.members || {}) as any[];
   const itineraryDays = trip.itinerary?.days
     ? (trip.itinerary.days as any[]).map((d: any, di: number) => ({
-        day: d.day ?? di + 1,
-        theme: d.theme || d.title || `Day ${d.day ?? di + 1}`,
+        day: d.day ?? d.dayNumber ?? di + 1,
+        city: d.city || trip.destination || "",
+        theme: d.theme || d.title || `Day ${d.day ?? d.dayNumber ?? di + 1}`,
         activities: (d.activities || []).slice(0, 4).map((a: any) => ({
           time: a.time || "",
           name: a.name || "",
-          category: a.category || "",
+          category: a.category || a.tag || "",
+          description: a.description || "",
+          ...(typeof a.estimatedCost === "number" ? { estimatedCost: a.estimatedCost } : {}),
         })),
       }))
     : null;
@@ -448,7 +603,8 @@ export async function createTrip(data: {
   days: number;
   vibes: string[];
   budget: string;
-  startDate: string | null;
+  startDate: string;
+  endDate: string;
   uid: string;
   displayName: string;
 }) {
@@ -462,6 +618,7 @@ export async function createTrip(data: {
     vibes: data.vibes,
     budget: data.budget,
     startDate: data.startDate,
+    endDate: data.endDate,
     hostMemberId: data.uid,
     createdAt: new Date().toISOString(),
     inviteCode,
@@ -487,12 +644,34 @@ export async function createTrip(data: {
 /* ── joinTrip ─────────────────────────────────────────────────────── */
 
 export async function joinTrip(tripId: string, uid: string, displayName: string) {
-  const id = tripId.trim();
+  const input = tripId.trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const candidate = decodeURIComponent(input.split("/").pop() ?? input).trim();
+  if (!candidate) throw new Error("Enter an invite code or trip link.");
+
+  // Invite links may contain the short invite code, while older links may
+  // contain the Firebase trip ID. Try the code index first, then fall back to
+  // the direct ID for backwards compatibility.
+  const codeCandidates = [
+    candidate,
+    candidate.toUpperCase(),
+    candidate.replace(/[^a-z0-9]/gi, "").toUpperCase(),
+  ];
+  let id = candidate;
+  for (const code of [...new Set(codeCandidates)]) {
+    const codeSnap = await get(ref(db, `inviteCodes/${code}`));
+    if (codeSnap.exists() && typeof codeSnap.val() === "string") {
+      id = codeSnap.val() as string;
+      break;
+    }
+  }
 
   // Read the specific trip by ID — Firebase rules allow reading a known trip
   // by its ID for any authenticated user (same approach as the web app).
   const snap = await get(ref(db, `trips/${id}`));
   if (!snap.exists()) throw new Error("Trip not found. Check the ID and try again.");
+  if ((snap.val() as { isPack?: boolean }).isPack) {
+    throw new Error("That invite is for a pack, not a trip.");
+  }
 
   await update(ref(db, `trips/${id}/members`), {
     [uid]: {
@@ -560,6 +739,183 @@ export async function voteWish(
     }
   }
   await update(ref(db), updates);
+}
+
+/* ── useNotifications ─────────────────────────────────────────────── */
+
+export interface AppNotification {
+  id: string;
+  type:
+    | "itinerary_ready"
+    | "accom_vote"
+    | "dest_vote"
+    | "votes_complete"
+    | "dest_confirmed"
+    | "new_member"
+    | "chat"
+    | "invite";
+  text: string;
+  subtext?: string;
+  tripId: string;
+  tripName: string;
+  timestamp: number;
+  actionable?: boolean;
+}
+
+export function useNotifications(uid: string | undefined) {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) { setNotifications([]); setLoading(false); return; }
+
+    // Subscribe to the user's trip ID list
+    const unsubTrips = onValue(ref(db, `userTrips/${uid}`), async (snap) => {
+      const val = snap.val() as Record<string, boolean | string> | null;
+      if (!val) { setNotifications([]); setLoading(false); return; }
+
+      const tripIds = Object.entries(val)
+        .filter(([, v]) => v === true)
+        .map(([k]) => k);
+
+      if (tripIds.length === 0) { setNotifications([]); setLoading(false); return; }
+
+      // Fetch each trip once (not subscribing to avoid N listeners)
+      const snaps = await Promise.all(tripIds.map((id) => get(ref(db, `trips/${id}`))));
+
+      const events: AppNotification[] = [];
+
+      for (const snap of snaps) {
+        if (!snap.exists()) continue;
+        const d = snap.val() as any;
+        const tripId = snap.key!;
+        if (d.isPack) continue;
+
+        const dest = d.destination ?? d.packName ?? "your trip";
+        const members = Object.entries(d.members ?? {});
+        const memberCount = members.length;
+        const lockedCount = Object.keys(d.votesLockedBy ?? {}).length;
+        const allLocked = memberCount > 0 && lockedCount >= memberCount;
+        const myAccomVote = d.accommodationVotes?.[uid];
+        const myDestVote = d.destinationVotes ? Object.values(d.destinationVotes as Record<string, any>).some((v: any) => v?.[uid]) : false;
+        const createdTs = d.createdAt ? new Date(d.createdAt).getTime() : 0;
+
+        // Itinerary ready
+        if (d.itinerary?.days?.length > 0) {
+          events.push({
+            id: `${tripId}-itinerary`,
+            type: "itinerary_ready",
+            text: `Itinerary ready`,
+            subtext: `Your ${dest} itinerary has been generated.`,
+            tripId,
+            tripName: dest,
+            timestamp: createdTs + 86400000 * 3,
+          });
+        }
+
+        // Accommodation vote needed
+        if (d.accommodationStatus === "voting" && !myAccomVote) {
+          events.push({
+            id: `${tripId}-accom-vote`,
+            type: "accom_vote",
+            text: `Accommodation vote`,
+            subtext: `${dest} needs your vote on where to stay.`,
+            tripId,
+            tripName: dest,
+            timestamp: Date.now() - 1000 * 60 * 10,
+            actionable: true,
+          });
+        }
+
+        // Destination vote needed
+        if ((d.destinationSuggestions?.length ?? 0) > 0 && !d.destination && !myDestVote) {
+          events.push({
+            id: `${tripId}-dest-vote`,
+            type: "dest_vote",
+            text: `Destination vote open`,
+            subtext: `AI found matches for your pack — vote now.`,
+            tripId,
+            tripName: dest,
+            timestamp: Date.now() - 1000 * 60 * 20,
+            actionable: true,
+          });
+        }
+
+        // All wishes votes locked → itinerary can be built
+        if (allLocked && !d.itinerary) {
+          events.push({
+            id: `${tripId}-votes-done`,
+            type: "votes_complete",
+            text: `Wishlist voting complete`,
+            subtext: `All ${memberCount} members voted for ${dest}. Ready to build the itinerary.`,
+            tripId,
+            tripName: dest,
+            timestamp: Date.now() - 1000 * 60 * 30,
+          });
+        }
+
+        // Destination confirmed
+        if (d.destination) {
+          events.push({
+            id: `${tripId}-dest-confirmed`,
+            type: "dest_confirmed",
+            text: `Destination confirmed`,
+            subtext: `${d.destination} is your pack's destination.`,
+            tripId,
+            tripName: d.destination,
+            timestamp: createdTs + 3600000,
+          });
+        }
+
+        // New member joined (show all non-self members as "joined" events)
+        for (const [muid, m] of members as [string, any][]) {
+          if (muid === uid) continue;
+          const joinedTs = m.joinedAt ? new Date(m.joinedAt).getTime() : createdTs;
+          events.push({
+            id: `${tripId}-member-${muid}`,
+            type: "new_member",
+            text: `${m.name} joined ${dest}`,
+            subtext: `Your pack is growing!`,
+            tripId,
+            tripName: dest,
+            timestamp: joinedTs,
+          });
+        }
+
+        // Latest chat message
+        const chatSnap = await get(ref(db, `trips/${tripId}/chat`));
+        if (chatSnap.exists()) {
+          const chatData = chatSnap.val() as Record<string, any>;
+          const msgs = Object.values(chatData).sort((a: any, b: any) => b.timestamp - a.timestamp);
+          const latest = msgs[0] as any;
+          if (latest && latest.authorId !== uid) {
+            events.push({
+              id: `${tripId}-chat`,
+              type: "chat",
+              text: `${latest.authorName} in ${dest}`,
+              subtext: latest.text.length > 60 ? latest.text.slice(0, 60) + "…" : latest.text,
+              tripId,
+              tripName: dest,
+              timestamp: latest.timestamp,
+            });
+          }
+        }
+      }
+
+      // Sort newest first, deduplicate by id
+      const seen = new Set<string>();
+      const deduped = events
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .filter((e) => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+
+      setNotifications(deduped);
+      setLoading(false);
+    });
+
+    return () => unsubTrips();
+  }, [uid]);
+
+  return { notifications, loading };
 }
 
 export async function lockVotes(tripId: string, uid: string) {
@@ -691,6 +1047,26 @@ export async function savePackingList(
     ]),
   );
   await set(ref(db, `trips/${tripId}/packingItems`), converted);
+}
+
+export async function addPackItem(
+  tripId: string,
+  category: string,
+  text: string,
+) {
+  const categoryRef = ref(db, `trips/${tripId}/packingItems/${category}`);
+  const snap = await get(categoryRef);
+  const rawItems = snap.val();
+  const currentItems = Array.isArray(rawItems)
+    ? rawItems
+    : rawItems && typeof rawItems === "object"
+      ? Object.values(rawItems)
+      : [];
+
+  await set(categoryRef, [
+    ...currentItems,
+    { text: text.trim(), checked: false },
+  ]);
 }
 
 export async function togglePackItem(
@@ -860,11 +1236,13 @@ export async function deleteActivity(tripId: string, dayNumber: number, actIndex
 export async function deleteTrip(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}`), null);
   try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
+  await removeLocalTripId(uid, tripId);
 }
 
 export async function leaveTrip(tripId: string, uid: string) {
   await set(ref(db, `trips/${tripId}/members/${uid}`), null);
   try { await set(ref(db, `userTrips/${uid}/${tripId}`), null); } catch {}
+  await removeLocalTripId(uid, tripId);
 }
 
 /**

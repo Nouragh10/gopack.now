@@ -27,9 +27,12 @@ import {
 } from "@/hooks/useFirebase";
 
 const VIBES = [
-  "Adventure", "Culture", "Food", "Beach",
-  "Nature", "City", "Nightlife", "Relaxation",
-  "History", "Art", "Shopping", "Wellness",
+  { id: "Relaxing", icon: "sun" },
+  { id: "Adventure", icon: "map" },
+  { id: "Culture", icon: "globe" },
+  { id: "Food & Drink", icon: "coffee" },
+  { id: "Beach", icon: "umbrella" },
+  { id: "Nightlife", icon: "moon" },
 ];
 const BUDGETS = ["Budget", "Midrange", "Luxury"] as const;
 const DISTANCES = ["Nearby (< 3h)", "Mid-haul (3–8h)", "Anywhere"] as const;
@@ -38,7 +41,7 @@ const PACES = [
   { value: "balanced", label: "Balanced", desc: "5 acts/day" },
   { value: "packed", label: "Packed", desc: "6–7 acts/day" },
 ];
-const MEMBER_COLORS = ["#E85D3A", "#7E57C2", "#26A69A", "#4CAF50", "#FFA726", "#42A5F5"];
+const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
 function toISODate(d: Date) {
   return d.toISOString().split("T")[0];
@@ -336,33 +339,29 @@ export default function DestinationPreferencesScreen() {
 
         {/* Preference form */}
         <View style={styles.form}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            {alreadySubmitted ? "Your preferences (edit anytime)" : "Your preferences"}
+          <Text style={[styles.wireframeTitle, { color: colors.foreground }]}>
+            What kind of trip do you enjoy the most?
           </Text>
-
-          {alreadySubmitted && (
-            <View style={[styles.submittedBadge, { backgroundColor: "#4CAF5020", borderColor: "#4CAF5040" }]}>
-              <Feather name="check-circle" size={14} color="#4CAF50" />
-              <Text style={[styles.submittedText, { color: "#4CAF50" }]}>Submitted — you can still update</Text>
-            </View>
-          )}
 
           {/* Vibes */}
           <View>
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Vibe</Text>
-            <View style={styles.chipGrid}>
+            <View style={styles.vibeGrid}>
               {VIBES.map((v) => {
-                const selected = vibes.includes(v);
+                const selected = vibes.includes(v.id);
                 return (
                   <Pressable
-                    key={v}
-                    onPress={() => toggleVibe(v)}
+                    key={v.id}
+                    onPress={() => toggleVibe(v.id)}
                     style={[
-                      styles.chip,
-                      { backgroundColor: selected ? "#7E57C2" : colors.muted, borderColor: selected ? "#7E57C2" : colors.border },
+                      styles.vibeCard,
+                      {
+                        backgroundColor: selected ? colors.primary + "15" : colors.card,
+                        borderColor: selected ? colors.primary : colors.border,
+                      },
                     ]}
                   >
-                    <Text style={[styles.chipText, { color: selected ? "#fff" : colors.foreground }]}>{v}</Text>
+                    <Feather name={v.icon as any} size={28} color={selected ? colors.primary : colors.foreground} style={{ marginBottom: 8 }} />
+                    <Text style={[styles.vibeCardText, { color: selected ? colors.primary : colors.foreground }]}>{v.id}</Text>
                   </Pressable>
                 );
               })}
@@ -525,15 +524,12 @@ export default function DestinationPreferencesScreen() {
           <Pressable
             onPress={handleSubmit}
             disabled={submitting}
-            style={[styles.submitBtn, { backgroundColor: "#7E57C2", opacity: submitting ? 0.6 : 1 }]}
+            style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.6 : 1 }]}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <View style={styles.btnRow}>
-                <Feather name={alreadySubmitted ? "refresh-cw" : "check"} size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>{alreadySubmitted ? "Update preferences" : "Submit preferences"}</Text>
-              </View>
+              <Text style={styles.submitBtnText}>{alreadySubmitted ? "Update" : "Next"}</Text>
             )}
           </Pressable>
         </View>
@@ -610,16 +606,19 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   errorText: { fontFamily: "DmSans_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 16 },
 
-  form: { paddingHorizontal: 16, paddingTop: 16, gap: 20 },
+  form: { paddingHorizontal: 16, paddingTop: 16, gap: 24 },
   sectionTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20 },
+  wireframeTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, lineHeight: 32, marginBottom: 8 },
   submittedBadge: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, padding: 10 },
   submittedText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
 
   fieldLabel: {
-    fontFamily: "DmSans_500Medium", fontSize: 12,
-    textTransform: "uppercase", letterSpacing: 1, marginBottom: 8,
+    fontFamily: "DmSans_500Medium", fontSize: 13,
+    marginBottom: 10,
   },
-  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  vibeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
+  vibeCard: { width: "30%", aspectRatio: 1, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center", padding: 8 },
+  vibeCardText: { fontFamily: "DmSans_500Medium", fontSize: 12, textAlign: "center" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignItems: "center" },
   chipText: { fontFamily: "DmSans_500Medium", fontSize: 13 },
