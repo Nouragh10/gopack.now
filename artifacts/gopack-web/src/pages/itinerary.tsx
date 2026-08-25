@@ -82,6 +82,36 @@ function toGCalDate(d: Date) {
   return d.toISOString().replace(/[-:.]/g, "").slice(0, 15);
 }
 
+function parseTripStartDate(value: unknown): Date {
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const fallback = new Date();
+  fallback.setHours(9, 0, 0, 0);
+  return fallback;
+}
+
+function escapeIcsText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,");
+}
+
+function formatIcsDateTime(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function toSafeDownloadName(value: unknown): string {
+  return String(value || "trip")
+    .trim()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "trip";
+}
+
 
 function buildActivityMapsUrl(act: any, day: any, trip: any): string {
   const q = `${act.name || ""}, ${day.city || trip?.destination || ""}`;
@@ -105,23 +135,29 @@ function buildAllMapsUrl(itinerary: any, trip: any): string {
 }
 
 function buildFullICS(itinerary: any, trip: any): string {
-  const base = trip?.startDate ? new Date(trip.startDate) : new Date();
+  const base = parseTripStartDate(trip?.startDate);
+  const stamp = formatIcsDateTime(new Date());
   const lines = [
     "BEGIN:VCALENDAR","VERSION:2.0",
-    "PRODID:-//GoPackNow//AI Travel Planner//EN",
+    "PRODID:-//Packyo//AI Travel Planner//EN",
     "CALSCALE:GREGORIAN","METHOD:PUBLISH",
-    `X-WR-CALNAME:${itinerary.title || trip?.destination || "Trip"}`,
+    `X-WR-CALNAME:${escapeIcsText(itinerary.title || trip?.destination || "Trip")}`,
   ];
   (itinerary.days || []).forEach((day: any, di: number) => {
-    (day.activities || []).forEach((act: any) => {
+    (day.activities || []).forEach((act: any, ai: number) => {
       const start = parseActivityTime(base, di, act.time || "9:00am");
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      const fmt = (d: Date) => d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+      const uid = `${toSafeDownloadName(trip?.destination || "trip")}-${di + 1}-${ai + 1}@packyo`;
       lines.push("BEGIN:VEVENT",
-        `DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,
-        `SUMMARY:${(act.name||"").replace(/,/g,"\\,")}`,
-        `DESCRIPTION:${(act.description||"").replace(/,/g,"\\,").replace(/\n/g,"\\n")}`,
-        `LOCATION:${day.city||trip?.destination||""}`,
+        `UID:${uid}`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${formatIcsDateTime(start)}`,
+        `DTEND:${formatIcsDateTime(end)}`,
+        `SUMMARY:${escapeIcsText(act.name || "Activity")}`,
+        `DESCRIPTION:${escapeIcsText(act.description || "")}`,
+        `LOCATION:${escapeIcsText(day.city || trip?.destination || "")}`,
+        "STATUS:CONFIRMED",
+        "SEQUENCE:0",
         "END:VEVENT");
     });
   });
@@ -133,8 +169,16 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 }
 
 /* ─── ActivityEditor ─────────────────────────────────────────── */
@@ -193,6 +237,124 @@ function AddActivityForm({ dayIndex, onAdd, onCancel, userName }: { dayIndex: nu
         <button onClick={()=>{ if(form.name.trim()) onAdd(dayIndex,form); }} disabled={!form.name.trim()} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40"><Plus size={14}/> Add activity</button>
       </div>
     </div>
+  );
+}
+
+function PackyoPrintReport({ itinerary, trip }: { itinerary: any; trip: any }) {
+  const days = itinerary?.days || [];
+  const members = Object.values(trip?.members || {}).filter(Boolean) as any[];
+  const activityTags = Array.from(
+    new Set(days.flatMap((day: any) => (day.activities || []).map((activity: any) => activity.tag).filter(Boolean)))
+  ) as string[];
+  const vibes = Array.isArray(trip?.vibes) && trip.vibes.length ? trip.vibes : activityTags;
+  const totalCost = days.flatMap((day: any) => day.activities || []).reduce(
+    (sum: number, activity: any) => sum + (Number(activity.estimatedCost) || 0),
+    0
+  );
+  const activityCount = days.reduce((sum: number, day: any) => sum + (day.activities?.length || 0), 0);
+  const destination = trip?.destination || "Your destination";
+  const generatedOn = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
+
+  return (
+    <section className="print-only packyo-print-report">
+      <header className="packyo-cover">
+        <div className="packyo-cover-orb packyo-cover-orb-top" />
+        <div className="packyo-cover-orb packyo-cover-orb-bottom" />
+        <div className="packyo-cover-brand"><span /> PACKYO</div>
+        <div className="packyo-cover-main">
+          <p>GROUP TRAVEL ITINERARY</p>
+          <h1>{itinerary?.title || `${destination} itinerary`}</h1>
+          <div className="packyo-cover-destination">{destination}</div>
+        </div>
+        <div className="packyo-cover-stats">
+          <div><span>DURATION</span><strong>{days.length} {days.length === 1 ? "day" : "days"}</strong></div>
+          <div><span>BUDGET</span><strong>{trip?.budget || "Flexible"}</strong></div>
+          <div><span>PACK SIZE</span><strong>{members.length || 1} {(members.length || 1) === 1 ? "person" : "people"}</strong></div>
+        </div>
+      </header>
+
+      <section className="packyo-report-body">
+        <section className="packyo-pack-section">
+          <p className="packyo-eyebrow">THE PACK</p>
+          <h2>Who&apos;s coming</h2>
+          <div className="packyo-member-list">
+            {(members.length ? members : [{ name: "Your pack" }]).map((member: any, index: number) => {
+              const name = member?.name || member?.displayName || "Pack member";
+              return (
+                <div className="packyo-member" key={`${name}-${index}`}>
+                  <span>{name.slice(0, 1).toUpperCase()}</span>
+                  {name}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {vibes.length > 0 && (
+          <section className="packyo-vibes-section">
+            <p className="packyo-eyebrow">TRIP VIBES</p>
+            <div className="packyo-vibes">
+              {vibes.map((vibe: string) => <span key={vibe}>{vibe}</span>)}
+            </div>
+          </section>
+        )}
+
+        <section className="packyo-days">
+          {days.map((day: any, dayIndex: number) => (
+            <article className="packyo-day" key={`${day.dayNumber || dayIndex + 1}-${day.city || destination}`}>
+              <header className="packyo-day-header">
+                <div>
+                  <span>DAY {day.dayNumber || dayIndex + 1}</span>
+                  <h2>{day.city || destination}</h2>
+                </div>
+                {day.theme && <em>{day.theme}</em>}
+              </header>
+              <div className="packyo-activity-list">
+                {(day.activities || []).map((activity: any, activityIndex: number) => {
+                  const tag = activity.tag || "travel";
+                  const isWish = Boolean(activity.fromWish);
+                  const source = isWish
+                    ? `✦ ${activity.suggester || "A pack member"}'s wish`
+                    : `✦ AI pick${tag ? ` · ${tag}` : ""}`;
+                  return (
+                    <article
+                      className="packyo-activity-card"
+                      key={`${activity.name || "activity"}-${activityIndex}`}
+                      style={{ borderLeftColor: TAG_LEFT_BORDER[tag] || TAG_LEFT_BORDER.travel }}
+                    >
+                      <div className="packyo-activity-time">
+                        {activity.time || "9:00 AM"} {isWish && <b>★ Wish</b>}
+                      </div>
+                      <h3>{activity.name || "Activity"}</h3>
+                      <p className="packyo-activity-source">{source}</p>
+                      {activity.description && <p className="packyo-activity-description">{activity.description}</p>}
+                      {Number(activity.estimatedCost) > 0 && (
+                        <p className="packyo-activity-cost">~${Number(activity.estimatedCost).toLocaleString()} per person</p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <footer className="packyo-report-total">
+          <p>ESTIMATED TOTAL · ALL {days.length} {days.length === 1 ? "DAY" : "DAYS"}</p>
+          <strong>~${totalCost.toLocaleString()}</strong>
+          <span>per person · {activityCount} {activityCount === 1 ? "activity" : "activities"}</span>
+          <div className="packyo-report-footer">
+            <b>Packyo</b>
+            <span>Plan trips together ✦</span>
+            <span>Generated {generatedOn}</span>
+          </div>
+        </footer>
+      </section>
+    </section>
   );
 }
 
@@ -403,12 +565,15 @@ export default function Itinerary() {
       <style>{`
         @media screen {
           .print-only { display: none !important; }
+          .print-legacy { display: none !important; }
         }
 
         @media print {
+          @page { size: letter; margin: 0; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .no-print { display: none !important; }
           .print-only { display: block !important; }
+          .print-legacy { display: none !important; }
 
           body { margin: 0; background: #fff !important; font-family: Georgia, serif; }
 
@@ -478,6 +643,191 @@ export default function Itinerary() {
 
           nav, .print-screen-only { display: none !important; }
           .print-page { padding: 0 !important; max-width: 100% !important; }
+
+          .packyo-print-report {
+            display: block !important;
+            color: #1f1e1b !important;
+            background: #fff !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+          }
+          .packyo-cover {
+            position: relative;
+            min-height: 61vh;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 50px 50px 52px;
+            display: flex !important;
+            flex-direction: column;
+            color: #fff !important;
+            background: #191a17 !important;
+            page-break-after: always;
+            break-after: page;
+          }
+          .packyo-cover-orb { position: absolute; border-radius: 999px; background: #2a1c16 !important; opacity: 0.8; }
+          .packyo-cover-orb-top { width: 250px; height: 250px; top: -105px; right: -38px; }
+          .packyo-cover-orb-bottom { width: 190px; height: 190px; bottom: -108px; left: -62px; }
+          .packyo-cover-brand {
+            position: relative;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: #ef6949 !important;
+          }
+          .packyo-cover-brand span {
+            width: 10px;
+            height: 10px;
+            display: inline-block;
+            margin-right: 10px;
+            border-radius: 999px;
+            background: #ef6949 !important;
+          }
+          .packyo-cover-main { position: relative; margin-top: 60px; max-width: 540px; }
+          .packyo-cover-main p,
+          .packyo-eyebrow {
+            margin: 0;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2.6px;
+            color: #ef6949 !important;
+          }
+          .packyo-cover-main p { color: #96938d !important; }
+          .packyo-cover h1 {
+            margin: 18px 0 12px;
+            font-family: Georgia, "Times New Roman", serif !important;
+            font-size: 39px;
+            line-height: 1.12;
+            color: #fff !important;
+          }
+          .packyo-cover-destination { font-size: 16px; color: #b8b5af !important; }
+          .packyo-cover-stats {
+            position: relative;
+            margin-top: auto;
+            padding-top: 30px;
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr);
+            border-top: 1px solid #3d3e39;
+          }
+          .packyo-cover-stats > div { padding: 0 24px; border-left: 1px solid #343531; }
+          .packyo-cover-stats > div:first-child { padding-left: 0; border-left: 0; }
+          .packyo-cover-stats span { display: block; margin-bottom: 10px; font-size: 10px; font-weight: 700; letter-spacing: 1.7px; color: #95928d !important; }
+          .packyo-cover-stats strong { display: block; font-family: Georgia, "Times New Roman", serif !important; font-size: 18px; color: #fff !important; text-transform: capitalize; }
+
+          .packyo-report-body { display: block !important; background: #fff !important; }
+          .packyo-pack-section { padding: 48px 50px 42px; }
+          .packyo-pack-section h2,
+          .packyo-day-header h2 {
+            margin: 12px 0 22px;
+            font-family: Georgia, "Times New Roman", serif !important;
+            font-size: 27px;
+            color: #181816 !important;
+          }
+          .packyo-member-list { display: flex !important; flex-wrap: wrap; gap: 10px; }
+          .packyo-member {
+            display: inline-flex !important;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 13px 5px 6px;
+            border-radius: 999px;
+            background: #f4f1eb !important;
+            font-size: 13px;
+            font-weight: 600;
+          }
+          .packyo-member span {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            color: #fff !important;
+            background: #ef6949 !important;
+            font-size: 12px;
+          }
+          .packyo-vibes-section {
+            display: flex !important;
+            align-items: center;
+            gap: 20px;
+            padding: 28px 50px;
+            border-top: 1px solid #ece8df;
+            border-bottom: 1px solid #ece8df;
+          }
+          .packyo-vibes-section .packyo-eyebrow { flex: none; }
+          .packyo-vibes { display: flex !important; flex-wrap: wrap; gap: 8px; }
+          .packyo-vibes span {
+            display: inline-block;
+            padding: 7px 13px;
+            border-radius: 999px;
+            color: #393834 !important;
+            background: #f4f1eb !important;
+            font-size: 12px;
+            text-transform: capitalize;
+          }
+
+          .packyo-days { padding: 40px 50px 0; }
+          .packyo-day { margin: 0 0 42px; break-inside: auto; }
+          .packyo-day-header {
+            display: flex !important;
+            align-items: end;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 0 0 17px;
+            margin-bottom: 26px;
+            border-bottom: 2px solid #ef6949;
+          }
+          .packyo-day-header > div { display: flex !important; align-items: baseline; gap: 16px; }
+          .packyo-day-header span {
+            color: #ef6949 !important;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+            white-space: nowrap;
+          }
+          .packyo-day-header h2 { margin: 0; }
+          .packyo-day-header em { color: #77736c !important; font-family: Georgia, "Times New Roman", serif !important; font-size: 14px; text-align: right; }
+          .packyo-activity-list { display: block !important; }
+          .packyo-activity-card {
+            display: block !important;
+            box-sizing: border-box;
+            break-inside: avoid;
+            margin-bottom: 14px;
+            padding: 18px 20px;
+            border: 1px solid #e9e5dc;
+            border-left: 4px solid #ef6949;
+            border-left-color: #ef6949;
+            border-radius: 12px;
+            background: #fcfbf8 !important;
+          }
+          .packyo-activity-time { margin-bottom: 8px; color: #99958e !important; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; }
+          .packyo-activity-time b { display: inline-block; margin-left: 12px; padding: 3px 7px; border-radius: 999px; color: #ef6949 !important; background: #fff0eb !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
+          .packyo-activity-card h3 { margin: 0 0 7px; color: #1c1b18 !important; font-size: 16px; line-height: 1.3; }
+          .packyo-activity-source { margin: 0 0 9px; color: #ef6949 !important; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+          .packyo-activity-description { margin: 0; color: #5d5a54 !important; font-size: 13px; line-height: 1.55; }
+          .packyo-activity-cost { margin: 10px 0 0; color: #5d5a54 !important; font-size: 12px; font-weight: 600; }
+
+          .packyo-report-total {
+            box-sizing: border-box;
+            min-height: 250px;
+            margin-top: 42px;
+            padding: 54px 50px 0;
+            border-top: 1px solid #ece8df;
+            text-align: center;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .packyo-report-total > p { margin: 0 0 12px; color: #5f5c56 !important; font-size: 11px; font-weight: 700; letter-spacing: 2.5px; }
+          .packyo-report-total > strong { display: block; color: #191816 !important; font-family: Georgia, "Times New Roman", serif !important; font-size: 34px; }
+          .packyo-report-total > span { display: block; margin-top: 6px; color: #77736c !important; font-size: 13px; }
+          .packyo-report-footer {
+            display: flex !important;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 65px;
+            padding: 16px 0;
+            border-top: 1px solid #ece8df;
+            color: #77736c !important;
+            font-size: 11px;
+          }
+          .packyo-report-footer b { color: #181816 !important; font-family: Georgia, "Times New Roman", serif !important; font-size: 14px; }
         }
       `}</style>
 
@@ -489,7 +839,7 @@ export default function Itinerary() {
               <ArrowLeft size={20}/>
             </Link>
             <Link href="/" className="font-display font-bold text-xl" data-testid="link-logo">
-              go<span className="text-primary">pack</span>
+              Packyo
             </Link>
           </div>
           {canShowItinerary && isDirty && (
@@ -504,14 +854,14 @@ export default function Itinerary() {
 
         {/* print header */}
         {canShowItinerary && (
-          <div className="print-only print-header">
+          <div className="print-legacy print-header">
             <div>
-              <div className="print-header-logo">go<span>pack</span></div>
+              <div className="print-header-logo">Packyo</div>
               <div className="print-header-title">{localItinerary.title}</div>
               <div className="print-header-sub">{localItinerary.days?.length} days · {trip?.destination}</div>
             </div>
             <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
-              AI-generated itinerary<br/>gopacknow.app
+              AI-generated itinerary<br/>Packyo
             </div>
           </div>
         )}
@@ -590,7 +940,7 @@ export default function Itinerary() {
                     </div>
 
                     {/* print day header */}
-                    <div className="print-only print-day-header">
+                    <div className="print-legacy print-day-header">
                       <div className="print-day-number">{day.dayNumber}</div>
                       <div>
                         <div className="print-day-city">{day.city}</div>
@@ -748,7 +1098,7 @@ export default function Itinerary() {
                                   )}
 
                                   {/* print card */}
-                                  <div className="print-only print-activity" style={{borderLeftColor:borderColor}}>
+                                  <div className="print-legacy print-activity" style={{borderLeftColor:borderColor}}>
                                     <div style={{flex:1}}>
                                       <div className="print-activity-time">{act.time}{act.fromWish ? " · ★ From a wish" : ""}</div>
                                       <div className="print-activity-name">{act.name}</div>
@@ -795,8 +1145,8 @@ export default function Itinerary() {
               </div>
 
               {/* print footer */}
-              <div className="print-only print-footer">
-                gopacknow.app · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+              <div className="print-legacy print-footer">
+                Packyo · AI-powered group travel planning · Itinerary generated for {trip?.destination}
               </div>
 
               {/* save bar */}
@@ -812,6 +1162,8 @@ export default function Itinerary() {
             </>
           )}
         </div>
+
+        {canShowItinerary && <PackyoPrintReport itinerary={localItinerary} trip={trip} />}
       </div>
 
       {/* ── Print preview overlay ── */}
@@ -854,13 +1206,13 @@ export default function Itinerary() {
                 <div style={{background:"#1a1a1a",color:"#fff",padding:"48px 48px 40px",display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
                   <div>
                     <div style={{fontSize:22,fontWeight:700,letterSpacing:-0.5,opacity:0.6,fontFamily:"sans-serif"}}>
-                      go<span style={{color:"#E85D3A"}}>pack</span>
+                      Packyo
                     </div>
                     <div style={{fontSize:38,fontWeight:700,lineHeight:1.15,margin:"16px 0 8px"}}>{localItinerary.title}</div>
                     <div style={{fontSize:15,opacity:0.6}}>{localItinerary.days?.length} days · {trip?.destination}</div>
                   </div>
                   <div style={{textAlign:"right",opacity:0.5,fontSize:13}}>
-                    AI-generated itinerary<br/>gopacknow.app
+                    AI-generated itinerary<br/>Packyo
                   </div>
                 </div>
 
@@ -900,7 +1252,7 @@ export default function Itinerary() {
 
                   {/* Footer */}
                   <div style={{textAlign:"center",color:"#9ca3af",fontSize:11,fontFamily:"sans-serif",paddingTop:24,borderTop:"1px solid #f3f4f6"}}>
-                    gopacknow.app · AI-powered group travel planning · Itinerary generated for {trip?.destination}
+                    Packyo · AI-powered group travel planning · Itinerary generated for {trip?.destination}
                   </div>
                 </div>
               </div>

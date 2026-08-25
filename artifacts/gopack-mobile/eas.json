@@ -9,13 +9,17 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "packyo.replit.app"
+      }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EAS_BUILD_SKIP_LOCKFILE_CHECK": "1",
-        "PNPM_FLAGS": "--no-frozen-lockfile"
+        "PNPM_FLAGS": "--no-frozen-lockfile",
+        "EXPO_PUBLIC_DOMAIN": "packyo.replit.app"
       }
     }
   }

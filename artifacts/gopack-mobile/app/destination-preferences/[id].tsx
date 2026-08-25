@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   MemberPreference,
   storeDestinationSuggestions,
@@ -189,11 +190,7 @@ export default function DestinationPreferencesScreen() {
         startLocation: pref.startLocation,
       }));
 
-      const baseUrl = Platform.OS === "web"
-        ? ""
-        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-
-      const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
+      const res = await apiFetch("/api/suggest-destinations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memberPreferences: memberPrefsList }),

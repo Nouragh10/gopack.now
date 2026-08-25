@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/dm-sans";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { setBaseUrl } from "@/lib/api-client";
+import { getConfiguredApiBaseUrl, setBaseUrl } from "@/lib/api-client";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
@@ -17,7 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`);
+setBaseUrl(getConfiguredApiBaseUrl());
 
 SplashScreen.preventAutoHideAsync();
 

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   AccommodationPreference,
   storeAccommodationSuggestions,
@@ -145,11 +146,7 @@ export default function AccommodationPreferencesScreen() {
         cancellation: pref.cancellation,
       }));
 
-      const baseUrl = Platform.OS === "web"
-        ? ""
-        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-
-      const res = await fetch(`${baseUrl}/api/suggest-accommodations`, {
+      const res = await apiFetch("/api/suggest-accommodations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

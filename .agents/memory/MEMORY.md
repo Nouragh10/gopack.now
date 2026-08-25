@@ -1,4 +1,4 @@
-- [Firebase RTDB vs Firestore](firebase-rtdb-note.md) — gopack uses Realtime Database (not Firestore); databaseURL must be set in config
+- [Firebase RTDB user paths](firebase-rtdb-user-paths.md) — user-owned records must live in the permitted userTrips branch, not a new root collection
 - [onAuthStateChanged typo](auth-hook-fix.md) — Firebase exports `onAuthStateChanged`, not `onAuthStateStateChanged`; double-check when writing auth hooks
 - [OpenAPI body naming](openapi-body-naming.md) — body schemas must be entity-shaped (ItineraryInput not GenerateItineraryBody) or TS2308 collision breaks typecheck
 - [Expo SDK 54 + Firebase babel fix](expo-babel-firebase.md) — installing firebase pulls @babel/core@8.x; must add workspace-level pnpm override `"@babel/core": "^7.26.0"` to keep Expo SDK 54 bundling
@@ -6,7 +6,6 @@
 - [AI venue verification needs live web search](ai-venue-verification.md) — LLM training data can't know current open/closed status; prompt-only fixes fail, must use real search tool
 - [Stale git lock files block bash git ops](git-lock-workaround.md) — bash tool blocks any write touching `.git/*.lock`; clear + git add/commit/push via the code_execution sandbox instead
 - [Firebase anonymous auth disabled](firebase-anon-auth-disabled.md) — gopack's "Continue as guest" fails with ADMIN_ONLY_OPERATION; blocks e2e tests needing login
-- [Free app policy](free-app-policy.md) — GoPackNow is fully free; do not add subscriptions, paywalls, or in-app purchases.
 - [Clone artifact isolation](clone-artifact-isolation.md) — duplicate artifact routes in a cloned GoPack copy can conflict with live previews; isolate clone registrations.
 - [Expo bundle routing](expo-bundle-routing.md) — path-based Expo previews must route Metro’s absolute bundle URL or the iOS simulator remains stuck loading.
 - [Expo Go native startup](expo-go-native-startup.md) — avoid initializing third-party native modules at the Expo Go root; unsupported modules can close the iOS simulator.
@@ -15,3 +14,6 @@
 - [Optional API services](api-optional-service-startup.md) — lazy-init feature integrations so missing email/admin credentials do not block AI routes.
 - [GitHub connector publishing](github-connector-publishing.md) — use GitHub's authenticated Git API when local HTTPS push credentials fail.
 - [Wishlist flow screens](wishlist-flow-screens.md) — three dedicated screens for wish add/browse, voting, and results; trip hub checklist now routes to /wishlist/[id] and /wishlist-vote/[id].
+- [Account deletion recovery](firebase-account-deletion.md) — Firebase Auth and RTDB deletes need a server-side retry marker to avoid stranded partial deletion.
+- [AI activity response normalization](ai-activity-response-normalization.md) — AI/web-search output may wrap a valid activity in extra structured data; normalize one activity before returning it to clients.
+- [iOS itinerary exports](ios-itinerary-exports.md) — close native export sheets before launching share UI; use SDK-matched file modules and Apple’s ICS type.

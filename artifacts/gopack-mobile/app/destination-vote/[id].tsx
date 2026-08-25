@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   DestinationSuggestion,
   confirmDestination,
@@ -484,10 +485,7 @@ export default function DestinationVoteScreen() {
     setBreaking(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      const baseUrl = Platform.OS === "web"
-        ? ""
-        : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-      const res = await fetch(`${baseUrl}/api/ai-pick-destination`, {
+      const res = await apiFetch("/api/ai-pick-destination", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -556,11 +554,7 @@ export default function DestinationVoteScreen() {
                 startLocation: pref.startLocation,
               }));
 
-              const baseUrl = Platform.OS === "web"
-                ? ""
-                : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-
-              const res = await fetch(`${baseUrl}/api/suggest-destinations`, {
+              const res = await apiFetch("/api/suggest-destinations", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

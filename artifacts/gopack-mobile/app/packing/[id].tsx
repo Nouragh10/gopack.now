@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   addPackItem,
   savePackingList,
@@ -56,8 +57,7 @@ export default function PackingScreen() {
     setGenerating(true);
     setGenError(null);
     try {
-      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-      const res = await fetch(`${baseUrl}/api/packing`, {
+      const res = await apiFetch("/api/packing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

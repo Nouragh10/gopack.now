@@ -29,7 +29,7 @@ import {
 } from "firebase/database";
 import { getStorage } from "firebase/storage";
 import { Platform } from "react-native";
-import { getBaseUrl } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-client";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtdq065PaOR3xlML_fekm53h2XcPz3NAo",
@@ -130,10 +130,7 @@ export const deleteAccount = async (password?: string) => {
   }
 
   const idToken = await currentUser.getIdToken(true);
-  const baseUrl =
-    getBaseUrl() ??
-    (Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`);
-  const response = await fetch(`${baseUrl}/api/auth/delete-account`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/auth/delete-account`, {
     method: "POST",
     headers: { Authorization: `Bearer ${idToken}` },
   });

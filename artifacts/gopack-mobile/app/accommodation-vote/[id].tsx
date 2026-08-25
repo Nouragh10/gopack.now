@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   AccommodationSuggestion,
   addMemberAccommodationLink,
@@ -583,8 +584,7 @@ export default function AccommodationVoteScreen() {
     setBreaking(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-      const res = await fetch(`${baseUrl}/api/ai-pick-accommodation`, {
+      const res = await apiFetch("/api/ai-pick-accommodation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -631,8 +631,7 @@ export default function AccommodationVoteScreen() {
     const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
     try {
       setParseStatus("fetching");
-      const apiBase = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-      const parseRes = await fetch(`${apiBase}/api/parse-accommodation`, {
+      const parseRes = await apiFetch("/api/parse-accommodation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, destination: trip?.destination ?? "" }),

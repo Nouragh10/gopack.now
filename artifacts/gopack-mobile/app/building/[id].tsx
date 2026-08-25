@@ -13,6 +13,7 @@ import {
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import { saveItinerary, useTrip, useWishes } from "@/hooks/useFirebase";
 
 const MESSAGES = [
@@ -112,8 +113,7 @@ export default function BuildingScreen() {
         }
         const resolvedPace = Object.entries(paceVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "balanced";
 
-        const baseUrl = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
-        const res = await fetch(`${baseUrl}/api/itinerary`, {
+        const res = await apiFetch("/api/itinerary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

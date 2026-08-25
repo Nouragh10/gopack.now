@@ -1,8 +1,14 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
-import { jsonrepair } from "jsonrepair";
 import { getAdminDb, getAdminApp } from "../lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
+import {
+  extractAndParseJson,
+  ItineraryResponseError,
+  isItineraryShape,
+  parseItineraryResponse,
+  type ItineraryShape,
+} from "../lib/itinerary-parser";
 
 const router: IRouter = Router();
 
@@ -35,110 +41,6 @@ async function callAnthropic(body: object, retries = 3, extraHeaders: Record<str
     await sleep(wait);
   }
   throw new Error("Rate limit exceeded after retries. Please try again in a minute.");
-}
-
-function extractAndParseJson(text: string): unknown {
-  const stripped = text
-    .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
-    .trim();
-
-  const candidates: string[] = [stripped];
-  const seen = new Set(candidates);
-
-  // Find complete object/array slices without using a greedy regex. Greedy
-  // matching can swallow multiple JSON blocks or trailing prose, and it also
-  // cannot tell braces inside quoted strings from structural braces.
-  for (let start = 0; start < stripped.length; start++) {
-    if (stripped[start] !== "{" && stripped[start] !== "[") continue;
-    const opening = stripped[start];
-    const closing = opening === "{" ? "}" : "]";
-    const stack: string[] = [];
-    let inString = false;
-    let escaped = false;
-
-    for (let index = start; index < stripped.length; index++) {
-      const char = stripped[index];
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (char === "\\") escaped = true;
-        else if (char === '"') inString = false;
-        continue;
-      }
-      if (char === '"') {
-        inString = true;
-        continue;
-      }
-      if (char === "{" || char === "[") stack.push(char);
-      else if (char === "}" || char === "]") {
-        const expected = stack[stack.length - 1] === "{" ? "}" : "]";
-        if (char !== expected) break;
-        stack.pop();
-        if (stack.length === 0 && char === closing) {
-          const candidate = stripped.slice(start, index + 1);
-          if (!seen.has(candidate)) {
-            candidates.push(candidate);
-            seen.add(candidate);
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  let lastError: unknown;
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate);
-    } catch (parseError) {
-      lastError = parseError;
-      try {
-        return JSON.parse(jsonrepair(candidate));
-      } catch (repairError) {
-        lastError = repairError;
-      }
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("AI response did not contain valid JSON.");
-}
-
-type ItineraryActivity = {
-  name: string;
-  tag: string;
-  [key: string]: unknown;
-};
-type ItineraryDay = { activities: ItineraryActivity[]; [key: string]: unknown };
-type ItineraryShape = { days: ItineraryDay[]; [key: string]: unknown };
-
-function isItineraryShape(value: unknown): value is ItineraryShape {
-  if (!value || typeof value !== "object") return false;
-  const days = (value as { days?: unknown }).days;
-  return Array.isArray(days) && days.every((day) => (
-    day !== null &&
-    typeof day === "object" &&
-    Array.isArray((day as { activities?: unknown }).activities)
-  ));
-}
-
-function parseItineraryResponse(text: string): ItineraryShape {
-  const variants = [text, `{${text}`];
-  let lastError: unknown;
-
-  for (const variant of variants) {
-    try {
-      const parsed = extractAndParseJson(variant);
-      if (isItineraryShape(parsed)) return parsed;
-      lastError = new Error("AI response did not contain an itinerary days array.");
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("AI response did not contain a valid itinerary.");
 }
 
 async function verifyItineraryVenues(
@@ -317,6 +219,87 @@ async function checkAndIncrementGenerationCount(
   _res: Response,
 ): Promise<boolean> {
   return true;
+}
+
+type RedoActivity = {
+  time: string;
+  name: string;
+  description: string;
+  tag: string;
+  fromWish: false;
+  suggester: "AI pick";
+  estimatedCost: number;
+  labels: string[];
+  nearPrevious: boolean;
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function findRedoActivity(value: unknown, depth = 0): Record<string, unknown> | null {
+  if (depth > 5) return null;
+
+  if (isObject(value)) {
+    if (typeof value.name === "string" && value.name.trim().length > 0) return value;
+    if ("activity" in value) {
+      const nestedActivity = findRedoActivity(value.activity, depth + 1);
+      if (nestedActivity) return nestedActivity;
+    }
+    for (const nestedValue of Object.values(value)) {
+      const nestedActivity = findRedoActivity(nestedValue, depth + 1);
+      if (nestedActivity) return nestedActivity;
+    }
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const nestedActivity = findRedoActivity(value[index], depth + 1);
+      if (nestedActivity) return nestedActivity;
+    }
+  }
+
+  return null;
+}
+
+function normalizeRedoActivity(
+  value: unknown,
+  fallback: { time: string; tag: string },
+): RedoActivity {
+  const activity = findRedoActivity(value);
+  if (!activity) {
+    throw new ItineraryResponseError("The AI did not return a complete replacement activity.");
+  }
+
+  const name = typeof activity.name === "string" ? activity.name.trim() : "";
+  if (!name) {
+    throw new ItineraryResponseError("The AI did not return a replacement activity name.");
+  }
+
+  const description = typeof activity.description === "string" && activity.description.trim()
+    ? activity.description.trim()
+    : "A Packyo AI recommendation for this time slot.";
+  const tag = typeof activity.tag === "string" && activity.tag.trim()
+    ? activity.tag.trim()
+    : fallback.tag;
+  const rawCost = typeof activity.estimatedCost === "number"
+    ? activity.estimatedCost
+    : Number(activity.estimatedCost);
+
+  return {
+    time: fallback.time,
+    name,
+    description,
+    tag,
+    fromWish: false,
+    suggester: "AI pick",
+    estimatedCost: Number.isFinite(rawCost) && rawCost >= 0 ? rawCost : 0,
+    labels: Array.isArray(activity.labels)
+      ? activity.labels.filter((label): label is string => typeof label === "string")
+      : [],
+    nearPrevious: activity.nearPrevious === true,
+  };
 }
 
 router.post("/itinerary", async (req: Request, res: Response): Promise<void> => {
@@ -514,7 +497,10 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 
     let itinerary: ItineraryShape;
     try {
-      itinerary = parseItineraryResponse(allText);
+      itinerary = parseItineraryResponse(allText, {
+        expectedDays: days,
+        activitiesPerDay,
+      });
     } catch (firstParseError) {
       req.log.warn(
         { chars: allText.length, error: firstParseError instanceof Error ? firstParseError.message : String(firstParseError) },
@@ -527,27 +513,47 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
           role: "user",
           content: `${prompt}
 
-IMPORTANT RETRY: The previous response was not valid JSON. Return a compact, complete JSON object now. Keep every required field and exactly the requested number of days and activities, but keep descriptions under 8 words. Do not use markdown, comments, or any text outside the JSON object.`,
+IMPORTANT RETRY: The previous response was not valid JSON. Return a compact, complete JSON object now. Keep every required field and exactly the requested number of days. Include at least the requested activity pace on every day, but add extra activities when needed to retain every guaranteed wish. Keep descriptions under 8 words. Do not use markdown, comments, or any text outside the JSON object.`,
         }, { role: "assistant", content: "{" }],
       };
-      const retryResponse = await callAnthropic(retryBody);
-      const retryData = await (retryResponse as unknown as globalThis.Response).json() as {
-        content?: Array<{ type: string; text?: string }>;
-        error?: { message: string };
-        stop_reason?: string;
-      };
-      if (!(retryResponse as unknown as globalThis.Response).ok) {
-        throw new Error(retryData.error?.message ?? "AI itinerary retry failed. Please try again.");
+      try {
+        const retryResponse = await callAnthropic(retryBody);
+        const retryData = await (retryResponse as unknown as globalThis.Response).json() as {
+          content?: Array<{ type: string; text?: string }>;
+          error?: { message: string };
+          stop_reason?: string;
+        };
+        if (!(retryResponse as unknown as globalThis.Response).ok) {
+          throw new Error(retryData.error?.message ?? "AI itinerary retry failed.");
+        }
+        const retryText = (retryData.content ?? [])
+          .filter((b) => b.type === "text")
+          .map((b) => b.text ?? "")
+          .join("");
+        itinerary = parseItineraryResponse(retryText, {
+          expectedDays: days,
+          activitiesPerDay,
+        });
+      } catch (retryError) {
+        if (retryError instanceof ItineraryResponseError) throw retryError;
+        throw new ItineraryResponseError(
+          "The AI could not return a complete itinerary after retrying.",
+          { cause: retryError },
+        );
       }
-      const retryText = (retryData.content ?? [])
-        .filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("");
-      itinerary = parseItineraryResponse(retryText);
     }
     const dedupedItinerary = await dedupeItineraryVenues(itinerary, destination, req.log);
     res.json(dedupedItinerary);
   } catch (err) {
+    if (err instanceof ItineraryResponseError) {
+      req.log.warn({ code: err.code, error: err.message }, "Returning recoverable itinerary parse error");
+      res.status(502).json({
+        error: "We could not build a complete itinerary right now. Please try again.",
+        code: err.code,
+        recoverable: err.recoverable,
+      });
+      return;
+    }
     req.log.error({ err }, "Failed to generate itinerary");
     res.status(500).json({ error: (err as Error).message || "Failed to generate itinerary" });
   }
@@ -1347,7 +1353,10 @@ After your research, your FINAL message must be ONLY valid JSON (no markdown, no
     // Take the last text block — that's the JSON after all the search tool calls
     const textBlocks = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "");
     const allText = textBlocks[textBlocks.length - 1] ?? textBlocks.join("");
-    const newActivity = extractAndParseJson(allText);
+    const newActivity = normalizeRedoActivity(extractAndParseJson(allText), {
+      time: activity.time,
+      tag: activity.tag,
+    });
     res.json({ activity: newActivity });
   } catch (err) {
     req.log.error({ err }, "Failed to redo activity");

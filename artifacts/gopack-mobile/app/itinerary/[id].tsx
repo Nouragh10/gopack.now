@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch } from "@/lib/api-client";
 import {
   Activity,
   ItineraryDay,
@@ -113,6 +114,27 @@ function getDayDateTime(
   } catch {
     return null;
   }
+}
+
+function escapeIcsText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/([,;])/g, "\\$1");
+}
+
+function formatIcsDateTime(date: Date): string {
+  if (Number.isNaN(date.getTime())) throw new Error("The itinerary date is invalid.");
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function safeExportFileName(value: string | undefined, extension: string): string {
+  const stem = (value || "trip")
+    .trim()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "trip";
+  return `${stem}-itinerary.${extension}`;
 }
 
 /* ── PDF HTML builder ────────────────────────────────────────────────── */
@@ -239,8 +261,9 @@ body{
 }
 
 @media print{
+  @page{size:A4;margin:0}
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#F8F5F0}
-  .cover{page-break-after:always}
+  .cover{min-height:297mm;page-break-after:always}
   .day-block{page-break-inside:avoid}
   .act{page-break-inside:avoid}
 }
@@ -529,7 +552,7 @@ body{
   <div class="cover-top">
     <div class="logo">
       <div class="logo-mark">🎒</div>
-      <div class="logo-name">packyo</div>
+      <div class="logo-name">Packyo</div>
     </div>
     <div class="cover-badge">Group Travel Itinerary</div>
   </div>
@@ -620,7 +643,7 @@ ${
 <div class="footer">
   <div class="footer-logo">
     <div class="footer-dot"></div>
-    packyo
+    Packyo
   </div>
   <div class="footer-meta">
     Generated on ${generatedDate}<br>
@@ -647,6 +670,35 @@ function getRedoOptions(tag: string): Array<{ label: string; redoType: "same_typ
   if (sameLabels[tag]) opts.push({ label: sameLabels[tag], redoType: "same_type" });
   opts.push({ label: "Redo whole activity", redoType: "whole" });
   return opts;
+}
+
+function findRedoActivity(value: unknown, depth = 0): Partial<Activity> | null {
+  if (depth > 5 || value === null || typeof value !== "object") return null;
+
+  if (Array.isArray(value)) {
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const nestedActivity = findRedoActivity(value[index], depth + 1);
+      if (nestedActivity) return nestedActivity;
+    }
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.name === "string" && record.name.trim().length > 0) {
+    return record as Partial<Activity>;
+  }
+
+  if ("activity" in record) {
+    const nestedActivity = findRedoActivity(record.activity, depth + 1);
+    if (nestedActivity) return nestedActivity;
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    const nestedActivity = findRedoActivity(nestedValue, depth + 1);
+    if (nestedActivity) return nestedActivity;
+  }
+
+  return null;
 }
 
 interface ActivityCardProps {
@@ -757,7 +809,9 @@ export default function ItineraryScreen() {
   const [editModal, setEditModal] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [exportingCalendar, setExportingCalendar] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
+  const [pendingExport, setPendingExport] = useState<"calendar" | "pdf" | null>(null);
   const [redoLoading, setRedoLoading] = useState<string | null>(null);
   const [showSavePackModal, setShowSavePackModal] = useState(false);
   const [savePackName, setSavePackName] = useState("");
@@ -840,10 +894,9 @@ export default function ItineraryScreen() {
     setRedoLoading(key);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const baseUrl = Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`;
       const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
       const allTripActivities = days.flatMap((d) => d.activities.map((a) => a.name)).filter((n) => n !== act.name);
-      const resp = await fetch(`${baseUrl}/api/redo-activity`, {
+      const resp = await apiFetch("/api/redo-activity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -862,7 +915,8 @@ export default function ItineraryScreen() {
         const errBody = await resp.json().catch(() => ({})) as { error?: string };
         throw new Error(errBody.error ?? "Could not replace activity. Please try again.");
       }
-      const { activity: newAct } = await resp.json();
+      const responseBody = await resp.json() as { activity?: unknown };
+      const newAct = findRedoActivity(responseBody.activity);
       if (!newAct?.name) {
         throw new Error("AI returned an incomplete activity. Please try again.");
       }
@@ -948,6 +1002,7 @@ export default function ItineraryScreen() {
 
   const handleExportCalendar = async () => {
     if (!trip || !itinerary) return;
+    setExportingCalendar(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       // Append T00:00:00 so "YYYY-MM-DD" parses in local time, not UTC —
@@ -957,10 +1012,10 @@ export default function ItineraryScreen() {
       const parseTime = (dayOffset: number, timeStr: string): Date => {
         const d = new Date(base);
         d.setDate(d.getDate() + dayOffset);
-        const match = timeStr?.match(/(\d+):(\d+)\s*(am|pm)?/i);
+        const match = timeStr?.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
         if (match) {
           let h = parseInt(match[1]);
-          const m = parseInt(match[2]);
+            const m = parseInt(match[2] ?? "0");
           const period = match[3]?.toLowerCase();
           if (period === "pm" && h < 12) h += 12;
           if (period === "am" && h === 12) h = 0;
@@ -971,26 +1026,27 @@ export default function ItineraryScreen() {
         return d;
       };
 
-      const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-
       const lines: string[] = [
         "BEGIN:VCALENDAR", "VERSION:2.0",
-        "PRODID:-//packyo//AI Travel Planner//EN",
+        "PRODID:-//Packyo//AI Travel Planner//EN",
         "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-        `X-WR-CALNAME:${itinerary.title || trip.destination || "Trip"}`,
+        `X-WR-CALNAME:${escapeIcsText(itinerary.title || trip.destination || "Trip")}`,
       ];
 
       days.forEach((day, di) => {
-        day.activities.forEach((act) => {
-          const start = parseTime(di, act.time || "9:00am");
+        day.activities.forEach((act, activityIndex) => {
+          const start = parseTime((day.dayNumber || di + 1) - 1, act.time || "9:00am");
           const end = new Date(start.getTime() + 60 * 60 * 1000);
           lines.push(
             "BEGIN:VEVENT",
-            `DTSTART:${fmt(start)}`,
-            `DTEND:${fmt(end)}`,
-            `SUMMARY:${(act.name || "").replace(/,/g, "\\,")}`,
-            `DESCRIPTION:${(act.description || "").replace(/,/g, "\\,").replace(/\n/g, "\\n")}`,
-            `LOCATION:${day.city || trip.destination || ""}`,
+            `UID:${safeExportFileName(trip.destination, "ics").replace(/\.ics$/, "")}-${day.dayNumber || di + 1}-${activityIndex}@packyo`,
+            `DTSTAMP:${formatIcsDateTime(new Date())}`,
+            `DTSTART:${formatIcsDateTime(start)}`,
+            `DTEND:${formatIcsDateTime(end)}`,
+            "STATUS:CONFIRMED",
+            `SUMMARY:${escapeIcsText(act.name || "Activity")}`,
+            `DESCRIPTION:${escapeIcsText(act.description || "")}`,
+            `LOCATION:${escapeIcsText(day.city || trip.destination || "")}`,
             "END:VEVENT",
           );
         });
@@ -1010,17 +1066,25 @@ export default function ItineraryScreen() {
         if (!FileSystem.cacheDirectory) {
           throw new Error("No cache directory is available");
         }
-        const fileUri = `${FileSystem.cacheDirectory}itinerary.ics`;
+        const fileName = safeExportFileName(trip.destination, "ics");
+        const fileUri = `${FileSystem.documentDirectory ?? FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.deleteAsync(fileUri, { idempotent: true });
         await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(fileUri, { mimeType: "text/calendar", dialogTitle: `${trip.destination} Calendar`, UTI: "public.calendar-event" });
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "text/calendar",
+            dialogTitle: `${trip.destination} Calendar`,
+            UTI: "com.apple.ical.ics",
+          });
         } else {
-          Alert.alert("Saved", "Itinerary calendar file has been created.");
+          Alert.alert("Calendar file ready", "Your itinerary calendar file has been created. Use the Share button to save it.");
         }
       }
     } catch (err) {
-      Alert.alert("Export failed", "Could not generate calendar file. Please try again.");
+      Alert.alert("Calendar export failed", err instanceof Error ? err.message : "Could not generate calendar file. Please try again.");
+    } finally {
+      setExportingCalendar(false);
     }
   };
 
@@ -1041,20 +1105,51 @@ export default function ItineraryScreen() {
         accom,
       );
       const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const fileName = safeExportFileName(trip.destination, "pdf");
+      const exportDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+      if (!exportDirectory) throw new Error("No local file directory is available.");
+      const fileUri = `${exportDirectory}${fileName}`;
+      await FileSystem.deleteAsync(fileUri, { idempotent: true });
+      await FileSystem.copyAsync({ from: uri, to: fileUri });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(uri, {
+        await Sharing.shareAsync(fileUri, {
           mimeType: "application/pdf",
           dialogTitle: `${trip.destination} Itinerary`,
           UTI: "com.adobe.pdf",
         });
       } else {
-        Alert.alert("PDF saved", "Your itinerary PDF has been created.");
+        await Print.printAsync({ html });
       }
     } catch (err) {
-      Alert.alert("Export failed", "Could not generate PDF. Please try again.");
+      Alert.alert("PDF export failed", err instanceof Error ? err.message : "Could not generate PDF. Please try again.");
     } finally {
       setExportingPDF(false);
+    }
+  };
+
+  const handleExportSheetDismiss = () => {
+    const exportType = pendingExport;
+    if (!exportType) return;
+    setPendingExport(null);
+    setTimeout(() => {
+      if (exportType === "calendar") handleExportCalendar();
+      else handleExportPDF();
+    }, 50);
+  };
+
+  const requestExport = (exportType: "calendar" | "pdf") => {
+    setPendingExport(exportType);
+    setShowExportSheet(false);
+
+    // React Native's onDismiss is the reliable iOS signal that a native modal
+    // has finished closing. React Native Web does not emit it consistently.
+    if (Platform.OS === "web") {
+      setTimeout(() => {
+        setPendingExport(null);
+        if (exportType === "calendar") handleExportCalendar();
+        else handleExportPDF();
+      }, 0);
     }
   };
 
@@ -1372,7 +1467,7 @@ export default function ItineraryScreen() {
           style={styles.bottomAction}
           onPress={() => { Haptics.selectionAsync(); setShowExportSheet(true); }}
         >
-          {exportingPDF ? <ActivityIndicator size="small" color={colors.foreground} /> : <Feather name="download" size={20} color={colors.foreground} />}
+          {exportingPDF || exportingCalendar ? <ActivityIndicator size="small" color={colors.foreground} /> : <Feather name="download" size={20} color={colors.foreground} />}
           <Text style={[styles.bottomActionText, { color: colors.foreground }]}>Export</Text>
         </Pressable>
         <Pressable style={styles.bottomAction} onPress={() => router.push(`/chat/${id}`)}>
@@ -1391,6 +1486,7 @@ export default function ItineraryScreen() {
         transparent
         animationType="slide"
         onRequestClose={() => setShowExportSheet(false)}
+        onDismiss={handleExportSheetDismiss}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowExportSheet(false)}>
           <Pressable style={[styles.exportSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
@@ -1400,7 +1496,7 @@ export default function ItineraryScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
-              onPress={() => { setShowExportSheet(false); setTimeout(handleExportCalendar, 200); }}
+              onPress={() => requestExport("calendar")}
             >
               <View style={[styles.exportOptIcon, { backgroundColor: "#EBF5FB" }]}>
                 <Text style={{ fontSize: 22 }}>📅</Text>
@@ -1409,12 +1505,14 @@ export default function ItineraryScreen() {
                 <Text style={[styles.exportOptTitle, { color: colors.foreground }]}>Calendar (.ics)</Text>
                 <Text style={[styles.exportOptSub, { color: colors.mutedForeground }]}>Add all activities to your calendar app</Text>
               </View>
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              {exportingCalendar
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
             </Pressable>
 
             <Pressable
               style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
-              onPress={() => { setShowExportSheet(false); setTimeout(handleExportPDF, 200); }}
+              onPress={() => requestExport("pdf")}
             >
               <View style={[styles.exportOptIcon, { backgroundColor: "#FDF3EF" }]}>
                 <Text style={{ fontSize: 22 }}>📄</Text>
