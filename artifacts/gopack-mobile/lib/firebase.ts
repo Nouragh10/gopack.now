@@ -2,7 +2,6 @@ import { getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
-  deleteUser,
   EmailAuthProvider,
   getAuth,
   inMemoryPersistence,
@@ -30,6 +29,7 @@ import {
 } from "firebase/database";
 import { getStorage } from "firebase/storage";
 import { Platform } from "react-native";
+import { getBaseUrl } from "@/lib/api-client";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtdq065PaOR3xlML_fekm53h2XcPz3NAo",
@@ -78,6 +78,12 @@ export const signUpWithEmail = async (
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);
 
+export const updateCurrentUserProfile = async (displayName: string) => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("No user signed in");
+  await updateProfile(currentUser, { displayName });
+};
+
 async function isSessionRecent(user: User): Promise<boolean> {
   try {
     const tokenResult = await user.getIdTokenResult();
@@ -89,47 +95,56 @@ async function isSessionRecent(user: User): Promise<boolean> {
 }
 
 /**
- * Deletes the signed-in user's Firebase Auth account.
+ * Deletes the signed-in user's account through the trusted API service.
  *
  * Firebase requires a "recent" sign-in for this sensitive operation. If the
  * session is stale and the account uses email/password, this throws
  * `auth/needs-password` so the caller can prompt for a password and retry
- * with it (which reauthenticates before deleting). Anonymous sessions have
- * no credential to reauthenticate with, so a stale anonymous session just
- * gets signed out after `wipeData` runs — the record holds no personal data
- * and can never be signed back into.
+ * with it before starting the server-side deletion.
  *
  * `wipeData` (if provided) runs only after we're confident deletion will
  * proceed (session confirmed recent, or reauthentication just succeeded),
- * and always before the account is actually removed/signed out.
+ * before the server begins deletion. The server persists a retry marker after
+ * its atomic RTDB cleanup, then deletes the Firebase Auth user.
  */
-export const deleteAccount = async (password?: string, wipeData?: () => Promise<void>) => {
+export const deleteAccount = async (password?: string) => {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("No user signed in");
 
   const recent = await isSessionRecent(currentUser);
 
-  if (!recent && currentUser.email) {
-    if (!password) {
-      const needsPassword = new Error("Password required to confirm deletion");
-      (needsPassword as any).code = "auth/needs-password";
-      throw needsPassword;
+  if (!recent) {
+    if (currentUser.email) {
+      if (!password) {
+        const needsPassword = new Error("Password required to confirm deletion");
+        (needsPassword as any).code = "auth/needs-password";
+        throw needsPassword;
+      }
+      const credential = EmailAuthProvider.credential(currentUser.email, password);
+      await reauthenticateWithCredential(currentUser, credential);
+    } else {
+      const recentLoginRequired = new Error("Please start a new guest session before deleting it");
+      (recentLoginRequired as any).code = "auth/requires-recent-login";
+      throw recentLoginRequired;
     }
-    const credential = EmailAuthProvider.credential(currentUser.email, password);
-    await reauthenticateWithCredential(currentUser, credential);
   }
 
-  if (wipeData) await wipeData();
-
-  try {
-    await deleteUser(currentUser);
-  } catch (e: any) {
-    if (e?.code === "auth/requires-recent-login" && currentUser.isAnonymous) {
-      await firebaseSignOut(auth);
-      return;
-    }
-    throw e;
+  const idToken = await currentUser.getIdToken(true);
+  const baseUrl =
+    getBaseUrl() ??
+    (Platform.OS === "web" ? "" : `https://${process.env.EXPO_PUBLIC_DOMAIN ?? "localhost"}`);
+  const response = await fetch(`${baseUrl}/api/auth/delete-account`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  const result = await response.json().catch(() => ({} as { error?: string }));
+  if (!response.ok) {
+    const error = new Error(result.error ?? "We couldn't delete your account.");
+    (error as any).code = response.status === 401 ? "auth/requires-recent-login" : "account/deletion-failed";
+    throw error;
   }
+
+  await firebaseSignOut(auth).catch(() => undefined);
 };
 
 export { equalTo, get, onValue, orderByChild, push, query, ref, set, update };

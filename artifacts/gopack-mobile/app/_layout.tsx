@@ -65,6 +65,8 @@ function RootLayoutNav() {
         <Stack.Screen name="discover-itinerary/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="packing/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="join" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>

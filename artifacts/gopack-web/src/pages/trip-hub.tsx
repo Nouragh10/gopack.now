@@ -75,7 +75,7 @@ export default function TripHub() {
       return;
     }
     if (!canGenerateItinerary) {
-      setUpgradeReason("You've used your free itinerary generations");
+      setUpgradeReason("You've used your available itinerary generations");
       setShowUpgrade(true);
       return;
     }
@@ -101,7 +101,7 @@ export default function TripHub() {
       return;
     }
     if (!canGeneratePacking) {
-      setUpgradeReason("You've used your free packing list generations");
+      setUpgradeReason("You've used your available packing list generations");
       setShowUpgrade(true);
       return;
     }
@@ -175,9 +175,9 @@ export default function TripHub() {
   const memberNames = members.map(([, m]: [string, any]) => m.name as string);
   const itineraryUsage = trip.aiUsage?.itinerary ?? 0;
   const packingUsage = trip.aiUsage?.packing ?? 0;
-  const FREE_GEN_LIMIT = 2; // 1 generation + 1 redo for free tier
-  const canGenerateItinerary = isPremium || itineraryUsage < FREE_GEN_LIMIT;
-  const canGeneratePacking = isPremium || packingUsage < FREE_GEN_LIMIT;
+  const STARTER_GEN_LIMIT = 2; // 1 generation + 1 redo for the starter tier
+  const canGenerateItinerary = isPremium || itineraryUsage < STARTER_GEN_LIMIT;
+  const canGeneratePacking = isPremium || packingUsage < STARTER_GEN_LIMIT;
   const maxMembers = isPremium ? 20 : 5;
 
   /* who has voted on at least one wish */

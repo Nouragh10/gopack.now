@@ -16,7 +16,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { usePacks, useRecentWishes, useTrips } from "@/hooks/useFirebase";
+import {
+  removeSavedPublicDestination,
+  usePacks,
+  useRecentWishes,
+  useSavedDestinations,
+  useTrips,
+} from "@/hooks/useFirebase";
 import { signOut } from "@/lib/firebase";
 
 const TRIP_IMAGES = [
@@ -55,16 +61,22 @@ function tripDateLabel(startDate: string | null | undefined, endDate: string | n
 function SectionHeading({
   title,
   action,
+  onAction,
   colors,
 }: {
   title: string;
   action?: string;
+  onAction?: () => void;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
     <View style={styles.sectionHeading}>
       <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{title}</Text>
-      {action ? <Text style={[styles.sectionAction, { color: colors.primary }]}>{action}</Text> : null}
+      {action ? (
+        <Pressable onPress={onAction} disabled={!onAction} hitSlop={8}>
+          <Text style={[styles.sectionAction, { color: colors.primary, opacity: onAction ? 1 : 0.5 }]}>{action}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -113,6 +125,9 @@ export default function ProfileScreen() {
   const { trips, loading: tripsLoading } = useTrips(user?.uid);
   const { packs } = usePacks(user?.uid);
   const { wishes } = useRecentWishes(user?.uid, trips.map((trip) => trip.id));
+  const { savedDestinations, loading: savedDestinationsLoading } = useSavedDestinations(user?.uid);
+  const [removingSavedId, setRemovingSavedId] = React.useState<string | null>(null);
+  const [savedError, setSavedError] = React.useState("");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
@@ -147,6 +162,19 @@ export default function ProfileScreen() {
     }
   };
 
+  const removeSavedDestination = async (reviewId: string) => {
+    if (!user || removingSavedId) return;
+    setRemovingSavedId(reviewId);
+    setSavedError("");
+    try {
+      await removeSavedPublicDestination(user.uid, reviewId);
+    } catch {
+      setSavedError("We couldn't remove that saved destination. Please try again.");
+    } finally {
+      setRemovingSavedId(null);
+    }
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -164,9 +192,10 @@ export default function ProfileScreen() {
           </Pressable>
           <Text style={[styles.topBarTitle, { color: colors.foreground }]}>Profile</Text>
           <Pressable
-            onPress={() => router.push("/(tabs)/profile")}
+            onPress={() => router.push("/settings")}
             style={styles.iconButton}
-            accessibilityLabel="Profile settings"
+            accessibilityLabel="Open settings"
+            testID="profile-settings-button"
           >
             <Feather name="settings" size={19} color={colors.foreground} />
           </Pressable>
@@ -238,7 +267,12 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionHeading title="My packs" action={packs.length > 0 ? "See all" : undefined} colors={colors} />
+          <SectionHeading
+            title="My packs"
+            action={packs.length > 0 ? "See all" : undefined}
+            onAction={packs.length === 1 ? () => router.push(`/groups/${packs[0].id}` as any) : undefined}
+            colors={colors}
+          />
           {packs.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="users" size={22} color={colors.mutedForeground} />
@@ -253,6 +287,9 @@ export default function ProfileScreen() {
                 <Pressable
                   key={pack.id}
                   onPress={() => router.push(`/groups/${pack.id}` as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${pack.name}`}
+                  testID={`pack-card-${pack.id}`}
                   style={({ pressed }) => [
                     styles.packCard,
                     { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.88 : 1 },
@@ -417,6 +454,87 @@ export default function ProfileScreen() {
               </Pressable>
             ))}
           </View>
+          <View style={styles.savedDestinationsHeader}>
+            <Text style={[styles.savedDestinationsTitle, { color: colors.foreground }]}>Saved destinations</Text>
+            {savedDestinations.length > 0 ? (
+              <Text style={[styles.savedDestinationsCount, { color: colors.mutedForeground }]}>
+                {savedDestinations.length} {savedDestinations.length === 1 ? "trip" : "trips"}
+              </Text>
+            ) : null}
+          </View>
+          {savedDestinationsLoading ? (
+            <View style={styles.inlineLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : savedDestinations.length === 0 ? (
+            <Pressable
+              onPress={() => router.push("/(tabs)/discover")}
+              style={({ pressed }) => [
+                styles.emptyCard,
+                { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.82 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Discover trips to save"
+            >
+              <Feather name="bookmark" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No saved destinations yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                Save a top-rated trip from Discover to find it here.
+              </Text>
+            </Pressable>
+          ) : (
+            savedDestinations.map((saved, index) => {
+              const city = saved.destination.split(",")[0].trim();
+              return (
+                <View
+                  key={saved.id}
+                  style={[styles.savedDestinationCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Pressable
+                    onPress={() => router.push(`/discover-itinerary/${saved.id}` as any)}
+                    style={({ pressed }) => [styles.savedDestinationMain, { opacity: pressed ? 0.78 : 1 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open saved trip for ${city}`}
+                    testID={`saved-destination-${saved.id}`}
+                  >
+                    <Image
+                      source={{ uri: saved.photos[0] || TRIP_IMAGES[index % TRIP_IMAGES.length] }}
+                      style={styles.savedDestinationImage}
+                    />
+                    <View style={styles.savedDestinationCopy}>
+                      <Text style={[styles.savedDestinationName, { color: colors.foreground }]} numberOfLines={1}>
+                        {city || "Saved destination"}
+                      </Text>
+                      <Text style={[styles.savedDestinationMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {saved.days > 0 ? `${saved.days} ${saved.days === 1 ? "day" : "days"}` : "Itinerary"}
+                        {saved.rating > 0 ? ` · ★ ${saved.rating.toFixed(1)}` : ""}
+                      </Text>
+                      {saved.highlight ? (
+                        <Text style={[styles.savedDestinationHighlight, { color: colors.mutedForeground }]} numberOfLines={1}>
+                          “{saved.highlight}”
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => removeSavedDestination(saved.id)}
+                    disabled={removingSavedId === saved.id}
+                    style={({ pressed }) => [styles.removeSavedButton, { opacity: pressed || removingSavedId === saved.id ? 0.5 : 1 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${city} from saved destinations`}
+                    testID={`remove-saved-destination-${saved.id}`}
+                  >
+                    {removingSavedId === saved.id ? (
+                      <ActivityIndicator size="small" color={colors.mutedForeground} />
+                    ) : (
+                      <Feather name="x" size={16} color={colors.mutedForeground} />
+                    )}
+                  </Pressable>
+                </View>
+              );
+            })
+          )}
+          {savedError ? <Text style={[styles.savedError, { color: colors.primary }]}>{savedError}</Text> : null}
         </View>
 
         <Pressable
@@ -517,6 +635,18 @@ const styles = StyleSheet.create({
   savedGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   savedTile: { width: "48.7%", minHeight: 70, borderRadius: 13, borderWidth: 1, padding: 11, justifyContent: "space-between" },
   savedLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11 },
+  savedDestinationsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18, marginBottom: 9 },
+  savedDestinationsTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  savedDestinationsCount: { fontFamily: "DmSans_400Regular", fontSize: 11 },
+  savedDestinationCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 9, marginBottom: 8 },
+  savedDestinationMain: { flexDirection: "row", alignItems: "center", flex: 1, gap: 10 },
+  savedDestinationImage: { width: 64, height: 64, borderRadius: 10 },
+  savedDestinationCopy: { flex: 1 },
+  savedDestinationName: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  savedDestinationMeta: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 4 },
+  savedDestinationHighlight: { fontFamily: "DmSans_400Regular", fontSize: 10, fontStyle: "italic", marginTop: 4 },
+  removeSavedButton: { width: 30, height: 36, alignItems: "center", justifyContent: "center" },
+  savedError: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 4 },
   signOutButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginHorizontal: 20, marginTop: 24, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
   signOutText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
 });

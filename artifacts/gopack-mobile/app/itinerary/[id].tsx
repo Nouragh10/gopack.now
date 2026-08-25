@@ -192,7 +192,7 @@ function buildItineraryHTML(
               <div class="tl-name">${act.name}</div>
               <div class="tl-desc">${act.description}</div>
               <div class="tl-cost" style="${act.estimatedCost === 0 ? "color:#26A69A" : ""}">
-                ${act.estimatedCost === 0 ? "Free ✓" : `≈ $${act.estimatedCost} <span style="font-weight:400;opacity:.65">/ person</span>`}
+                ${act.estimatedCost === 0 ? "No entry fee ✓" : `≈ $${act.estimatedCost} <span style="font-weight:400;opacity:.65">/ person</span>`}
               </div>
             </div>
           </div>`;
@@ -812,6 +812,7 @@ export default function ItineraryScreen() {
 
   const itinerary = trip?.itinerary;
   const days = itinerary?.days ?? [];
+  const showEstimatedCosts = trip?.showEstimatedCosts !== false;
   const currentDay = days.find((d) => d.dayNumber === selectedDay) ?? days[0];
   const members = Object.values(trip?.members ?? {});
 
@@ -1140,12 +1141,14 @@ export default function ItineraryScreen() {
                     <Text style={[styles.infoCardName, { color: colors.foreground }]} numberOfLines={2}>{act.name}</Text>
                     <Text style={[styles.infoCardDesc, { color: colors.mutedForeground }]} numberOfLines={3}>{act.description}</Text>
                     <View style={styles.infoCardFooter}>
-                      <View style={[styles.infoChip, { backgroundColor: colors.muted }]}>
-                        <Feather name="dollar-sign" size={11} color={colors.mutedForeground} />
-                        <Text style={[styles.infoChipText, { color: colors.mutedForeground }]}>
-                          {act.estimatedCost === 0 ? "Free" : `~$${act.estimatedCost}`}
-                        </Text>
-                      </View>
+                      {showEstimatedCosts ? (
+                        <View style={[styles.infoChip, { backgroundColor: colors.muted }]}>
+                          <Feather name="dollar-sign" size={11} color={colors.mutedForeground} />
+                          <Text style={[styles.infoChipText, { color: colors.mutedForeground }]}>
+                            {act.estimatedCost === 0 ? "No entry fee" : `~$${act.estimatedCost}`}
+                          </Text>
+                        </View>
+                      ) : null}
                       {act.fromWish && (
                         <View style={[styles.infoChip, { backgroundColor: "#F59E0B15" }]}>
                           <Feather name="star" size={11} color="#F59E0B" />

@@ -67,6 +67,11 @@ export interface Trip {
   days: number;
   vibes: string[];
   budget: string;
+  showEstimatedCosts?: boolean;
+  planningDefaults?: {
+    pace: string;
+    focus: string;
+  };
   startDate: string | null;
   endDate?: string | null;
   members: Record<string, TripMember>;
@@ -169,6 +174,18 @@ export interface PublicReview {
   reviewedAt: string;
   vibes: string[];
   itineraryDays: PublicItineraryDay[] | null;
+}
+
+export interface SavedDestination {
+  id: string;
+  destination: string;
+  days: number;
+  rating: number;
+  highlight: string;
+  photos: string[];
+  memberNames: string[];
+  vibes: string[];
+  savedAt: number;
 }
 
 export interface PackItem {
@@ -522,6 +539,78 @@ export function usePublicReview(reviewId: string | undefined) {
   return { review, loading };
 }
 
+/* ── Saved public destinations ─────────────────────────────────────── */
+
+function savedDestinationsPath(uid: string) {
+  // Keep this under the existing per-user index. Firebase rules already grant
+  // each signed-in user access to their own userTrips branch.
+  return `userTrips/${uid}/savedDestinations`;
+}
+
+function normalizeSavedDestination(id: string, destination: any): SavedDestination {
+  return {
+    id,
+    destination: destination?.destination ?? "",
+    days: Number(destination?.days ?? 0),
+    rating: Number(destination?.rating ?? 0),
+    highlight: destination?.highlight ?? "",
+    photos: Array.isArray(destination?.photos) ? destination.photos : [],
+    memberNames: Array.isArray(destination?.memberNames) ? destination.memberNames : [],
+    vibes: Array.isArray(destination?.vibes) ? destination.vibes : [],
+    savedAt: Number(destination?.savedAt ?? 0),
+  };
+}
+
+export function useSavedDestinations(uid: string | undefined) {
+  const [savedDestinations, setSavedDestinations] = useState<SavedDestination[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) {
+      setSavedDestinations([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    return onValue(
+      ref(db, savedDestinationsPath(uid)),
+      (snap) => {
+        const data = snap.val() as Record<string, any> | null;
+        const list = data
+          ? Object.entries(data).map(([id, destination]) => normalizeSavedDestination(id, destination))
+          : [];
+        setSavedDestinations(list.sort((a, b) => b.savedAt - a.savedAt));
+        setLoading(false);
+      },
+      () => {
+        setSavedDestinations([]);
+        setLoading(false);
+      },
+    );
+  }, [uid]);
+
+  return { savedDestinations, loading };
+}
+
+export async function savePublicDestination(uid: string, review: PublicReview): Promise<void> {
+  await set(ref(db, `${savedDestinationsPath(uid)}/${review.id}`), {
+    destination: review.destination,
+    days: review.days,
+    rating: review.rating,
+    highlight: review.highlight,
+    // Keep the Profile card lightweight while retaining the best available image.
+    photos: review.photos.slice(0, 1),
+    memberNames: review.memberNames.slice(0, 4),
+    vibes: review.vibes.slice(0, 4),
+    savedAt: Date.now(),
+  });
+}
+
+export async function removeSavedPublicDestination(uid: string, reviewId: string): Promise<void> {
+  await set(ref(db, `${savedDestinationsPath(uid)}/${reviewId}`), null);
+}
+
 /* ── submitTripReview ─────────────────────────────────────────────── */
 
 export async function submitTripReview(
@@ -603,6 +692,11 @@ export async function createTrip(data: {
   days: number;
   vibes: string[];
   budget: string;
+  showEstimatedCosts?: boolean;
+  planningDefaults?: {
+    pace: string;
+    focus: string;
+  };
   startDate: string;
   endDate: string;
   uid: string;
@@ -617,6 +711,8 @@ export async function createTrip(data: {
     days: data.days,
     vibes: data.vibes,
     budget: data.budget,
+    showEstimatedCosts: data.showEstimatedCosts ?? true,
+    planningDefaults: data.planningDefaults,
     startDate: data.startDate,
     endDate: data.endDate,
     hostMemberId: data.uid,

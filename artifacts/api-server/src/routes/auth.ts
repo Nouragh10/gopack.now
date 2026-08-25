@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { Resend } from "resend";
+import { getAdminDb } from "../lib/firebase-admin";
 
 const router: IRouter = Router();
 
@@ -156,6 +157,86 @@ router.post("/auth/send-verification", async (req: Request, res: Response) => {
   } catch (err: any) {
     req.log.error({ err }, "send-verification error");
     res.status(500).json({ error: err?.message ?? "Unknown error" });
+  }
+});
+
+router.post("/auth/delete-account", async (req: Request, res: Response) => {
+  const authorization = req.get("authorization");
+  const idToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!idToken) {
+    res.status(401).json({ error: "Sign in again before deleting your account." });
+    return;
+  }
+
+  let uid: string;
+  let tokenIsFresh = false;
+  try {
+    const decoded = await getFirebaseAdminAuth().verifyIdToken(idToken, true);
+    uid = decoded.uid;
+    tokenIsFresh = Date.now() / 1000 - (decoded.auth_time ?? 0) <= 4 * 60;
+  } catch {
+    res.status(401).json({ error: "Your sign-in has expired. Please sign in again." });
+    return;
+  }
+
+  const adminDb = getAdminDb();
+  const deletionRef = adminDb.ref(`accountDeletion/${uid}`);
+
+  try {
+    const pendingDeletion = await deletionRef.get();
+
+    // A marker means the RTDB cleanup completed in an earlier request but the
+    // Auth deletion response was interrupted. Retrying finishes the account
+    // removal without touching trip records a second time.
+    if (!pendingDeletion.exists()) {
+      if (!tokenIsFresh) {
+        res.status(401).json({ error: "Please sign in again before deleting your account." });
+        return;
+      }
+      const userTrips = await adminDb.ref(`userTrips/${uid}`).get();
+      const tripIds = userTrips.exists()
+        ? Object.keys(userTrips.val() as Record<string, unknown>)
+        : [];
+      const tripSnapshots = await Promise.all(
+        tripIds.map(async (tripId) => ({
+          tripId,
+          trip: await adminDb.ref(`trips/${tripId}`).get(),
+        })),
+      );
+      const updates: Record<string, unknown> = {
+        [`userTrips/${uid}`]: null,
+        [`accountDeletion/${uid}`]: {
+          status: "database_cleaned",
+          updatedAt: Date.now(),
+        },
+      };
+
+      for (const { tripId, trip } of tripSnapshots) {
+        if (!trip.exists()) continue;
+        if (trip.val()?.hostMemberId === uid) {
+          updates[`trips/${tripId}`] = null;
+        } else {
+          updates[`trips/${tripId}/members/${uid}`] = null;
+        }
+      }
+
+      // Firebase applies this multi-location update atomically. It records a
+      // durable retry marker only if every account-data mutation succeeds.
+      await adminDb.ref().update(updates);
+    }
+
+    await getFirebaseAdminAuth().deleteUser(uid).catch((err: { code?: string }) => {
+      if (err.code !== "auth/user-not-found") throw err;
+    });
+    await deletionRef.remove().catch((err) => {
+      req.log.warn({ err, uid }, "delete-account marker cleanup failed");
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err, uid }, "delete-account error");
+    res.status(500).json({
+      error: "We couldn't finish deleting your account. Please retry; Packyo will safely resume the deletion.",
+    });
   }
 });
 

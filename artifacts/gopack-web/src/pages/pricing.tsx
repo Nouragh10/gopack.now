@@ -3,7 +3,7 @@ import { Check, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 
-const FREE_FEATURES = [
+const STARTER_FEATURES = [
   "Up to 5 trip members",
   "Shared wishlist & voting",
   "2 AI itinerary generations",
@@ -129,16 +129,16 @@ export default function Pricing() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
-          {/* Free tier */}
+          {/* Starter tier */}
           <div style={{
             background: "#fff",
             borderRadius: 20,
             border: "2px solid #e8e4dd",
             padding: "36px 32px",
           }}>
-            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#888", marginBottom: 8 }}>Free</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#888", marginBottom: 8 }}>Starter</p>
             <p style={{ fontSize: 40, fontWeight: 800, margin: "0 0 4px" }}>$0</p>
-            <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>Forever free</p>
+            <p style={{ color: "#888", fontSize: 14, marginBottom: 28 }}>Core trip planning</p>
             <button
               onClick={() => setLocation(user ? "/dashboard" : "/login")}
               style={{
@@ -154,10 +154,10 @@ export default function Pricing() {
                 color: "#1a1a1a",
               }}
             >
-              Get started free
+              Get started
             </button>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-              {FREE_FEATURES.map(f => (
+              {STARTER_FEATURES.map(f => (
                 <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "#333" }}>
                   <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#f0ede7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Check size={11} color="#888" strokeWidth={3} />

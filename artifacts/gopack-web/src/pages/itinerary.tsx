@@ -245,9 +245,9 @@ export default function Itinerary() {
   /* ── premium / tier ── */
   const isPremium = trip?.isPremium ?? false;
   const activityRedosUsed = trip?.aiUsage?.activityRedos ?? 0;
-  const FREE_REDO_LIMIT = 1;
+  const STARTER_REDO_LIMIT = 1;
   const PREMIUM_REDO_LIMIT = 20;
-  const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < FREE_REDO_LIMIT;
+  const canRedo = isPremium ? activityRedosUsed < PREMIUM_REDO_LIMIT : activityRedosUsed < STARTER_REDO_LIMIT;
 
   /* ── page-level guard: never expose itinerary data/controls for an undecided trip ── */
   const canShowItinerary = !!trip?.destination && !!localItinerary;
@@ -312,7 +312,7 @@ export default function Itinerary() {
 
   const handleRedo = async (di: number, ai: number, act: any, redoType: "same_type" | "whole") => {
     if (!canRedo) {
-      setUpgradeReason(isPremium ? "You've reached the premium redo limit (20)" : "You've used your free activity redo");
+      setUpgradeReason(isPremium ? "You've reached the premium redo limit (20)" : "You've used your activity redo limit");
       setShowUpgrade(true);
       return;
     }

@@ -18,24 +18,28 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { usePacks, renamePack, removePackMember } from "@/hooks/useFirebase";
-import { Mascot } from "@/components/Mascot";
+import { usePacks, renamePack, removePackMember, useTrips } from "@/hooks/useFirebase";
 
-const AVATAR_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
-
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase() || "?";
+function packCreatedLabel(ts: number) {
+  if (!ts) return "Recently";
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function timeSince(ts: number): string {
-  const d = Math.floor((Date.now() - ts) / 86400000);
-  if (d === 0) return "today";
-  if (d === 1) return "yesterday";
-  if (d < 30) return `${d} days ago`;
-  const m = Math.floor(d / 30);
-  if (m < 12) return `${m} month${m > 1 ? "s" : ""} ago`;
-  const y = Math.floor(m / 12);
-  return `${y} year${y > 1 ? "s" : ""} ago`;
+function tripIsPast(startDate: string | null | undefined, days: number) {
+  if (!startDate) return false;
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(start.getTime() + Math.max(days || 1, 1) * 86400000);
+  return end < new Date();
+}
+
+function tripDateLabel(startDate: string | null | undefined, endDate: string | null | undefined, days: number) {
+  if (!startDate) return "Dates pending";
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = endDate
+    ? new Date(`${endDate}T00:00:00`)
+    : new Date(start.getTime() + Math.max((days || 1) - 1, 0) * 86400000);
+  const format = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${format(start)} – ${format(end)}`;
 }
 
 export default function GroupDetailScreen() {
@@ -45,6 +49,7 @@ export default function GroupDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { packs, loading } = usePacks(user?.uid);
+  const { trips, loading: tripsLoading } = useTrips(user?.uid);
 
   const pack = packs.find((p) => p.id === id) ?? null;
 
@@ -55,7 +60,10 @@ export default function GroupDetailScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const isHost = pack?.hostUid === user?.uid;
   const memberList = Object.entries(pack?.members ?? {});
-  const tripCount = Object.keys(pack?.tripIds ?? {}).length;
+  const tripRows = trips
+    .filter((trip) => !!pack?.tripIds?.[trip.id])
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+  const firstTripId = tripRows[0]?.id ?? Object.keys(pack?.tripIds ?? {})[0];
 
   const handleRename = async () => {
     if (!pack || !newName.trim()) { setEditing(false); return; }
@@ -89,11 +97,41 @@ export default function GroupDetailScreen() {
     );
   };
 
+  const openPackChat = () => {
+    if (firstTripId) {
+      router.push(`/chat/${firstTripId}` as any);
+    } else {
+      Alert.alert("No trip chat yet", "Message features become available after this pack has a trip.");
+    }
+  };
+
+  const openInvite = () => {
+    if (firstTripId) {
+      router.push(`/trip/${firstTripId}` as any);
+    } else {
+      Alert.alert("No trip to invite to", "Create a trip first, then invite your pack from the trip hub.");
+    }
+  };
+
+  const openShare = () => {
+    Alert.alert("Share link", "Open a trip in this pack to share its invite link with friends.");
+  };
+
+  const openPackSettings = () => {
+    if (isHost && pack) {
+      setNewName(pack.name);
+      setEditing(true);
+      Haptics.selectionAsync();
+    } else {
+      Alert.alert("Pack settings", "Only the pack host can change these settings.");
+    }
+  };
+
   if (loading || !pack) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => router.back()} style={styles.headerSideButton}>
             <Feather name="arrow-left" size={22} color={colors.foreground} />
           </Pressable>
         </View>
@@ -112,67 +150,164 @@ export default function GroupDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        <Pressable onPress={() => router.back()} style={styles.headerSideButton} accessibilityLabel="Go back">
+          <Feather name="chevron-left" size={22} color={colors.foreground} />
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerName, { color: colors.foreground }]} numberOfLines={1}>
-            {pack.name}
-          </Text>
-          <Text style={[styles.headerLabel, { color: colors.mutedForeground, marginTop: 2, letterSpacing: 0, fontSize: 13 }]}>
-            {memberList.length} members
-          </Text>
-        </View>
-        {isHost && (
-          <Pressable
-            onPress={() => { setNewName(pack.name); setEditing(true); Haptics.selectionAsync(); }}
-            style={[styles.editBtn, { backgroundColor: colors.muted }]}
-          >
-            <Feather name="edit-2" size={16} color={colors.foreground} />
-          </Pressable>
-        )}
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>My Pack</Text>
+        <Pressable onPress={openPackSettings} style={styles.headerSideButton} accessibilityLabel="Open pack settings">
+          <Feather name="more-horizontal" size={21} color={colors.foreground} />
+        </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-        {/* Members list */}
-        <View style={styles.section}>
-          {memberList.map(([uid, m], i) => (
-            <View key={uid} style={[styles.memberRow, { borderBottomColor: colors.border }]}>
-              <View style={[styles.avatar, { backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }]}>
-                <Text style={styles.avatarText}>{initials((m as any).name ?? "")}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 36 }}
+      >
+        <View style={styles.packHero}>
+          <View style={styles.heroAvatarRow}>
+            {memberList.slice(0, 4).map(([uid], index) => (
+              <View
+                key={uid}
+                style={[
+                  styles.heroAvatar,
+                  {
+                    marginLeft: index === 0 ? 0 : -8,
+                    backgroundColor: colors.muted,
+                    borderColor: colors.background,
+                  },
+                ]}
+              >
+                <Feather name="user" size={23} color={colors.mutedForeground} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.memberName, { color: colors.foreground }]}>{(m as any).name ?? "Member"}</Text>
-                {uid === user?.uid && <Text style={{ fontFamily: "DmSans_400Regular", fontSize: 13, color: colors.mutedForeground }}>(You)</Text>}
+            ))}
+            {memberList.length > 4 ? (
+              <View style={[styles.heroMore, { backgroundColor: colors.primary + "14", borderColor: colors.background }]}>
+                <Text style={[styles.heroMoreText, { color: colors.primary }]}>+{memberList.length - 4}</Text>
               </View>
-              {uid === pack.hostUid ? (
-                <Text style={[styles.hostText, { color: colors.mutedForeground }]}>Trip leader</Text>
-              ) : null}
-              {isHost && uid !== user?.uid ? (
-                <Pressable onPress={() => handleRemoveMember(uid, (m as any).name ?? "Member")} style={styles.removeBtn}>
-                  <Feather name="x" size={16} color={colors.mutedForeground} />
-                </Pressable>
-              ) : null}
-            </View>
+            ) : null}
+          </View>
+
+          <View style={styles.packTitleRow}>
+            <Text style={[styles.packTitle, { color: colors.foreground }]} numberOfLines={1}>{pack.name}</Text>
+            {isHost ? (
+              <Pressable onPress={openPackSettings} hitSlop={8} accessibilityLabel="Rename pack">
+                <Feather name="edit-2" size={16} color={colors.primary} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text style={[styles.packSubtitle, { color: colors.mutedForeground }]}>
+            {memberList.length} members <Text style={[styles.dot, { color: colors.mutedForeground }]}>·</Text> Created {packCreatedLabel(pack.createdAt)}
+          </Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          {[
+            { icon: "message-square", label: "Message", onPress: openPackChat },
+            { icon: "user-plus", label: "Invite", onPress: openInvite },
+            { icon: "link", label: "Share link", onPress: openShare },
+            { icon: "settings", label: "Pack settings", onPress: openPackSettings },
+          ].map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={action.onPress}
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.72 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+            >
+              <Feather name={action.icon as any} size={16} color={colors.primary} />
+              <Text style={[styles.actionLabel, { color: colors.foreground }]} numberOfLines={1}>{action.label}</Text>
+            </Pressable>
           ))}
         </View>
 
-        {/* Invite more members CTA */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-          <Pressable
-            onPress={() => { 
-              // Usually this would open an invite modal, but wireframe just says "Invite more members"
-              // The logic is in trip/[id].tsx, so here we can just prompt or copy link if available.
-              // In this snippet we don't have the trip ID, just the pack ID.
-              // We'll leave it as a visual button.
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }}
-            style={[styles.planBtn, { backgroundColor: colors.primary, borderRadius: 100 }]}
-          >
-            <Text style={styles.planBtnText}>Invite more members</Text>
-          </Pressable>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Members</Text>
+          <View style={[styles.memberCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {memberList.map(([uid, member]) => (
+              <View key={uid} style={[styles.memberRow, { borderBottomColor: colors.border }]}>
+                <View style={[styles.memberAvatar, { backgroundColor: colors.muted }]}>
+                  <Feather name="user" size={19} color={colors.mutedForeground} />
+                </View>
+                <View style={styles.memberCopy}>
+                  <Text style={[styles.memberName, { color: colors.foreground }]} numberOfLines={1}>
+                    {member.name || "Member"}{uid === user?.uid ? " (You)" : ""}
+                  </Text>
+                  <Text style={[styles.memberRole, { color: colors.mutedForeground }]}>
+                    {uid === pack.hostUid ? "Host" : "Member"}
+                  </Text>
+                </View>
+                {isHost && uid !== user?.uid ? (
+                  <Pressable
+                    onPress={() => handleRemoveMember(uid, member.name || "Member")}
+                    style={styles.memberAction}
+                    accessibilityLabel={`Remove ${member.name || "member"}`}
+                  >
+                    <Feather name="x" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                ) : (
+                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeading}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Pack trips</Text>
+            {tripRows.length > 0 ? <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text> : null}
+          </View>
+          {tripsLoading ? (
+            <View style={styles.loadingTrips}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : tripRows.length === 0 ? (
+            <View style={[styles.emptyTrips, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="map" size={19} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTripsText, { color: colors.mutedForeground }]}>No trips in this pack yet.</Text>
+            </View>
+          ) : (
+            <View style={[styles.tripCardGroup, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {tripRows.map((trip, index) => {
+                const past = tripIsPast(trip.startDate, trip.days);
+                return (
+                  <Pressable
+                    key={trip.id}
+                    onPress={() => trip.itinerary
+                      ? router.push({ pathname: "/itinerary/[id]", params: { id: trip.id, returnTo: "tripHub" } } as any)
+                      : router.push(`/trip/${trip.id}` as any)}
+                    style={({ pressed }) => [styles.tripRow, { borderBottomColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${trip.destination || "trip"}`}
+                  >
+                    <View style={[styles.tripThumb, { backgroundColor: colors.muted }]}>
+                      <Feather name={index % 2 === 0 ? "map-pin" : "image"} size={21} color={colors.mutedForeground} />
+                    </View>
+                    <View style={styles.tripCopy}>
+                      <View style={styles.tripTitleRow}>
+                        <Text style={[styles.tripName, { color: colors.foreground }]} numberOfLines={1}>
+                          {trip.destination || "Destination TBD"}
+                        </Text>
+                        <View style={[styles.statusPill, { backgroundColor: past ? colors.muted : colors.primary + "14" }]}>
+                          <Text style={[styles.statusText, { color: past ? colors.mutedForeground : colors.primary }]}>
+                            {past ? "Past" : "Active"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.tripDate, { color: colors.mutedForeground }]}>
+                        {tripDateLabel(trip.startDate, trip.endDate, trip.days)}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -216,48 +351,52 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
-    flexDirection: "row", alignItems: "flex-start", gap: 12,
-    paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: { padding: 4, marginTop: 4 },
-  headerLabel: { fontFamily: "DmSans_600SemiBold", fontSize: 11, letterSpacing: 1.5, marginBottom: 2 },
-  headerName: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 24, letterSpacing: -0.3 },
-  editBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginTop: 6 },
-
-  mascotRow: { alignItems: "center", paddingTop: 12 },
-  statsRow: { flexDirection: "row", padding: 16, gap: 10 },
-  statCard: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12, alignItems: "center" },
-  statNum: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 22 },
-  statLabel: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 2 },
-
-  lastTripRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 16, borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4,
-  },
-  lastTripIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  lastTripLabel: { fontFamily: "DmSans_400Regular", fontSize: 11 },
-  lastTripDest: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
-
-  section: { paddingHorizontal: 16, paddingTop: 20 },
+  headerSideButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontFamily: "DmSans_700Bold", fontSize: 16 },
+  packHero: { alignItems: "center", paddingHorizontal: 20, paddingTop: 22, paddingBottom: 17 },
+  heroAvatarRow: { flexDirection: "row", alignItems: "center", marginBottom: 13 },
+  heroAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  heroMore: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, alignItems: "center", justifyContent: "center", marginLeft: -8 },
+  heroMoreText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  packTitleRow: { flexDirection: "row", alignItems: "center", gap: 7, maxWidth: "90%" },
+  packTitle: { fontFamily: "DmSans_700Bold", fontSize: 20 },
+  packSubtitle: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 4 },
+  dot: {},
+  actionRow: { flexDirection: "row", gap: 7, paddingHorizontal: 18, paddingBottom: 22 },
+  actionButton: { flex: 1, minHeight: 52, borderRadius: 11, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  actionLabel: { fontFamily: "DmSans_500Medium", fontSize: 8, marginTop: 6, textAlign: "center" },
+  section: { paddingHorizontal: 18, paddingTop: 7, marginBottom: 17 },
   sectionTitle: {
-    fontFamily: "DmSans_500Medium", fontSize: 11,
-    textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8,
+    fontFamily: "DmSans_700Bold", fontSize: 11,
+    textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 9,
   },
+  memberCard: { borderRadius: 13, borderWidth: 1, overflow: "hidden" },
   memberRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingVertical: 12, borderBottomWidth: 1,
+    flexDirection: "row", alignItems: "center", minHeight: 57,
+    paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontFamily: "DmSans_700Bold", fontSize: 15, color: "#fff" },
-  memberName: { fontFamily: "DmSans_500Medium", fontSize: 16 },
-  hostText: { fontFamily: "DmSans_400Regular", fontSize: 13 },
-  removeBtn: { padding: 6 },
-
-  planBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, borderRadius: 14, paddingVertical: 15,
-  },
-  planBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 16, color: "#fff" },
+  memberAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  memberCopy: { flex: 1 },
+  memberName: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  memberRole: { fontFamily: "DmSans_400Regular", fontSize: 10, marginTop: 2 },
+  memberAction: { padding: 8 },
+  sectionHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
+  seeAll: { fontFamily: "DmSans_600SemiBold", fontSize: 10 },
+  loadingTrips: { alignItems: "center", paddingVertical: 24 },
+  emptyTrips: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 13, borderWidth: 1, paddingVertical: 19 },
+  emptyTripsText: { fontFamily: "DmSans_400Regular", fontSize: 12 },
+  tripCardGroup: { borderRadius: 13, borderWidth: 1, overflow: "hidden" },
+  tripRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 75, paddingHorizontal: 9, borderBottomWidth: StyleSheet.hairlineWidth },
+  tripThumb: { width: 54, height: 54, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  tripCopy: { flex: 1 },
+  tripTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  tripName: { fontFamily: "DmSans_600SemiBold", fontSize: 13, flex: 1 },
+  statusPill: { borderRadius: 5, paddingHorizontal: 5, paddingVertical: 3 },
+  statusText: { fontFamily: "DmSans_600SemiBold", fontSize: 8 },
+  tripDate: { fontFamily: "DmSans_400Regular", fontSize: 10, marginTop: 6 },
 
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   renameSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, padding: 24, paddingBottom: 40, gap: 12 },

@@ -14,10 +14,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WikiImage } from "@/components/WikiImage";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import {
   PublicItineraryActivity,
   PublicItineraryDay,
+  removeSavedPublicDestination,
+  savePublicDestination,
+  useSavedDestinations,
   usePublicReview,
 } from "@/hooks/useFirebase";
 
@@ -84,7 +88,7 @@ function ActivityRow({
         ) : null}
         {hasCost ? (
           <Text style={[styles.activityCost, { color: activity.estimatedCost === 0 ? "#26A69A" : colors.foreground }]}>
-            {activity.estimatedCost === 0 ? "Free" : `≈ $${activity.estimatedCost} / person`}
+            {activity.estimatedCost === 0 ? "No entry fee" : `≈ $${activity.estimatedCost} / person`}
           </Text>
         ) : null}
       </View>
@@ -139,15 +143,51 @@ export default function DiscoverItineraryPreviewScreen() {
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { review, loading } = usePublicReview(id);
+  const { savedDestinations } = useSavedDestinations(user?.uid);
+  const [savePending, setSavePending] = React.useState(false);
+  const [saveError, setSaveError] = React.useState("");
+  const [saveStateOverride, setSaveStateOverride] = React.useState<boolean | null>(null);
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 20;
+  const persistedSaved = !!id && savedDestinations.some((saved) => saved.id === id);
+  const isSaved = saveStateOverride ?? persistedSaved;
+
+  React.useEffect(() => {
+    setSaveStateOverride(null);
+  }, [id, persistedSaved]);
 
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
       router.replace("/(tabs)/discover");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!review || !id || savePending) return;
+    if (!user) {
+      setSaveError("Sign in to save this trip to your profile.");
+      return;
+    }
+
+    const nextSaved = !isSaved;
+    setSaveStateOverride(nextSaved);
+    setSaveError("");
+    setSavePending(true);
+    try {
+      if (nextSaved) {
+        await savePublicDestination(user.uid, review);
+      } else {
+        await removeSavedPublicDestination(user.uid, id);
+      }
+    } catch {
+      setSaveStateOverride(isSaved);
+      setSaveError("We couldn't update your saved trips. Please try again.");
+    } finally {
+      setSavePending(false);
     }
   };
 
@@ -236,6 +276,33 @@ export default function DiscoverItineraryPreviewScreen() {
             <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>days shown</Text>
           </View>
         </View>
+
+        <Pressable
+          onPress={handleSave}
+          disabled={savePending}
+          testID="discover-save-trip-button"
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? `Remove ${city} from saved trips` : `Save ${city} to your trips`}
+          accessibilityState={{ selected: isSaved, busy: savePending }}
+          style={({ pressed }) => [
+            styles.saveButton,
+            {
+              backgroundColor: isSaved ? colors.primary + "14" : colors.primary,
+              borderColor: colors.primary,
+              opacity: pressed || savePending ? 0.78 : 1,
+            },
+          ]}
+        >
+          {savePending ? (
+            <ActivityIndicator size="small" color={isSaved ? colors.primary : "#fff"} />
+          ) : (
+            <Feather name="bookmark" size={17} color={isSaved ? colors.primary : "#fff"} />
+          )}
+          <Text style={[styles.saveButtonText, { color: isSaved ? colors.primary : "#fff" }]}>
+            {isSaved ? "Saved to destinations" : "Save trip"}
+          </Text>
+        </Pressable>
+        {saveError ? <Text style={[styles.saveError, { color: colors.primary }]}>{saveError}</Text> : null}
 
         {(review.highlight || review.text || review.vibes.length > 0) && (
           <View style={[styles.reviewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -332,6 +399,19 @@ const styles = StyleSheet.create({
   summaryValue: { fontFamily: "DmSans_700Bold", fontSize: 17 },
   summaryLabel: { fontFamily: "DmSans_400Regular", fontSize: 10, textAlign: "center" },
   summaryDivider: { width: StyleSheet.hairlineWidth, height: 38 },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginHorizontal: 16,
+    marginBottom: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 13,
+  },
+  saveButtonText: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  saveError: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginHorizontal: 20, marginTop: -8, marginBottom: 18 },
   reviewCard: { marginHorizontal: 16, marginBottom: 22, padding: 16, borderRadius: 14, borderWidth: 1 },
   highlight: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 19, lineHeight: 26 },
   reviewText: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 21 },

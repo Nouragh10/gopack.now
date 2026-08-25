@@ -160,7 +160,7 @@ export default function ActivityDetailScreen() {
             <View style={[styles.chip, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Feather name="dollar-sign" size={12} color={colors.foreground} />
               <Text style={[styles.chipText, { color: colors.foreground }]}>
-                {cost === 0 ? "Free" : `~$${cost} / person`}
+                {cost === 0 ? "No entry fee" : `~$${cost} / person`}
               </Text>
             </View>
             {matchedVibe ? (
@@ -226,7 +226,7 @@ export default function ActivityDetailScreen() {
           </View>
           <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
             {cost === 0
-              ? `${name} is free to visit — no booking needed. Just show up and enjoy!`
+              ? `${name} has no entry fee — no booking needed. Just show up and enjoy!`
               : `Budget around $${cost} per person. Book in advance when possible to avoid waiting.`}
           </Text>
         </View>

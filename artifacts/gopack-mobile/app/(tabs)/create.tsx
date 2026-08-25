@@ -18,6 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { createTrip } from "@/hooks/useFirebase";
+import {
+  defaultVibesForTravelPreferences,
+  loadPackyoSettings,
+  type PackyoSettings,
+} from "@/lib/settings";
 
 const VIBES = [
   "Relaxing", "Adventure", "Foodie",
@@ -58,6 +63,7 @@ export default function CreateScreen() {
   const [datePicker, setDatePicker] = useState<"start" | "end" | null>(null);
   const [budget, setBudget] = useState("");
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
+  const [personalDefaults, setPersonalDefaults] = useState<PackyoSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,6 +73,20 @@ export default function CreateScreen() {
     }
   }, [prefillDestination]);
 
+  useEffect(() => {
+    let active = true;
+    loadPackyoSettings().then((settings) => {
+      if (!active) return;
+      setPersonalDefaults(settings);
+      setSelectedVibes((current) =>
+        current.length > 0 ? current : defaultVibesForTravelPreferences(settings.travel),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
   const minDate = startOfDay(new Date());
@@ -74,6 +94,12 @@ export default function CreateScreen() {
   const tripDays = startDate && endDate
     ? Math.floor((startOfDay(endDate).getTime() - startOfDay(startDate).getTime()) / 86400000) + 1
     : 0;
+  const personalTripOptions = personalDefaults
+    ? {
+        showEstimatedCosts: personalDefaults.app.showEstimatedCosts,
+        planningDefaults: personalDefaults.travel,
+      }
+    : { showEstimatedCosts: true };
 
   const dateOptions = Array.from({ length: 366 }, (_, index) => {
     const date = new Date(minDate);
@@ -119,6 +145,7 @@ export default function CreateScreen() {
         days: tripDays,
         vibes: selectedVibes,
         budget: budget.toLowerCase() || "midrange",
+        ...personalTripOptions,
         startDate: toISODate(startDate!),
         endDate: toISODate(endDate!),
         uid: user.uid,
@@ -146,6 +173,7 @@ export default function CreateScreen() {
         days: tripDays,
         vibes: selectedVibes,
         budget: budget.toLowerCase() || "midrange",
+        ...personalTripOptions,
         startDate: toISODate(startDate!),
         endDate: toISODate(endDate!),
         uid: user.uid,

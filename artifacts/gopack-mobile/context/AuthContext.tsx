@@ -11,10 +11,10 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  // The web preview does not need to wait for Firebase's persisted-session
-  // restoration before showing the sign-in route. Native keeps the short
-  // loading gate so an existing session does not flash the auth screen.
-  const [loading, setLoading] = useState(Platform.OS !== "web");
+  // Keep the route guard paused until Firebase has had a chance to restore the
+  // session. On web, redirecting a protected deep link before Expo Router's
+  // navigator is fully ready crashes the preview instead of opening sign-in.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -24,7 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    const fallback = setTimeout(() => finishLoading(auth.currentUser), 6000);
+    const fallback = setTimeout(
+      () => finishLoading(auth.currentUser),
+      Platform.OS === "web" ? 1200 : 6000,
+    );
     const unsub = onAuthStateChanged(
       auth,
       (u) => {

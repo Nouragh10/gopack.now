@@ -39,7 +39,7 @@ export default function Terms() {
       <p>The GoPackNow brand, design, and software are owned by us. Content you create (trip data, wishlist items, chat messages) remains yours. You grant us a limited licence to store and display it to your trip members as needed to operate the Service.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>7. Disclaimers</h2>
-      <p>The Service is provided "as is" without warranty of any kind. We do not guarantee uninterrupted availability or error-free operation.</p>
+      <p>The Service is provided "as is" without warranty of any kind. We do not guarantee uninterrupted availability or operation without errors.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>8. Limitation of Liability</h2>
       <p>To the maximum extent permitted by law, GoPackNow's total liability to you for any claim arising from these Terms or your use of the Service is limited to the amount you paid us in the 12 months preceding the claim, or £50, whichever is greater.</p>

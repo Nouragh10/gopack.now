@@ -279,7 +279,7 @@ export default function Profile() {
                         premium.cancelAtPeriodEnd
                           ? `GoPackNow Plus · Cancels ${premium.currentPeriodEnd ? new Date(premium.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "at period end"}`
                           : `GoPackNow Plus · Renews ${premium.currentPeriodEnd ? new Date(premium.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}`
-                      ) : "Free plan"}
+                      ) : "Starter plan"}
                     </p>
                   </div>
                 </div>
@@ -363,7 +363,7 @@ export default function Profile() {
                         </>
                       ) : (
                         <>
-                          <p className="text-sm text-muted-foreground">You&apos;re on the free plan. Upgrade to GoPackNow Plus to unlock unlimited AI generations and up to 20 trip members.</p>
+                          <p className="text-sm text-muted-foreground">You&apos;re on the starter plan. Upgrade to GoPackNow Plus to unlock unlimited AI generations and up to 20 trip members.</p>
                           <Link
                             href="/pricing"
                             className="flex items-center justify-center gap-2 w-full bg-primary text-white py-3 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"

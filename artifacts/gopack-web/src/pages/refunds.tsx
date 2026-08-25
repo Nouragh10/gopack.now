@@ -14,7 +14,7 @@ export default function Refunds() {
       <p>GoPackNow subscriptions are processed by <strong>Paddle.com</strong>, our Merchant of Record. Paddle handles all billing, refunds, and payment disputes on our behalf.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>Cancellation</h2>
-      <p>You may cancel your GoPackNow Plus subscription at any time. Cancellations take effect at the end of your current billing period — you retain access to Plus features until then. After the period ends your subscription will not renew and you will revert to the free tier.</p>
+      <p>You may cancel your GoPackNow Plus subscription at any time. Cancellations take effect at the end of your current billing period — you retain access to Plus features until then. After the period ends your subscription will not renew and you will revert to the starter tier.</p>
       <p>To cancel: go to your <strong>Profile</strong> page in the app and tap <strong>Manage Subscription</strong>, or email us at <a href="mailto:support@gopack.now" style={{ color: "#E85D3A" }}>support@gopack.now</a>.</p>
 
       <h2 style={{ fontSize: 20, marginTop: 36, marginBottom: 10 }}>Refunds</h2>

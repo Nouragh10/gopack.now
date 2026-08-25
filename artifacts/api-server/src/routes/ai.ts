@@ -435,13 +435,13 @@ ${vibeGuide}
 8. ACCOMMODATION BAN — Do NOT include any hotels, hostels, Airbnbs, resorts, check-ins, check-outs, or any form of "place to stay" as an activity. Activities are things the group DOES, not where they sleep.
 9. For AI pick activities, set "matchedVibe" to the single group vibe this activity best matches (must be one of: ${vibes.map(v => v.toLowerCase()).join(", ")}). For wish-based activities, set "matchedVibe" to null.
 10. COST ACCURACY — "estimatedCost" is the price ONE single traveler pays out of pocket, exactly as listed at the ticket counter, on Google, Viator, or GetYourGuide. It is NEVER the group total divided by the number of travelers — do NOT divide by group size. Treat each traveler as booking independently and paying their own full individual admission or meal. Use these realistic single-ticket ranges:
-  FREE (always $0): open-air landmarks, beaches, temples with no entry fee, public parks, viewpoints, self-guided walks, free markets
+  NO-ENTRY-COST (always $0): open-air landmarks, beaches, temples with no entry fee, public parks, viewpoints, self-guided walks, markets with no admission charge
   PAID ADMISSION ($5–30): museums, archaeological sites, palaces, zoos — use the known single-ticket admission price if you know it (e.g. Louvre = $22, Uffizi = $28)
   GUIDED TOURS booked on Viator/GetYourGuide ($30–150 per person): walking food tours $40–80, city sightseeing tours $30–60, cooking classes $60–130, boat trips/cruises $40–100, wine/spirits tastings $35–80, day trips outside city $80–200, private tours $150–400
   FOOD & DRINK (price of one person's meal): street food / food stall $3–12, casual local café or noodle shop $8–20, mid-range sit-down restaurant $20–55, upscale restaurant $55–120, fine dining / Michelin $100–250
   NIGHTLIFE (one person's spend): local bar / beer $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub entry + drink $20–50
   WELLNESS (one person's session): spa / hammam $40–120, yoga or fitness class $15–40, surf lesson $50–90
-  Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer free or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
+  Budget modifier: ${budget === "budget" ? "lean toward lower end of each range above; prefer no-admission or cheapest-available options; avoid expensive tours" : budget === "luxury" ? "lean toward upper end; use premium/private pricing; upgrade restaurants to upscale/fine-dining tier" : "use mid-range values within each range above"}
   NEVER output 25 as a default. NEVER divide a venue's price by the group size. Every activity must have a cost that honestly reflects what one individual pays for that specific venue/experience.
 11. COORDINATES & PHOTO — For every activity include:
   - "photoQuery": a 3–5 word image-search phrase that will return a great photo of this specific activity (e.g. "Uluwatu Temple cliff sunset" or "Tsukiji Fish Market Tokyo morning")
@@ -924,7 +924,7 @@ Respond with ONLY valid JSON, no markdown:
       "amenities": ["WiFi", "Breakfast included", "AC", "Rooftop terrace"],
       "rooms": 2,
       "beds": 4,
-      "cancellation": "Free cancellation until 48h before check-in",
+      "cancellation": "Cancellation available until 48h before check-in",
       "whyItFits": "Central location puts you 5 min from most of your wishlist spots.",
       "tags": ["Best location", "Breakfast included", "Great value"],
       "distanceNote": "5 min walk to La Rambla, 10 min to Gothic Quarter",
@@ -1304,13 +1304,13 @@ RULES:
 - Prefer iconic, well-known, long-established places (10+ years) over trendy or obscure ones.
 - Description: ONE sentence, max 15 words.
 - Cost = what ONE individual traveler pays (never group total divided by size):
-    FREE $0: open parks, beaches, viewpoints, temples with no entry fee
+    NO-ENTRY-COST $0: open parks, beaches, viewpoints, temples with no entry fee
     PAID ADMISSION $5–30: museums, palaces, archaeological sites
     GUIDED TOURS $30–150: food tours $40–80, cooking classes $60–130, boat trips $40–100
     FOOD (one person's meal): street food $3–12, casual $8–20, mid-range $20–55, upscale $55–120
     NIGHTLIFE: local bar $8–18, cocktail bar $15–35, rooftop bar $20–45, nightclub $20–50
     WELLNESS: spa/hammam $40–120, yoga class $15–40
-    Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer free/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
+    Budget modifier (${budgetTier}): ${budgetTier === "budget" ? "lean toward lower end; prefer no-admission/cheap options" : budgetTier === "luxury" ? "lean toward upper end; use premium pricing" : "use mid-range values"}
   NEVER output 25 as a default. NEVER divide by group size.
 
 After your research, your FINAL message must be ONLY valid JSON (no markdown, no preamble):
