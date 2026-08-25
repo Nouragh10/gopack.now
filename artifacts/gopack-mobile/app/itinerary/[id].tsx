@@ -137,6 +137,17 @@ function safeExportFileName(value: string | undefined, extension: string): strin
   return `${stem}-itinerary.${extension}`;
 }
 
+function foldIcsLine(line: string): string[] {
+  const chunks: string[] = [];
+  let remaining = line;
+  while (remaining.length > 75) {
+    chunks.push(remaining.slice(0, 75));
+    remaining = remaining.slice(75);
+  }
+  chunks.push(remaining);
+  return chunks.map((chunk, index) => index === 0 ? chunk : ` ${chunk}`);
+}
+
 /* ── PDF HTML builder ────────────────────────────────────────────────── */
 
 interface AccomSummary {
@@ -655,6 +666,192 @@ ${
 </html>`;
 }
 
+function buildPremiumItineraryHTML(
+  title: string,
+  destination: string,
+  days: ItineraryDay[],
+  members: TripMember[],
+  budget: string,
+  startDate: string | null | undefined,
+  totalCost: number,
+  vibes: string[],
+  accom?: AccomSummary | null,
+): string {
+  const escapeHtml = (value: unknown) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+  const totalActivities = days.reduce((count, day) => count + day.activities.length, 0);
+  const tripTitle = escapeHtml(title || `${destination} itinerary`);
+  const tripDestination = escapeHtml(destination || "Your destination");
+  const departure = startDate
+    ? new Date(`${startDate}T00:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : "Dates to be confirmed";
+  const generatedOn = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const travelers = members.length ? members : [{ name: "Your Pack" } as TripMember];
+  const palette = ["#F45B3D", "#1D9A8A", "#3D6DEB", "#B76E79", "#D89B32", "#7157C8"];
+
+  const memberList = travelers.map((member, index) => {
+    const name = escapeHtml(member.name || "Traveller");
+    const initial = escapeHtml((member.name || "T").trim().slice(0, 1).toUpperCase());
+    return `<div class="traveler">
+      <div class="traveler-avatar" style="background:${palette[index % palette.length]}">${initial}</div>
+      <span>${name}</span>
+    </div>`;
+  }).join("");
+
+  const vibeList = (vibes.length ? vibes : ["Shared adventure"]).map((vibe) =>
+    `<span class="vibe-chip">${escapeHtml(vibe)}</span>`,
+  ).join("");
+
+  const dayPages = days.map((day) => {
+    const dayCost = day.activities.reduce((sum, activity) => sum + (activity.estimatedCost ?? 0), 0);
+    const activities = day.activities.map((activity, index) => {
+      const tag = activity.tag?.trim() || "experience";
+      const tagColor = getTagColor(tag);
+      const activityNumber = String(index + 1).padStart(2, "0");
+      const cost = activity.estimatedCost > 0
+        ? `Estimated ${escapeHtml(`$${activity.estimatedCost}`)} per person`
+        : "No entry fee";
+      return `<article class="activity">
+        <div class="activity-index" style="border-color:${tagColor};color:${tagColor}">${activityNumber}</div>
+        <div class="activity-main">
+          <div class="activity-meta">
+            <span class="activity-time">${escapeHtml(activity.time || "Flexible time")}</span>
+            <span class="activity-tag">${escapeHtml(tag)}</span>
+          </div>
+          <h3>${escapeHtml(activity.name || "Activity")}</h3>
+          <p>${escapeHtml(activity.description || "A thoughtfully planned stop for your group.")}</p>
+        </div>
+        <div class="activity-cost">${cost}</div>
+      </article>`;
+    }).join("");
+    return `<section class="day-page">
+      <header class="day-heading">
+        <div>
+          <p class="eyebrow">Day ${String(day.dayNumber).padStart(2, "0")}</p>
+          <h2>${escapeHtml(day.city || destination)}</h2>
+          <p class="day-theme">${escapeHtml(day.theme || "A day at your own pace")}</p>
+        </div>
+        <div class="day-total">
+          <span>Planned spend</span>
+          <strong>${dayCost > 0 ? `~$${dayCost}` : "Flexible"}</strong>
+        </div>
+      </header>
+      <div class="activity-list">${activities || `<p class="empty-day">Space left open for spontaneous discoveries.</p>`}</div>
+      <footer class="page-footer">
+        <span>PACKYO · ${tripDestination}</span>
+        <span>DAY ${String(day.dayNumber).padStart(2, "0")}</span>
+      </footer>
+    </section>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #F5F2EC; color: #172029; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; font-size: 12px; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cover { position: relative; min-height: 297mm; padding: 20mm; overflow: hidden; background: #172029; color: #F9F7F2; page-break-after: always; }
+.cover::before { content: ""; position: absolute; top: -56mm; right: -35mm; width: 160mm; height: 160mm; border-radius: 50%; background: #F45B3D; opacity: .98; }
+.cover::after { content: ""; position: absolute; left: -50mm; bottom: -38mm; width: 150mm; height: 150mm; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; }
+.cover-grid { position: absolute; inset: 0; opacity: .15; background-image: linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px); background-size: 16mm 16mm; }
+.cover-content { position: relative; z-index: 1; height: 257mm; display: flex; flex-direction: column; }
+.wordmark { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 800; letter-spacing: 2.4px; }
+.wordmark-mark { width: 12px; height: 12px; border: 3px solid #F45B3D; border-radius: 50%; box-shadow: 8px 0 0 -3px #F45B3D, -8px 0 0 -3px #F45B3D; }
+.cover-kicker { margin: auto 0 12px; font-size: 10px; font-weight: 700; letter-spacing: 2.2px; text-transform: uppercase; color: #F6B8A7; }
+.cover h1 { max-width: 148mm; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 48px; line-height: .98; letter-spacing: -1.8px; }
+.cover-location { margin-top: 18px; max-width: 100mm; font-size: 17px; color: #C8D1D4; }
+.cover-bottom { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.25); }
+.cover-stat span { display: block; font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase; color: #98A9AF; }
+.cover-stat strong { display: block; margin-top: 4px; font-size: 20px; color: #FFFDF9; }
+.overview { min-height: 297mm; padding: 18mm 20mm; background: #F5F2EC; page-break-after: always; }
+.overview-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14mm; border-bottom: 1px solid #D9D3CA; }
+.eyebrow { margin: 0 0 5px; color: #F45B3D; font-size: 9px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; }
+.overview h2, .day-heading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 34px; line-height: 1; letter-spacing: -1px; }
+.overview-date { max-width: 55mm; padding-top: 3px; color: #5F6A70; font-size: 11px; text-align: right; }
+.overview-block { padding: 11mm 0; border-bottom: 1px solid #D9D3CA; }
+.overview-label { margin: 0 0 10px; color: #6D777C; font-size: 9px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; }
+.travelers { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+.traveler { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+.traveler-avatar { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: white; font-size: 10px; }
+.vibe-chip { display: inline-block; margin: 0 7px 7px 0; padding: 7px 11px; border: 1px solid #D9D3CA; border-radius: 999px; color: #344149; font-size: 11px; font-weight: 700; }
+.stay-card { display: grid; grid-template-columns: 1fr auto; gap: 12mm; padding: 11mm; background: #E6F1EF; border-left: 4px solid #1D9A8A; }
+.stay-card h3 { margin: 3px 0 2px; font-size: 18px; }
+.stay-card p { margin: 0; color: #4E6464; }
+.stay-price { align-self: center; color: #167B6E; font-size: 17px; font-weight: 800; text-align: right; }
+.summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: #D9D3CA; border: 1px solid #D9D3CA; }
+.summary-cell { min-height: 34mm; padding: 9mm; background: #FCFBF8; }
+.summary-cell span { display: block; color: #6D777C; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
+.summary-cell strong { display: block; margin-top: 6px; font-family: Georgia, "Times New Roman", serif; font-size: 28px; }
+.day-page { position: relative; min-height: 297mm; padding: 18mm 20mm 18mm; background: #FCFBF8; page-break-after: always; }
+.day-heading { display: flex; justify-content: space-between; gap: 12mm; align-items: flex-end; padding-bottom: 10mm; border-bottom: 2px solid #172029; }
+.day-theme { margin: 7px 0 0; color: #68747B; font-size: 13px; }
+.day-total { min-width: 38mm; padding-bottom: 2px; text-align: right; }
+.day-total span { display: block; color: #6D777C; font-size: 8px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+.day-total strong { display: block; margin-top: 3px; font-size: 19px; }
+.activity-list { padding-top: 6mm; }
+.activity { display: grid; grid-template-columns: 15mm 1fr 34mm; gap: 7mm; padding: 8mm 0; border-bottom: 1px solid #E3DED6; page-break-inside: avoid; }
+.activity-index { width: 10mm; height: 10mm; display: grid; place-items: center; border: 1.5px solid; border-radius: 50%; font-size: 9px; font-weight: 800; }
+.activity-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 3px; }
+.activity-time { color: #172029; font-size: 10px; font-weight: 800; }
+.activity-tag { color: #6D777C; font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+.activity h3 { margin: 0; font-size: 16px; line-height: 1.2; }
+.activity p { margin: 4px 0 0; color: #5F6A70; font-size: 11.5px; }
+.activity-cost { align-self: center; color: #617177; font-size: 10px; line-height: 1.3; text-align: right; }
+.empty-day { padding: 15mm 0; color: #6D777C; font-size: 14px; font-style: italic; }
+.page-footer { position: absolute; right: 20mm; bottom: 10mm; left: 20mm; display: flex; justify-content: space-between; color: #879196; font-size: 8px; font-weight: 800; letter-spacing: 1.3px; }
+.closing { min-height: 297mm; padding: 20mm; display: flex; flex-direction: column; justify-content: space-between; background: #F45B3D; color: #172029; page-break-after: avoid; }
+.closing h2 { max-width: 130mm; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 42px; line-height: 1; letter-spacing: -1.5px; }
+.closing-card { max-width: 110mm; padding-top: 13mm; border-top: 1px solid rgba(23,32,41,.35); }
+.closing-card p { margin: 0; font-size: 14px; }
+.closing-card strong { display: block; margin-top: 10px; font-size: 22px; }
+.closing-footer { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }
+</style>
+</head>
+<body>
+  <section class="cover">
+    <div class="cover-grid"></div>
+    <div class="cover-content">
+      <div class="wordmark"><span class="wordmark-mark"></span>PACKYO</div>
+      <div>
+        <p class="cover-kicker">Group trip field guide</p>
+        <h1>${tripTitle}</h1>
+        <p class="cover-location">${tripDestination}</p>
+      </div>
+      <div class="cover-bottom">
+        <div class="cover-stat"><span>Departure</span><strong>${escapeHtml(departure)}</strong></div>
+        <div class="cover-stat"><span>Duration</span><strong>${days.length} day${days.length === 1 ? "" : "s"}</strong></div>
+        <div class="cover-stat"><span>Experiences</span><strong>${totalActivities}</strong></div>
+      </div>
+    </div>
+  </section>
+  <section class="overview">
+    <header class="overview-header">
+      <div><p class="eyebrow">Trip overview</p><h2>${tripDestination}</h2></div>
+      <p class="overview-date">${escapeHtml(departure)}</p>
+    </header>
+    <div class="overview-block"><p class="overview-label">Travelling together</p><div class="travelers">${memberList}</div></div>
+    <div class="overview-block"><p class="overview-label">The mood</p><div>${vibeList}</div></div>
+    ${accom ? `<div class="overview-block"><p class="overview-label">Home base</p><div class="stay-card"><div><p class="eyebrow">Accommodation</p><h3>${escapeHtml(accom.name)}</h3><p>${escapeHtml(accom.location)}${accom.type ? ` · ${escapeHtml(accom.type)}` : ""}</p></div><div class="stay-price">~$${escapeHtml(accom.costPerPerson)}<br><small>per person</small></div></div></div>` : ""}
+    <div class="overview-block"><p class="overview-label">At a glance</p><div class="summary-grid"><div class="summary-cell"><span>Trip budget</span><strong>${escapeHtml(budget)}</strong></div><div class="summary-cell"><span>Estimated plan</span><strong>${totalCost > 0 ? `~$${totalCost}` : "Flexible"}</strong></div></div></div>
+  </section>
+  ${dayPages}
+  <section class="closing">
+    <div class="wordmark"><span class="wordmark-mark" style="border-color:#172029;box-shadow:8px 0 0 -3px #172029,-8px 0 0 -3px #172029"></span>PACKYO</div>
+    <div><h2>Leave room for the unplanned.</h2><div class="closing-card"><p>This guide is a shared starting point for your ${tripDestination} adventure.</p><strong>Generated ${escapeHtml(generatedOn)}</strong></div></div>
+    <div class="closing-footer"><span>PLAN TOGETHER</span><span>PACKYO</span></div>
+  </section>
+</body>
+</html>`;
+}
+
 /* ── Activity card ───────────────────────────────────────────────────── */
 
 function getRedoOptions(tag: string): Array<{ label: string; redoType: "same_type" | "whole" }> {
@@ -1021,7 +1218,7 @@ export default function ItineraryScreen() {
         const match = timeStr?.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
         if (match) {
           let h = parseInt(match[1]);
-            const m = parseInt(match[2] ?? "0");
+          const m = parseInt(match[2] ?? "0");
           const period = match[3]?.toLowerCase();
           if (period === "pm" && h < 12) h += 12;
           if (period === "am" && h === 12) h = 0;
@@ -1038,6 +1235,7 @@ export default function ItineraryScreen() {
         "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
         `X-WR-CALNAME:${escapeIcsText(itinerary.title || trip.destination || "Trip")}`,
       ];
+      const calendarStamp = formatIcsDateTime(new Date());
 
       days.forEach((day, di) => {
         day.activities.forEach((act, activityIndex) => {
@@ -1046,7 +1244,7 @@ export default function ItineraryScreen() {
           lines.push(
             "BEGIN:VEVENT",
             `UID:${safeExportFileName(trip.destination, "ics").replace(/\.ics$/, "")}-${day.dayNumber || di + 1}-${activityIndex}@packyo`,
-            `DTSTAMP:${formatIcsDateTime(new Date())}`,
+            `DTSTAMP:${calendarStamp}`,
             `DTSTART:${formatIcsDateTime(start)}`,
             `DTEND:${formatIcsDateTime(end)}`,
             "STATUS:CONFIRMED",
@@ -1058,7 +1256,7 @@ export default function ItineraryScreen() {
         });
       });
       lines.push("END:VCALENDAR");
-      const icsContent = lines.join("\r\n");
+      const icsContent = lines.flatMap(foldIcsLine).join("\r\n") + "\r\n";
 
       if (Platform.OS === "web") {
         const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
@@ -1069,22 +1267,33 @@ export default function ItineraryScreen() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        if (!FileSystem.cacheDirectory) {
-          throw new Error("No cache directory is available");
-        }
-        const fileName = safeExportFileName(trip.destination, "ics");
-        const fileUri = `${FileSystem.documentDirectory ?? FileSystem.cacheDirectory}${fileName}`;
+        const exportDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+        if (!exportDirectory) throw new Error("No local file directory is available.");
+        const baseFileName = safeExportFileName(trip.destination, "ics").replace(/\.ics$/, "");
+        const fileUri = `${exportDirectory}${baseFileName}-${Date.now()}.ics`;
         await FileSystem.deleteAsync(fileUri, { idempotent: true });
         await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (!fileInfo.exists) throw new Error("The calendar file could not be created.");
+
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(fileUri, {
+          const shareOptions = {
             mimeType: "text/calendar",
             dialogTitle: `${trip.destination} Calendar`,
             UTI: "com.apple.ical.ics",
-          });
+          };
+          try {
+            await Sharing.shareAsync(fileUri, shareOptions);
+          } catch (sharingError) {
+            if (Platform.OS !== "ios") throw sharingError;
+            // Some iOS share extensions reject calendar UTI declarations.
+            // The native Share sheet still exposes Save to Files and open-in
+            // options for the verified .ics file.
+            await Share.share({ url: fileUri, title: `${trip.destination} Calendar` });
+          }
         } else {
-          Alert.alert("Calendar file ready", "Your itinerary calendar file has been created. Use the Share button to save it.");
+          Alert.alert("Calendar file ready", "Your itinerary .ics file is ready. Save it to Files, then tap it to import the events into Calendar.");
         }
       }
     } catch (err) {
@@ -1099,7 +1308,7 @@ export default function ItineraryScreen() {
     setExportingPDF(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const html = buildItineraryHTML(
+      const html = buildPremiumItineraryHTML(
         itinerary.title,
         trip.destination,
         days,
@@ -1111,19 +1320,26 @@ export default function ItineraryScreen() {
         accom,
       );
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const fileName = safeExportFileName(trip.destination, "pdf");
+      const baseFileName = safeExportFileName(trip.destination, "pdf").replace(/\.pdf$/, "");
       const exportDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
       if (!exportDirectory) throw new Error("No local file directory is available.");
-      const fileUri = `${exportDirectory}${fileName}`;
+      const fileUri = `${exportDirectory}${baseFileName}-${Date.now()}.pdf`;
       await FileSystem.deleteAsync(fileUri, { idempotent: true });
       await FileSystem.copyAsync({ from: uri, to: fileUri });
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) throw new Error("The PDF file could not be created.");
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/pdf",
-          dialogTitle: `${trip.destination} Itinerary`,
-          UTI: "com.adobe.pdf",
-        });
+        try {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "application/pdf",
+            dialogTitle: `${trip.destination} Itinerary`,
+            UTI: "com.adobe.pdf",
+          });
+        } catch (sharingError) {
+          if (Platform.OS !== "ios") throw sharingError;
+          await Share.share({ url: fileUri, title: `${trip.destination} Itinerary` });
+        }
       } else {
         await Print.printAsync({ html });
       }
@@ -1503,9 +1719,10 @@ export default function ItineraryScreen() {
             <Pressable
               style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
               onPress={() => requestExport("calendar")}
+              testID="export-calendar"
             >
               <View style={[styles.exportOptIcon, { backgroundColor: "#EBF5FB" }]}>
-                <Text style={{ fontSize: 22 }}>📅</Text>
+                <Feather name="calendar" size={20} color="#277DA1" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.exportOptTitle, { color: colors.foreground }]}>Calendar (.ics)</Text>
@@ -1519,9 +1736,10 @@ export default function ItineraryScreen() {
             <Pressable
               style={({ pressed }) => [styles.exportOption, { backgroundColor: pressed ? colors.muted : colors.background, borderColor: colors.border }]}
               onPress={() => requestExport("pdf")}
+              testID="export-pdf"
             >
               <View style={[styles.exportOptIcon, { backgroundColor: "#FDF3EF" }]}>
-                <Text style={{ fontSize: 22 }}>📄</Text>
+                <Feather name="file-text" size={20} color="#D4573E" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.exportOptTitle, { color: colors.foreground }]}>PDF</Text>
