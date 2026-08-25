@@ -896,14 +896,18 @@ export default function ItineraryScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const otherActivities = (day?.activities ?? []).filter((_, i) => i !== idx).map((a) => a.name);
       const allTripActivities = days.flatMap((d) => d.activities.map((a) => a.name)).filter((n) => n !== act.name);
+      const redoCity = day?.city?.trim() || trip?.destination?.trim() || "";
       const resp = await apiFetch("/api/redo-activity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           activity: act,
-          city: day?.city ?? "",
+          // Older saved itineraries may not have a city on each day. The trip
+          // destination remains a reliable fallback and prevents a 400 on iOS.
+          city: redoCity,
           theme: day?.theme ?? "",
           destination: trip?.destination ?? "",
+          budget: trip?.budget ?? "midrange",
           redoType: "whole",
           otherActivities,
           allTripActivities,
@@ -915,8 +919,10 @@ export default function ItineraryScreen() {
         const errBody = await resp.json().catch(() => ({})) as { error?: string };
         throw new Error(errBody.error ?? "Could not replace activity. Please try again.");
       }
-      const responseBody = await resp.json() as { activity?: unknown };
-      const newAct = findRedoActivity(responseBody.activity);
+      const responseBody = await resp.json() as unknown;
+      // Accept both the current { activity } contract and older nested/array
+      // responses during rollout, so TestFlight does not reject a valid redo.
+      const newAct = findRedoActivity(responseBody);
       if (!newAct?.name) {
         throw new Error("AI returned an incomplete activity. Please try again.");
       }

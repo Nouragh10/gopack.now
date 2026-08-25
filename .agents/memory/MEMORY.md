@@ -16,4 +16,5 @@
 - [Wishlist flow screens](wishlist-flow-screens.md) — three dedicated screens for wish add/browse, voting, and results; trip hub checklist now routes to /wishlist/[id] and /wishlist-vote/[id].
 - [Account deletion recovery](firebase-account-deletion.md) — Firebase Auth and RTDB deletes need a server-side retry marker to avoid stranded partial deletion.
 - [AI activity response normalization](ai-activity-response-normalization.md) — AI/web-search output may wrap a valid activity in extra structured data; normalize one activity before returning it to clients.
+- [Redo activity compatibility](redo-activity-compatibility.md) — support legacy response wrappers and itineraries without a day-level city during mobile rollouts.
 - [iOS itinerary exports](ios-itinerary-exports.md) — close native export sheets before launching share UI; use SDK-matched file modules and Apple’s ICS type.

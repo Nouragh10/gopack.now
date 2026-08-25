@@ -1245,8 +1245,12 @@ router.post("/redo-activity", async (req: Request, res: Response): Promise<void>
     allTripActivities?: string[];
   };
   const budgetTier = budget ?? "midrange";
+  const resolvedDestination = destination?.trim() ?? "";
+  // Some itineraries created by earlier mobile builds do not persist city per
+  // day. A destination-level redo is still valid, so use it as the fallback.
+  const resolvedCity = city?.trim() || resolvedDestination;
 
-  if (!activity || !city || !destination || !redoType) {
+  if (!activity || !resolvedCity || !resolvedDestination || !redoType) {
     res.status(400).json({ error: "Missing required fields." });
     return;
   }
@@ -1278,15 +1282,15 @@ router.post("/redo-activity", async (req: Request, res: Response): Promise<void>
   };
 
   const task = redoType === "same_type"
-    ? `TASK: Keep the same category (${activity.tag}) but suggest a DIFFERENT specific ${sameTypeHint[activity.tag] ?? "venue or location"} in ${city}. Same vibe, completely new place. The name must be a different real venue.`
-    : `TASK: Replace this with a COMPLETELY DIFFERENT activity of a different type that fits the day theme "${theme}" in ${city}. Pick any of these tags: food, culture, adventure, relaxation, nightlife, shopping, travel.`;
+    ? `TASK: Keep the same category (${activity.tag}) but suggest a DIFFERENT specific ${sameTypeHint[activity.tag] ?? "venue or location"} in ${resolvedCity}. Same vibe, completely new place. The name must be a different real venue.`
+    : `TASK: Replace this with a COMPLETELY DIFFERENT activity of a different type that fits the day theme "${theme}" in ${resolvedCity}. Pick any of these tags: food, culture, adventure, relaxation, nightlife, shopping, travel.`;
 
-  const prompt = `You are a travel researcher and planner. Your job is to find a REAL, currently-open venue in ${city} and return it as JSON.
+  const prompt = `You are a travel researcher and planner. Your job is to find a REAL, currently-open venue in ${resolvedCity} and return it as JSON.
 
 USE web_search to:
-1. Search for top venues in ${city} that match the criteria below.
+1. Search for top venues in ${resolvedCity} that match the criteria below.
 2. Pick the best real candidate — well-known, long-established, findable on Google Maps.
-3. Verify it is currently open: search "<venue name> ${city} open hours 2025" or "<venue name> ${city} closed" to confirm.
+3. Verify it is currently open: search "<venue name> ${resolvedCity} open hours 2025" or "<venue name> ${resolvedCity} closed" to confirm.
 4. If your first pick fails verification, search for an alternative and verify that one instead.
 Only suggest a venue once you have search evidence it exists and is open.
 
@@ -1295,8 +1299,8 @@ Current activity being replaced:
 - Type: ${activity.tag}
 - Time: ${activity.time}
 
-Destination: ${destination}
-City: ${city}
+Destination: ${resolvedDestination}
+City: ${resolvedCity}
 Day theme: ${theme}
 ${others}
 ${tripWide}
@@ -1350,13 +1354,25 @@ After your research, your FINAL message must be ONLY valid JSON (no markdown, no
       res.status(400).json({ error: data.error?.message ?? "AI generation failed. Please try again." });
       return;
     }
-    // Take the last text block — that's the JSON after all the search tool calls
+    // Prefer the final text block, but accept a valid activity in any text
+    // block because tool-backed model responses can include nested wrappers.
     const textBlocks = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "");
-    const allText = textBlocks[textBlocks.length - 1] ?? textBlocks.join("");
-    const newActivity = normalizeRedoActivity(extractAndParseJson(allText), {
-      time: activity.time,
-      tag: activity.tag,
-    });
+    let newActivity: RedoActivity | null = null;
+    let parseError: unknown = null;
+    for (const text of [...textBlocks].reverse()) {
+      try {
+        newActivity = normalizeRedoActivity(extractAndParseJson(text), {
+          time: activity.time,
+          tag: activity.tag,
+        });
+        break;
+      } catch (err) {
+        parseError = err;
+      }
+    }
+    if (!newActivity) {
+      throw parseError ?? new ItineraryResponseError("The AI did not return a replacement activity.");
+    }
     res.json({ activity: newActivity });
   } catch (err) {
     req.log.error({ err }, "Failed to redo activity");
