@@ -136,6 +136,20 @@ export function usePublicReviews() {
 ──────────────────────────────────────────────────────────────── */
 const storageKey = (uid: string) => `gopack_trips_${uid}`;
 
+function firebaseErrorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
+}
+
+function isFirebasePermissionError(error: unknown): boolean {
+  return firebaseErrorCode(error)?.toLowerCase().includes("permission") ?? false;
+}
+
+function joinError(code: "permission-denied" | "invalid-trip", message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
 function getLocalTripIds(uid: string): string[] {
   try {
     const raw = localStorage.getItem(storageKey(uid));
@@ -257,27 +271,60 @@ export function useTrips() {
   };
 
   const joinTrip = async (tripId: string, name: string) => {
-    if (!user) return false;
-
-    await update(ref(db, `trips/${tripId}/members`), {
-      [user.uid]: {
-        name: name || user.displayName || "Guest",
-        joinedAt: new Date().toISOString(),
-        isHost: false,
-      },
-    });
-
-    // Increment member count in global stats
-    try {
-      await runTransaction(ref(db, "stats/memberCount"), (cur) => (cur || 0) + 1);
-    } catch {
-      // Silently ignored
+    if (!user) {
+      throw joinError("permission-denied", "Sign in before joining a trip.");
     }
 
-    // Store trip ID locally
+    // Confirm the invite points to a real trip before writing. Writing directly
+    // to /members could otherwise create a partial trip for a mistyped code.
+    let tripData: any;
+    try {
+      const tripSnap = await get(ref(db, `trips/${tripId}`));
+      if (!tripSnap.exists()) {
+        throw joinError("invalid-trip", "This invite link is invalid or the trip was deleted.");
+      }
+      tripData = tripSnap.val();
+    } catch (error) {
+      if (firebaseErrorCode(error) === "invalid-trip") throw error;
+      if (isFirebasePermissionError(error)) {
+        throw joinError("permission-denied", "Firebase permissions do not allow you to view or join this trip.");
+      }
+      throw error;
+    }
+
+    const alreadyMember = Boolean(tripData.members?.[user.uid]);
+    if (!alreadyMember) {
+      try {
+        await update(ref(db, `trips/${tripId}/members`), {
+          [user.uid]: {
+            name: name || user.displayName || "Guest",
+            joinedAt: new Date().toISOString(),
+            isHost: false,
+          },
+        });
+      } catch (error) {
+        if (isFirebasePermissionError(error)) {
+          throw joinError("permission-denied", "Firebase permissions do not allow you to join this trip.");
+        }
+        throw error;
+      }
+    }
+
+    if (!alreadyMember) {
+      // Increment member count in global stats
+      try {
+        await runTransaction(ref(db, "stats/memberCount"), (cur) => (cur || 0) + 1);
+      } catch {
+        // Silently ignored
+      }
+    }
+
+    // Store the proven trip ID locally only after membership succeeds.
     addLocalTripId(user.uid, tripId);
 
     try {
+      // Writing this single child preserves all of the user's other remote
+      // index entries. It is best-effort because some deployments restrict it.
       await set(ref(db, `userTrips/${user.uid}/${tripId}`), true);
     } catch {
       // Silently ignored
@@ -339,6 +386,10 @@ export function useTrip(tripId: string) {
             update(ref(db, `trips/${tripId}`), { review: patched }).catch(() => {});
             if (data.review.isPublic !== false) {
               set(ref(db, `reviews/${tripId}`), patched).catch(() => {});
+            } else {
+              // Keep an older public copy from surviving after its trip review
+              // has been made private.
+              remove(ref(db, `reviews/${tripId}`)).catch(() => {});
             }
           }
         } else {
@@ -407,7 +458,27 @@ export function useTrip(tripId: string) {
     isPublic?: boolean;
     photos?: string[];
   }) => {
-    if (!user || !tripId || !trip) return;
+    if (!user || !tripId || !trip) {
+      throw new Error("Trip details are unavailable.");
+    }
+    if (!trip.members?.[user.uid]) {
+      throw new Error("Only trip members can submit a review.");
+    }
+    // Prefer the persisted end date, which may differ from a duration-derived
+    // date when trip dates were edited. Match the mobile review rule by
+    // opening reviews only after the final day has ended.
+    const tripEnd = trip.endDate ?? (
+      trip.startDate
+        ? new Date(
+            new Date(`${trip.startDate}T00:00:00`).getTime() +
+              Math.max(Number(trip.days) || 1, 1) * 24 * 60 * 60 * 1000,
+          ).toISOString().slice(0, 10)
+        : null
+    );
+    const tripEndTime = tripEnd ? new Date(`${tripEnd}T23:59:59`).getTime() : NaN;
+    if (!tripEnd || Number.isNaN(tripEndTime) || tripEndTime > Date.now()) {
+      throw new Error("Reviews open after this trip has finished.");
+    }
     const memberEntries = Object.values(trip.members || {}) as any[];
 
     // Snapshot compact itinerary for public display on explore page
@@ -436,6 +507,10 @@ export function useTrip(tripId: string) {
     await set(ref(db, `trips/${tripId}/review`), review);
     if (reviewData.isPublic !== false) {
       await set(ref(db, `reviews/${tripId}`), review);
+    } else {
+      // A review may be changed from public to private. Remove its old public
+      // copy rather than leaving it discoverable with stale visibility.
+      await remove(ref(db, `reviews/${tripId}`));
     }
   };
 
@@ -533,6 +608,13 @@ export async function confirmAccommodation(tripId: string, accom: any) {
     confirmedAccommodation: accom,
     accommodationStatus: "confirmed",
   });
+}
+
+export async function setAccommodationStatus(
+  tripId: string,
+  status: "collecting_prefs" | "voting" | "confirmed" | "booked" | "skipped",
+) {
+  await set(ref(db, `trips/${tripId}/accommodationStatus`), status);
 }
 
 export async function addMemberAccommodationLink(tripId: string, suggestion: any) {
