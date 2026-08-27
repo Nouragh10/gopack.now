@@ -5,7 +5,7 @@ import {
   Home, Key, Users, MapPin, Star, ChevronRight, Zap, DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrip, addMemberAccommodationLink } from "@/hooks/useFirebase";
+import { useTrip, addMemberAccommodationLink, setAccommodationStatus } from "@/hooks/useFirebase";
 
 const TEAL = "#26A69A";
 
@@ -109,9 +109,25 @@ export default function AccommodationPreferences() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState("");
 
   const members = trip?.members ?? {};
   const suggestions: any[] = trip?.accommodationSuggestions ?? [];
+  const isHost = user?.uid === trip?.hostMemberId;
+
+  const handleSkipAccommodation = async () => {
+    if (!isHost || !tripId) return;
+    setSkipping(true);
+    setSkipError("");
+    try {
+      await setAccommodationStatus(tripId, "skipped");
+      setLocation(`/trip/${tripId}/building`);
+    } catch (error) {
+      setSkipError(error instanceof Error ? error.message : "We couldn't skip accommodation right now.");
+      setSkipping(false);
+    }
+  };
 
   const handleAdd = async () => {
     const rawUrl = linkUrl.trim();
@@ -195,6 +211,24 @@ export default function AccommodationPreferences() {
             Paste any Airbnb, Booking.com, or Hotels.com link — AI reads the details automatically. Everyone votes by swiping.
           </p>
         </div>
+
+        {isHost && (
+          <div className="px-4 pb-1">
+            <button
+              onClick={handleSkipAccommodation}
+              disabled={skipping}
+              className="w-full flex items-center gap-3 p-4 rounded-2xl border border-border bg-muted/30 text-left hover:bg-muted/50 transition-colors disabled:opacity-60"
+            >
+              {skipping ? <Loader2 size={18} className="animate-spin text-primary shrink-0" /> : <Home size={18} className="text-primary shrink-0" />}
+              <span className="flex-1">
+                <span className="block text-sm font-semibold">We already have a place</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">Skip stay voting and build the itinerary now.</span>
+              </span>
+              <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+            </button>
+            {skipError && <p className="mt-2 text-xs text-destructive">{skipError}</p>}
+          </div>
+        )}
 
         {!showForm ? (
           <div className="px-4">
