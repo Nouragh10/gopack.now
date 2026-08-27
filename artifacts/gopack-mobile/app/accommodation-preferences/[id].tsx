@@ -19,6 +19,7 @@ import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api-client";
 import {
   AccommodationPreference,
+  setAccommodationStatus,
   storeAccommodationSuggestions,
   submitAccommodationPreference,
   useTrip,
@@ -183,6 +184,20 @@ export default function AccommodationPreferencesScreen() {
     }
   };
 
+  const handleSkipAccommodation = async () => {
+    if (!id || !isCreator) return;
+    setError("");
+    setGenerating(true);
+    try {
+      await setAccommodationStatus(id, "skipped");
+      router.replace(`/building/${id}`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "We couldn't skip accommodation right now.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -245,7 +260,7 @@ export default function AccommodationPreferencesScreen() {
         </View>
 
         {/* Generate button — creator only */}
-        {isCreator && submittedCount >= 1 && (
+        {isCreator && (
           <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }}>
             <Pressable
               onPress={handleGenerate}
@@ -271,6 +286,22 @@ export default function AccommodationPreferencesScreen() {
                 You can generate now or wait for everyone to submit first.
               </Text>
             )}
+            <Pressable
+              onPress={handleSkipAccommodation}
+              disabled={generating}
+              style={[styles.skipButton, { borderColor: colors.border, opacity: generating ? 0.55 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Skip accommodation because it is already booked"
+            >
+              <Feather name="check-circle" size={16} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.skipButtonTitle, { color: colors.foreground }]}>We already have a place</Text>
+                <Text style={[styles.skipButtonCopy, { color: colors.mutedForeground }]}>
+                  Skip stay voting and build the itinerary now.
+                </Text>
+              </View>
+              <Feather name="arrow-right" size={16} color={colors.mutedForeground} />
+            </Pressable>
           </View>
         )}
 
@@ -467,6 +498,9 @@ const styles = StyleSheet.create({
   generateBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", justifyContent: "center" },
   generateBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
   generateHint: { fontFamily: "DmSans_400Regular", fontSize: 12, textAlign: "center", marginTop: 8 },
+  skipButton: { marginTop: 12, padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", gap: 10 },
+  skipButtonTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  skipButtonCopy: { fontFamily: "DmSans_400Regular", fontSize: 12, marginTop: 2 },
   btnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   errorText: { fontFamily: "DmSans_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 16 },
 
