@@ -112,7 +112,33 @@ export interface Wish {
 }
 
 export interface ProfileWish extends Wish {
+  tripId: string;
   tripDestination: string;
+}
+
+export interface PackyoProfile {
+  username: string;
+  bio: string;
+  travelPreferences?: {
+    pace?: string;
+    focus?: string;
+  };
+}
+
+export interface ProfileStay {
+  id: string;
+  tripId: string;
+  destination: string;
+  startDate: string | null;
+  accommodation: AccommodationSuggestion;
+}
+
+export interface ProfileActivity {
+  id: string;
+  tripId: string;
+  destination: string;
+  dayNumber: number;
+  activity: Activity;
 }
 
 export interface ChatMessage {
@@ -395,6 +421,7 @@ export function useRecentWishes(uid: string | undefined, tripIds: string[]) {
           .filter(([, wish]) => wish?.authorId === uid)
           .map(([id, wish]) => ({
             id,
+            tripId,
             text: wish.text ?? "",
             authorId: wish.authorId ?? uid,
             authorName: wish.authorName ?? "",
@@ -421,6 +448,95 @@ export function useRecentWishes(uid: string | undefined, tripIds: string[]) {
   }, [uid, tripKey]);
 
   return { wishes, loading };
+}
+
+/* ── Account-scoped profile metadata ───────────────────────────────── */
+
+function profilePath(uid: string) {
+  // This remains inside the established user-owned branch; Firebase rules do
+  // not allow Packyo to introduce a separate global profiles collection.
+  return `userTrips/${uid}/profile`;
+}
+
+export function usePackyoProfile(uid: string | undefined) {
+  const [profile, setProfile] = useState<PackyoProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    return onValue(
+      ref(db, profilePath(uid)),
+      (snap) => {
+        const value = snap.val();
+        setProfile(value && typeof value === "object" ? value as PackyoProfile : null);
+        setLoading(false);
+      },
+      () => {
+        setProfile(null);
+        setLoading(false);
+      },
+    );
+  }, [uid]);
+
+  return { profile, loading };
+}
+
+export async function updatePackyoProfile(
+  uid: string,
+  patch: Partial<PackyoProfile>,
+): Promise<void> {
+  const cleanPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(cleanPatch).length > 0) {
+    await update(ref(db, profilePath(uid)), cleanPatch);
+  }
+}
+
+/** Derives profile history from permitted trip records; it does not duplicate trip data. */
+export function useProfileTripCollections(trips: Trip[], displayName?: string | null) {
+  const stays: ProfileStay[] = [];
+  const activities: ProfileActivity[] = [];
+  const normalizedName = displayName?.trim().toLowerCase();
+
+  for (const trip of trips) {
+    if (trip.confirmedAccommodation) {
+      stays.push({
+        id: `${trip.id}:stay`,
+        tripId: trip.id,
+        destination: trip.destination,
+        startDate: trip.startDate,
+        accommodation: trip.confirmedAccommodation,
+      });
+    }
+
+    for (const day of trip.itinerary?.days ?? []) {
+      (day.activities ?? []).forEach((activity, index) => {
+        const suggestedByMember = normalizedName &&
+          activity.suggester?.trim().toLowerCase() === normalizedName;
+        if (activity.fromWish || suggestedByMember) {
+          activities.push({
+            id: `${trip.id}:${day.dayNumber}:${index}`,
+            tripId: trip.id,
+            destination: trip.destination,
+            dayNumber: day.dayNumber,
+            activity,
+          });
+        }
+      });
+    }
+  }
+
+  return {
+    stays: stays.sort((a, b) => String(b.startDate ?? "").localeCompare(String(a.startDate ?? ""))),
+    activities,
+  };
 }
 
 /* ── useChat ──────────────────────────────────────────────────────── */
@@ -626,6 +742,22 @@ export async function submitTripReview(
     photoUris: string[];
   },
 ): Promise<void> {
+  const member = trip?.members?.[uid];
+  if (!member) {
+    throw new Error("Only members of this trip can leave a review.");
+  }
+  const tripEnd = trip?.endDate ?? (
+    trip?.startDate
+      ? new Date(
+          new Date(`${trip.startDate}T00:00:00`).getTime() +
+            Math.max(Number(trip.days) || 1, 1) * 86400000,
+        ).toISOString().slice(0, 10)
+      : null
+  );
+  if (!tripEnd || new Date(`${tripEnd}T23:59:59`).getTime() > Date.now()) {
+    throw new Error("Reviews open after this trip has finished.");
+  }
+
   // Convert photos to base64 data-URIs and store directly in RTDB.
   // Firebase Storage rules block unauthenticated writes; using base64 in RTDB
   // sidesteps that entirely without needing a storage rule change.
@@ -676,6 +808,8 @@ export async function submitTripReview(
   await set(ref(db, `trips/${tripId}/review`), review);
   if (reviewData.isPublic) {
     await set(ref(db, `reviews/${tripId}`), review);
+  } else {
+    await set(ref(db, `reviews/${tripId}`), null);
   }
 }
 
@@ -739,6 +873,16 @@ export async function createTrip(data: {
 
 /* ── joinTrip ─────────────────────────────────────────────────────── */
 
+function inviteError(error: unknown, fallback: string): Error {
+  const code = (error as { code?: string })?.code;
+  if (code === "PERMISSION_DENIED" || code === "permission-denied") {
+    return new Error(
+      "Packyo could not verify this invite with your account. Make sure you are signed in, then ask the trip host to send a fresh invite.",
+    );
+  }
+  return new Error(fallback);
+}
+
 export async function joinTrip(tripId: string, uid: string, displayName: string) {
   const input = tripId.trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
   const candidate = decodeURIComponent(input.split("/").pop() ?? input).trim();
@@ -754,7 +898,12 @@ export async function joinTrip(tripId: string, uid: string, displayName: string)
   ];
   let id = candidate;
   for (const code of [...new Set(codeCandidates)]) {
-    const codeSnap = await get(ref(db, `inviteCodes/${code}`));
+    let codeSnap;
+    try {
+      codeSnap = await get(ref(db, `inviteCodes/${code}`));
+    } catch (error) {
+      throw inviteError(error, "We couldn't verify that invite code. Please try again.");
+    }
     if (codeSnap.exists() && typeof codeSnap.val() === "string") {
       id = codeSnap.val() as string;
       break;
@@ -763,22 +912,39 @@ export async function joinTrip(tripId: string, uid: string, displayName: string)
 
   // Read the specific trip by ID — Firebase rules allow reading a known trip
   // by its ID for any authenticated user (same approach as the web app).
-  const snap = await get(ref(db, `trips/${id}`));
+  let snap;
+  try {
+    snap = await get(ref(db, `trips/${id}`));
+  } catch (error) {
+    throw inviteError(error, "We couldn't open that trip. Please try again.");
+  }
   if (!snap.exists()) throw new Error("Trip not found. Check the ID and try again.");
   if ((snap.val() as { isPack?: boolean }).isPack) {
     throw new Error("That invite is for a pack, not a trip.");
   }
 
-  await update(ref(db, `trips/${id}/members`), {
-    [uid]: {
-      name: displayName,
-      joinedAt: new Date().toISOString(),
-      isHost: false,
-    },
-  });
+  const existingMember = (snap.val() as Trip).members?.[uid];
+  try {
+    if (!existingMember) {
+      await update(ref(db, `trips/${id}/members`), {
+        [uid]: {
+          name: displayName,
+          joinedAt: new Date().toISOString(),
+          isHost: false,
+        },
+      });
+    }
+  } catch (error) {
+    throw inviteError(error, "We couldn't add you to this trip. Ask the host to check the invite and try again.");
+  }
 
   await addLocalTripId(uid, id);
-  try { await set(ref(db, `userTrips/${uid}/${id}`), true); } catch {}
+  try {
+    await set(ref(db, `userTrips/${uid}/${id}`), true);
+  } catch {
+    // Membership already succeeded. The local index keeps the trip visible;
+    // the next successful signed-in session will repair the remote index.
+  }
 
   return id;
 }
@@ -1353,7 +1519,9 @@ export async function wipeUserData(uid: string) {
   try {
     const snap = await get(ref(db, `userTrips/${uid}`));
     if (snap.exists()) {
-      firebaseIds = Object.keys(snap.val() as Record<string, unknown>);
+      firebaseIds = Object.entries(snap.val() as Record<string, unknown>)
+        .filter(([, value]) => value === true)
+        .map(([tripId]) => tripId);
     }
   } catch {}
 
