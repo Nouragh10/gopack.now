@@ -37,6 +37,7 @@ import {
   addMemberAccommodationLink,
   confirmAccommodation,
   lockAccommodationVotes,
+  setAccommodationStatus,
   unlockAccommodationVotes,
   useTrip,
   voteAccommodation,
@@ -575,6 +576,28 @@ export default function AccommodationVoteScreen() {
     }
   };
 
+  const handleSkipAccommodation = async () => {
+    if (!id || !isCreator) return;
+    Alert.alert(
+      "Skip stay planning?",
+      "Use this if your group has already booked a place. You can still build the itinerary without an accommodation selection.",
+      [
+        { text: "Keep voting", style: "cancel" },
+        {
+          text: "Already booked",
+          onPress: async () => {
+            try {
+              await setAccommodationStatus(id, "skipped");
+              router.replace(`/building/${id}`);
+            } catch {
+              Alert.alert("Couldn't skip accommodation", "Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleAiTiebreak = async () => {
     if (!id || !trip) return;
     const currentTopScore = getScore(winnerIdx);
@@ -701,6 +724,16 @@ export default function AccommodationVoteScreen() {
           <Feather name="plus" size={14} color={TEAL} />
           <Text style={[styles.addBtnText, { color: TEAL }]}>Add link</Text>
         </Pressable>
+        {isCreator ? (
+          <Pressable
+            onPress={handleSkipAccommodation}
+            style={[styles.skipStayHeaderButton, { borderColor: colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel="Skip accommodation because it is already booked"
+          >
+            <Feather name="check" size={14} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Lock-in bar */}
@@ -897,6 +930,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 13 },
+  skipStayHeaderButton: { width: 34, height: 34, marginLeft: 7, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
 
   lockBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   lockBarTitle: { fontFamily: "DmSans_600SemiBold", fontSize: 13, marginBottom: 6 },
