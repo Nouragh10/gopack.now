@@ -4,12 +4,15 @@ import {
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAuth,
-  inMemoryPersistence,
+  getReactNativePersistence,
+  GoogleAuthProvider,
   initializeAuth,
   onAuthStateChanged,
+  OAuthProvider,
   reauthenticateWithCredential,
   sendEmailVerification,
   signInAnonymously,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -28,6 +31,7 @@ import {
   update,
 } from "firebase/database";
 import { getStorage } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { getApiBaseUrl } from "@/lib/api-client";
 
@@ -48,7 +52,9 @@ let auth: ReturnType<typeof getAuth>;
 try {
   auth = initializeAuth(app, {
     persistence:
-      Platform.OS === "web" ? browserLocalPersistence : inMemoryPersistence,
+      Platform.OS === "web"
+        ? browserLocalPersistence
+        : getReactNativePersistence(AsyncStorage),
   });
 } catch {
   auth = getAuth(app);
@@ -77,6 +83,37 @@ export const signUpWithEmail = async (
 
 export const signInGuest = () => signInAnonymously(auth);
 export const signOut = () => firebaseSignOut(auth);
+
+/**
+ * Exchanges an OAuth token returned by the platform sign-in UI for a Firebase
+ * session. The OAuth UI itself deliberately lives in the screen so this module
+ * remains usable on web and native.
+ */
+export const signInWithGoogleCredential = (
+  idToken?: string | null,
+  accessToken?: string | null,
+) => {
+  if (!idToken && !accessToken) {
+    throw new Error("Google did not return a sign-in token. Please try again.");
+  }
+  const credential = GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
+  return signInWithCredential(auth, credential);
+};
+
+export const signInWithAppleCredential = (
+  identityToken: string,
+  rawNonce?: string,
+) => {
+  if (!identityToken) {
+    throw new Error("Apple did not return an identity token. Please try again.");
+  }
+  const provider = new OAuthProvider("apple.com");
+  const credential = provider.credential({
+    idToken: identityToken,
+    rawNonce,
+  });
+  return signInWithCredential(auth, credential);
+};
 
 export const updateCurrentUserProfile = async (displayName: string) => {
   const currentUser = auth.currentUser;
