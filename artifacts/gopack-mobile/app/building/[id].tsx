@@ -65,37 +65,12 @@ export default function BuildingScreen() {
           ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
           : (trip.days ?? 5);
 
-        const positiveWishes = [...wishes]
+        const includedWishes = [...wishes]
           .filter(w => w.score >= 0)
           .sort((a, b) => b.score - a.score);
 
-        const guaranteedCap = Math.floor(resolvedDays * 1.5);
-        const guaranteedSet: typeof positiveWishes = [];
-        const usedWishIds = new Set<string>();
-        const seenAuthors = new Set<string>();
-
-        for (const w of positiveWishes) {
-          if (guaranteedSet.length >= guaranteedCap) break;
-          if (!seenAuthors.has(w.authorId)) {
-            seenAuthors.add(w.authorId);
-            usedWishIds.add(w.id);
-            guaranteedSet.push(w);
-          }
-        }
-
-        for (const w of positiveWishes) {
-          if (guaranteedSet.length >= guaranteedCap) break;
-          if (!usedWishIds.has(w.id)) {
-            usedWishIds.add(w.id);
-            guaranteedSet.push(w);
-          }
-        }
-
-        const candidateWishes = positiveWishes
-          .filter(w => !usedWishIds.has(w.id))
-          .slice(0, 15);
-
-        const toPayload = (w: typeof positiveWishes[0]) => ({
+        const toPayload = (w: typeof includedWishes[0]) => ({
+          id: w.id,
           text: w.text,
           author: w.authorName,
           votes: w.score,
@@ -122,8 +97,10 @@ export default function BuildingScreen() {
             vibes: resolvedVibes,
             budget: trip.budget ?? "midrange",
             startDate: trip.startDate ?? null,
-            guaranteed: guaranteedSet.map(toPayload),
-            candidates: candidateWishes.map(toPayload),
+            // Every non-negative wish was included in the voted outcome. The
+            // API is allowed to add supporting activities, never drop these.
+            guaranteed: includedWishes.map(toPayload),
+            candidates: [],
             pace: resolvedPace,
             userId: user?.uid,
             isPlusUser: false,
