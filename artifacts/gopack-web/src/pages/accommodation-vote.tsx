@@ -13,6 +13,7 @@ import {
   unlockAccommodationVotes,
   confirmAccommodation,
   addMemberAccommodationLink,
+  setAccommodationStatus,
 } from "@/hooks/useFirebase";
 
 const TEAL = "#26A69A";
@@ -493,6 +494,8 @@ export default function AccommodationVote() {
   const [addingLink, setAddingLink] = useState(false);
   const [addLinkError, setAddLinkError] = useState("");
   const [parseStatus, setParseStatus] = useState<"idle" | "fetching" | "saving">("idle");
+  const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState("");
 
   const uid = user?.uid ?? "";
   const suggestions: any[] = trip?.accommodationSuggestions ?? [];
@@ -536,6 +539,19 @@ export default function AccommodationVote() {
       setLocation(`/trip/${tripId}`);
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleSkipAccommodation = async () => {
+    if (!isCreator || !tripId) return;
+    setSkipping(true);
+    setSkipError("");
+    try {
+      await setAccommodationStatus(tripId, "skipped");
+      setLocation(`/trip/${tripId}/building`);
+    } catch (error) {
+      setSkipError(error instanceof Error ? error.message : "We couldn't skip accommodation right now.");
+      setSkipping(false);
     }
   };
 
@@ -620,7 +636,20 @@ export default function AccommodationVote() {
         >
           <Plus size={14} /> Add link
         </button>
+        {isCreator && (
+          <button
+            onClick={handleSkipAccommodation}
+            disabled={skipping}
+            title="Already booked? Skip accommodation planning"
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg border border-border font-medium text-muted-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-60"
+          >
+            {skipping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Already booked
+          </button>
+        )}
       </div>
+
+      {skipError && <div className="mx-4 mt-2 text-xs text-red-500">{skipError}</div>}
 
       {/* Lock-in bar */}
       <div className="px-4 py-3 border-b border-border bg-card flex items-center gap-4">
