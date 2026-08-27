@@ -16,35 +16,11 @@ import { useColors } from "@/hooks/useColors";
 import { useTrip, useWishes } from "@/hooks/useFirebase";
 import type { Wish } from "@/hooks/useFirebase";
 
-/* ── Fairness algorithm (mirrors building/[id].tsx) ────────── */
-function computeRankedWishes(wishes: Wish[], days: number) {
+/* ── Inclusion rule (mirrors building/[id].tsx) ─────────────── */
+function computeRankedWishes(wishes: Wish[], _days: number) {
   const sorted = [...wishes].sort((a, b) => b.score - a.score);
-  const positiveWishes = sorted.filter((w) => w.score >= 0);
-  const guaranteedCap = Math.floor(days * 1.5);
-
-  const guaranteed: Wish[] = [];
-  const usedIds = new Set<string>();
-  const seenAuthors = new Set<string>();
-
-  // First pass: one per author
-  for (const w of positiveWishes) {
-    if (guaranteed.length >= guaranteedCap) break;
-    if (!seenAuthors.has(w.authorId)) {
-      seenAuthors.add(w.authorId);
-      usedIds.add(w.id);
-      guaranteed.push(w);
-    }
-  }
-  // Second pass: fill by score
-  for (const w of positiveWishes) {
-    if (guaranteed.length >= guaranteedCap) break;
-    if (!usedIds.has(w.id)) {
-      usedIds.add(w.id);
-      guaranteed.push(w);
-    }
-  }
-
-  const candidates = positiveWishes.filter((w) => !usedIds.has(w.id));
+  const guaranteed = sorted.filter((w) => w.score >= 0);
+  const candidates: Wish[] = [];
   const excluded = sorted.filter((w) => w.score < 0);
 
   return { guaranteed, candidates, excluded };
