@@ -150,6 +150,36 @@ export default function ReviewScreen() {
     );
   }
 
+  const isMember = !!user && !!trip.members?.[user.uid];
+  const tripEnd = trip.endDate ?? (
+    trip.startDate
+      ? new Date(
+          new Date(`${trip.startDate}T00:00:00`).getTime() +
+            Math.max(trip.days || 1, 1) * 86400000,
+        ).toISOString().slice(0, 10)
+      : null
+  );
+  const hasFinished = !!tripEnd && new Date(`${tripEnd}T23:59:59`).getTime() <= Date.now();
+
+  if (!isMember || !hasFinished) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
+        <Feather name={!isMember ? "lock" : "clock"} size={30} color={colors.primary} />
+        <Text style={[styles.unavailableTitle, { color: colors.foreground }]}>
+          {!isMember ? "This review is members-only" : "Reviews open after the trip"}
+        </Text>
+        <Text style={[styles.unavailableText, { color: colors.mutedForeground }]}>
+          {!isMember
+            ? "Join this trip first to share your experience."
+            : "Come back when your trip dates have passed to leave a review."}
+        </Text>
+        <Pressable onPress={() => router.replace(`/trip/${id}` as any)} style={[styles.returnButton, { backgroundColor: colors.primary }]}>
+          <Text style={styles.returnButtonText}>Back to trip</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -454,6 +484,10 @@ export default function ReviewScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  unavailableTitle: { fontFamily: "DmSans_700Bold", fontSize: 19, marginTop: 14, textAlign: "center" },
+  unavailableText: { fontFamily: "DmSans_400Regular", fontSize: 14, lineHeight: 21, marginTop: 8, textAlign: "center" },
+  returnButton: { marginTop: 22, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 22 },
+  returnButtonText: { fontFamily: "DmSans_700Bold", color: "#fff" },
   header: {
     flexDirection: "row",
     alignItems: "center",
