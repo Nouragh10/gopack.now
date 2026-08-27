@@ -73,19 +73,25 @@ export default function Review() {
 
   // Trip-ended guard
   const tripEnded = (() => {
-    if (!trip?.startDate) return false;
-    const start = new Date(trip.startDate);
-    const end = new Date(start.getTime() + (trip.days || 1) * 24 * 60 * 60 * 1000);
-    return end < new Date();
+    const tripEnd = trip?.endDate ?? (
+      trip?.startDate
+        ? new Date(
+            new Date(`${trip.startDate}T00:00:00`).getTime() +
+              Math.max(Number(trip.days) || 1, 1) * 24 * 60 * 60 * 1000,
+          ).toISOString().slice(0, 10)
+        : null
+    );
+    const tripEndTime = tripEnd ? new Date(`${tripEnd}T23:59:59`).getTime() : NaN;
+    return !Number.isNaN(tripEndTime) && tripEndTime <= Date.now();
   })();
+  const isMember = Boolean(user && trip?.members?.[user.uid]);
 
   useEffect(() => {
     if (loading) return;
     if (!trip) { setLocation("/dashboard"); return; }
-    if (!tripEnded) { setLocation(`/trip/${tripId}`); return; }
-    if (trip.review) { setLocation(`/trip/${tripId}`); return; }
     if (!user) { setLocation("/login"); return; }
-  }, [loading, trip, tripEnded]);
+    if (!isMember || !tripEnded || trip.review) { setLocation(`/trip/${tripId}`); return; }
+  }, [loading, trip, tripEnded, isMember, tripId, user, setLocation]);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -108,6 +114,10 @@ export default function Review() {
 
   const handleSubmit = async () => {
     if (!rating || !text.trim()) return;
+    if (!isMember || !tripEnded) {
+      setError("Only members can review a trip after it has finished.");
+      return;
+    }
     setError("");
     try {
       let photoUrls: string[] = [];
