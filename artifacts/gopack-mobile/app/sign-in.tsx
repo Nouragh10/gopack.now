@@ -1,5 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as AuthSession from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
+import * as Crypto from "expo-crypto";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -14,13 +19,66 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { auth, signInGuest, signInWithEmail, signUpWithEmail, signOut } from "@/lib/firebase";
+import {
+  auth,
+  signInGuest,
+  signInWithAppleCredential,
+  signInWithEmail,
+  signInWithGoogleCredential,
+  signUpWithEmail,
+  signOut,
+} from "@/lib/firebase";
 import { GoPackIcon } from "@/components/GoPackLogo";
 import colors from "@/constants/colors";
 
 const PRIMARY = colors.light.primary;
 const MUTED = colors.light.mutedForeground;
 const INPUT_BG = "#FFFFFF";
+
+WebBrowser.maybeCompleteAuthSession();
+
+const googleClientIds = {
+  androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+};
+
+// Expo validates these eagerly when the hook renders. Keep a structurally
+// valid inert value here so an unconfigured OAuth provider does not crash the
+// whole sign-in screen; handleGoogle still blocks the request with guidance.
+const hookGoogleClientIds = {
+  androidClientId: googleClientIds.androidClientId ?? "missing-google-android-client-id.apps.googleusercontent.com",
+  iosClientId: googleClientIds.iosClientId ?? "missing-google-ios-client-id.apps.googleusercontent.com",
+  webClientId: googleClientIds.webClientId ?? "missing-google-web-client-id.apps.googleusercontent.com",
+};
+
+const googleConfigurationError = () => {
+  const missing =
+    Platform.OS === "android"
+      ? !googleClientIds.androidClientId
+      : Platform.OS === "ios"
+      ? !googleClientIds.iosClientId
+      : !googleClientIds.webClientId;
+  if (!missing) return null;
+
+  const variable =
+    Platform.OS === "android"
+      ? "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID"
+      : Platform.OS === "ios"
+      ? "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID"
+      : "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID";
+  return `Google sign-in is not configured for ${Platform.OS}. Add ${variable} and rebuild the app.`;
+};
+
+async function createAppleNonce() {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  const rawNonce = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce,
+  );
+  return { rawNonce, hashedNonce };
+}
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +91,38 @@ export default function SignInScreen() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resent, setResent] = useState(false);
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: "gopack-mobile",
+    path: "sign-in",
+  });
+  const [, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
+    ...hookGoogleClientIds,
+    redirectUri,
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type !== "success") return;
+    const { authentication, params } = googleResponse;
+    const idToken = authentication?.idToken ?? params.id_token;
+    const accessToken = authentication?.accessToken ?? params.access_token;
+    if (!idToken && !accessToken) {
+      setError("Google did not return a sign-in token. Please try again.");
+      return;
+    }
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        await signInWithGoogleCredential(idToken, accessToken);
+        router.replace("/(tabs)");
+      } catch (e: any) {
+        setError(e?.message ?? "Google sign-in failed. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [googleResponse, router]);
 
   useEffect(() => {
     if (!__DEV__ || Platform.OS !== "web") return;
@@ -142,6 +232,58 @@ export default function SignInScreen() {
     }
   };
 
+  const handleGoogle = async () => {
+    const configurationError = googleConfigurationError();
+    if (configurationError) {
+      setError(configurationError);
+      return;
+    }
+
+    setError("");
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // The hook handles native custom schemes and the web origin redirect.
+      // A dismissed/cancelled prompt intentionally leaves the current screen unchanged.
+      await promptGoogle();
+    } catch (e: any) {
+      setError(e?.message ?? "Could not start Google sign-in. Please try again.");
+    }
+  };
+
+  const handleApple = async () => {
+    if (Platform.OS !== "ios") {
+      setError("Apple sign-in is available on iPhone and iPad.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Firebase verifies Apple's identity token against this nonce. The raw
+      // nonce must only go to Firebase; Apple receives its SHA-256 digest.
+      const { rawNonce, hashedNonce } = await createAppleNonce();
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      if (!credential.identityToken) {
+        throw new Error("Apple did not return an identity token. Please try again.");
+      }
+      await signInWithAppleCredential(credential.identityToken, rawNonce);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      if (e?.code !== "ERR_REQUEST_CANCELED") {
+        setError(e?.message ?? "Apple sign-in failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (mode === "verify") {
     return (
       <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
@@ -211,17 +353,31 @@ export default function SignInScreen() {
               <Text style={styles.primaryBtnText}>Sign in with email</Text>
             </Pressable>
 
-            <Pressable style={styles.outlineBtn} onPress={() => {}}>
+            <Pressable
+              style={[styles.outlineBtn, loading && styles.disabledBtn]}
+              onPress={handleGoogle}
+              disabled={loading}
+              testID="google-sign-in"
+            >
               <Feather name="globe" size={18} color="#241F1B" style={styles.btnIcon} />
               <Text style={styles.outlineBtnText}>Continue with Google</Text>
             </Pressable>
 
-            <Pressable style={styles.outlineBtn} onPress={() => {}}>
-              <Feather name="aperture" size={18} color="#241F1B" style={styles.btnIcon} />
-              <Text style={styles.outlineBtnText}>Continue with Apple</Text>
-            </Pressable>
+            {Platform.OS === "ios" && (
+              <Pressable
+                style={[styles.outlineBtn, loading && styles.disabledBtn]}
+                onPress={handleApple}
+                disabled={loading}
+                testID="apple-sign-in"
+              >
+                <Feather name="aperture" size={18} color="#241F1B" style={styles.btnIcon} />
+                <Text style={styles.outlineBtnText}>Continue with Apple</Text>
+              </Pressable>
+            )}
 
-            <Pressable onPress={handleGuest} style={styles.guestBtn}>
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
+
+            <Pressable onPress={handleGuest} style={styles.guestBtn} disabled={loading}>
               <Text style={styles.guestBtnText}>Continue as guest</Text>
             </Pressable>
 
