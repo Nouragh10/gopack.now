@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { updatePackyoProfile, usePackyoProfile } from "@/hooks/useFirebase";
 import {
   deleteAccount,
   signOut,
@@ -260,6 +261,8 @@ export default function SettingsScreen() {
   const [panel, setPanel] = useState<Panel>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileDraft, setProfileDraft] = useState("");
+  const [usernameDraft, setUsernameDraft] = useState("");
+  const [bioDraft, setBioDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [panelError, setPanelError] = useState("");
   const [appPreferences, setAppPreferences] = useState<AppPreferences>(DEFAULT_PACKYO_SETTINGS.app);
@@ -272,6 +275,7 @@ export default function SettingsScreen() {
   const preferenceTouched = useRef(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const { profile: savedProfile } = usePackyoProfile(user?.uid);
   const displayName = profileName ?? user?.displayName ?? "Traveler";
   const email = user?.email ?? "Guest account";
   const appVersion = Constants.expoConfig?.version ?? "1.1.0";
@@ -290,6 +294,24 @@ export default function SettingsScreen() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!savedProfile) return;
+    setUsernameDraft(savedProfile.username ?? "");
+    setBioDraft(savedProfile.bio ?? "");
+    const savedTravel = savedProfile.travelPreferences;
+    if (
+      savedTravel?.pace &&
+      ["Relaxed", "Balanced", "Full days"].includes(savedTravel.pace) &&
+      savedTravel.focus &&
+      ["Food + culture", "Outdoors", "Mix of everything"].includes(savedTravel.focus)
+    ) {
+      setTravelPreferences({
+        pace: savedTravel.pace as TravelPace,
+        focus: savedTravel.focus as PlanningFocus,
+      });
+    }
+  }, [savedProfile]);
 
   const travelSummary = useMemo(
     () => `${travelPreferences.pace} · ${travelPreferences.focus}`,
@@ -316,7 +338,15 @@ export default function SettingsScreen() {
 
   const updateTravelPreference = (patch: Partial<TravelPreferences>) => {
     preferenceTouched.current = true;
-    setTravelPreferences((current) => ({ ...current, ...patch }));
+    setTravelPreferences((current) => {
+      const next = { ...current, ...patch };
+      if (user && !user.isAnonymous) {
+        void updatePackyoProfile(user.uid, { travelPreferences: next }).catch(() => {
+          setPanelError("We couldn't sync that travel preference. Please try again.");
+        });
+      }
+      return next;
+    });
     void updatePackyoSettings({ travel: patch }).catch(() => {
       setPanelError("We couldn't save that preference on this device. Please try again.");
     });
@@ -324,6 +354,8 @@ export default function SettingsScreen() {
 
   const handleSaveProfile = async () => {
     const nextName = profileDraft.trim();
+    const nextUsername = usernameDraft.trim().replace(/^@+/, "").toLowerCase();
+    const nextBio = bioDraft.trim();
     if (!nextName) {
       setPanelError("Add a name so your travel group knows who you are.");
       return;
@@ -332,10 +364,18 @@ export default function SettingsScreen() {
       setPanelError("Guest profiles cannot be edited. Sign in to personalize your profile.");
       return;
     }
+    if (nextUsername && !/^[a-z0-9][a-z0-9._]{2,23}$/.test(nextUsername)) {
+      setPanelError("Usernames need 3–24 letters, numbers, dots, or underscores.");
+      return;
+    }
     setProfileSaving(true);
     setPanelError("");
     try {
       await updateCurrentUserProfile(nextName);
+      await updatePackyoProfile(user.uid, {
+        username: nextUsername,
+        bio: nextBio.slice(0, 180),
+      });
       setProfileName(nextName);
       closePanel();
       Alert.alert("Profile updated", "Your name is ready for the next trip.");
@@ -414,6 +454,8 @@ export default function SettingsScreen() {
 
   const openProfilePanel = () => {
     setProfileDraft(displayName === "Traveler" ? "" : displayName);
+    setUsernameDraft(savedProfile?.username ?? "");
+    setBioDraft(savedProfile?.bio ?? "");
     openPanel("profile");
   };
 
@@ -607,6 +649,30 @@ export default function SettingsScreen() {
           accessibilityLabel="Display name"
           editable={!isGuest}
         />
+        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Username (optional)</Text>
+        <TextInput
+          value={usernameDraft}
+          onChangeText={setUsernameDraft}
+          placeholder="your.travel.handle"
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[styles.textInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+          accessibilityLabel="Username"
+          editable={!isGuest}
+        />
+        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Short bio (optional)</Text>
+        <TextInput
+          value={bioDraft}
+          onChangeText={setBioDraft}
+          placeholder="What kind of trips are you into?"
+          placeholderTextColor={colors.mutedForeground}
+          multiline
+          maxLength={180}
+          style={[styles.textInput, { minHeight: 92, textAlignVertical: "top", color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+          accessibilityLabel="Profile bio"
+          editable={!isGuest}
+        />
         {isGuest ? (
           <Text style={[styles.helperText, { color: colors.mutedForeground }]}>
             Guest profiles are temporary. Sign in to save a profile name across devices.
@@ -652,7 +718,7 @@ export default function SettingsScreen() {
         <View style={[styles.savedNotice, { backgroundColor: colors.primary + "12" }]}>
           <Feather name="check-circle" size={16} color={colors.primary} />
           <Text style={[styles.savedNoticeText, { color: colors.foreground }]}>
-            Saved on this device and ready for your next plan.
+            Synced to your Packyo profile and ready for your next plan.
           </Text>
         </View>
       </Sheet>
