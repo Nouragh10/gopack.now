@@ -19,6 +19,8 @@ import { useColors } from "@/hooks/useColors";
 import {
   removeSavedPublicDestination,
   usePacks,
+  usePackyoProfile,
+  useProfileTripCollections,
   useRecentWishes,
   useSavedDestinations,
   useTrips,
@@ -125,6 +127,8 @@ export default function ProfileScreen() {
   const { trips, loading: tripsLoading } = useTrips(user?.uid);
   const { packs } = usePacks(user?.uid);
   const { wishes } = useRecentWishes(user?.uid, trips.map((trip) => trip.id));
+  const { profile } = usePackyoProfile(user?.uid);
+  const { stays, activities } = useProfileTripCollections(trips, user?.displayName);
   const { savedDestinations, loading: savedDestinationsLoading } = useSavedDestinations(user?.uid);
   const [removingSavedId, setRemovingSavedId] = React.useState<string | null>(null);
   const [savedError, setSavedError] = React.useState("");
@@ -132,9 +136,10 @@ export default function ProfileScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
   const displayName = user?.displayName ?? "Traveler";
-  const handle = user?.email
+  const generatedHandle = user?.email
     ? `@${user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, ".")}`
     : `@${displayName.toLowerCase().replace(/[^a-z0-9]+/g, ".")}`;
+  const handle = profile?.username ? `@${profile.username}` : generatedHandle;
   const tripIds = trips.map((trip) => trip.id);
   const destinationVibes = Array.from(new Set(trips.flatMap((trip) => trip.vibes ?? [])));
   const travelVibes = (destinationVibes.length > 0 ? destinationVibes : ["Beach", "Food", "Nightlife", "Culture"]).slice(0, 4);
@@ -218,7 +223,9 @@ export default function ProfileScreen() {
             <Text style={[styles.handle, { color: colors.mutedForeground }]}>{handle}</Text>
             <View style={styles.locationLine}>
               <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-              <Text style={[styles.locationText, { color: colors.mutedForeground }]}>Ready for the next adventure</Text>
+               <Text style={[styles.locationText, { color: colors.mutedForeground }]} numberOfLines={2}>
+                 {profile?.bio?.trim() || "Ready for the next adventure"}
+               </Text>
             </View>
           </View>
         </View>
@@ -246,7 +253,7 @@ export default function ProfileScreen() {
               <Text style={[styles.vibeEyebrow, { color: colors.mutedForeground }]}>YOUR TRAVEL VIBE</Text>
               <Text style={[styles.vibeTitle, { color: colors.foreground }]}>The way you like to explore</Text>
             </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/create")}>
+            <Pressable accessibilityRole="button" onPress={() => router.push("/settings")}>
               <Text style={[styles.editLink, { color: colors.primary }]}>Edit preferences</Text>
             </Pressable>
           </View>
@@ -404,6 +411,70 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        <View style={styles.section}>
+          <SectionHeading title="My stays" action={stays.length > 3 ? "See all" : undefined} colors={colors} />
+          {stays.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="home" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No stays saved yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                Confirm an accommodation in a trip and it will appear here.
+              </Text>
+            </View>
+          ) : (
+            stays.slice(0, 3).map((stay) => (
+              <Pressable
+                key={stay.id}
+                onPress={() => router.push(`/trip/${stay.tripId}` as any)}
+                style={({ pressed }) => [styles.wishRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <View style={[styles.wishIcon, { backgroundColor: colors.primary + "14" }]}>
+                  <Feather name="home" size={14} color={colors.primary} />
+                </View>
+                <View style={styles.wishContent}>
+                  <Text style={[styles.wishText, { color: colors.foreground }]} numberOfLines={1}>{stay.accommodation.name}</Text>
+                  <Text style={[styles.wishMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {stay.destination} · {stay.accommodation.type}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+              </Pressable>
+            ))
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeading title="Suggested activities" action={activities.length > 3 ? "See all" : undefined} colors={colors} />
+          {activities.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="compass" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No activity suggestions yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                Your wish-based itinerary picks will show up here.
+              </Text>
+            </View>
+          ) : (
+            activities.slice(0, 3).map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => router.push(`/itinerary/${item.tripId}` as any)}
+                style={({ pressed }) => [styles.wishRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <View style={[styles.wishIcon, { backgroundColor: colors.primary + "14" }]}>
+                  <Feather name="map-pin" size={14} color={colors.primary} />
+                </View>
+                <View style={styles.wishContent}>
+                  <Text style={[styles.wishText, { color: colors.foreground }]} numberOfLines={1}>{item.activity.name}</Text>
+                  <Text style={[styles.wishMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {item.destination} · Day {item.dayNumber}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+              </Pressable>
+            ))
+          )}
+        </View>
+
         <View style={[styles.yearCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.yearCardCopy}>
             <Text style={[styles.yearEyebrow, { color: colors.mutedForeground }]}>YOUR PACKYO YEAR</Text>
@@ -436,8 +507,8 @@ export default function ProfileScreen() {
           <View style={styles.savedGrid}>
             {[
               { icon: "map", label: "Destinations", onPress: () => router.push("/(tabs)/discover") },
-              { icon: "activity", label: "Activities", onPress: () => router.push("/(tabs)/discover") },
-              { icon: "home", label: "Stays", onPress: () => router.push("/(tabs)/discover") },
+              { icon: "activity", label: "Activities", onPress: () => router.push({ pathname: "/saved", params: { section: "activities" } } as any) },
+              { icon: "home", label: "Stays", onPress: () => router.push({ pathname: "/saved", params: { section: "stays" } } as any) },
               { icon: "briefcase", label: "Trips", onPress: () => router.push("/") },
             ].map((item) => (
               <Pressable
