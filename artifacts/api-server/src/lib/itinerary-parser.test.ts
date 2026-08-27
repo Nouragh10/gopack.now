@@ -3,11 +3,13 @@ import { after, before, test } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import {
+  AccommodationResponseError,
   ItineraryResponseError,
+  parseAccommodationSuggestionsResponse,
   parseItineraryResponse,
 } from "./itinerary-parser";
 
-function createItinerary(activityCount = 1) {
+function createItinerary(activityCount = 1, wishActivityCount = 0) {
   return {
     title: "A compact city break",
     days: [{
@@ -17,6 +19,7 @@ function createItinerary(activityCount = 1) {
       activities: Array.from({ length: activityCount }, (_, index) => ({
         name: `Stop ${index + 1}`,
         tag: "culture",
+          fromWish: index < wishActivityCount,
       })),
     }],
   };
@@ -55,6 +58,81 @@ test("rejects repaired JSON when required itinerary content is still incomplete"
       { expectedDays: 1, activitiesPerDay: 1 },
     ),
     (error: unknown) => error instanceof ItineraryResponseError && error.code === "INVALID_ITINERARY_RESPONSE",
+  );
+});
+
+test("rejects duplicate returned activities for distinct guaranteed wish IDs", () => {
+  const itinerary = createItinerary(2, 2);
+  (itinerary.days[0]!.activities[0]! as { wishId?: string }).wishId = "wish-a";
+  (itinerary.days[0]!.activities[1]! as { wishId?: string }).wishId = "wish-a";
+
+  assert.throws(
+    () => parseItineraryResponse(JSON.stringify(itinerary), {
+      expectedDays: 1,
+      activitiesPerDay: 1,
+      guaranteedWishes: [
+        { id: "wish-a", text: "Stop 1" },
+        { id: "wish-b", text: "Stop 2" },
+      ],
+    }),
+    (error: unknown) => error instanceof ItineraryResponseError,
+  );
+});
+
+test("rejects an itinerary that omits a guaranteed wish", () => {
+  const itinerary = createItinerary(2, 2);
+  (itinerary.days[0]!.activities[0]! as { wishId?: string }).wishId = "wish-a";
+  (itinerary.days[0]!.activities[1]! as { wishId?: string }).wishId = "unrelated-wish";
+
+  assert.throws(
+    () => parseItineraryResponse(JSON.stringify(itinerary), {
+      expectedDays: 1,
+      activitiesPerDay: 1,
+      guaranteedWishes: [
+        { id: "wish-a", text: "Stop 1" },
+        { id: "wish-b", text: "Stop 2" },
+      ],
+    }),
+    (error: unknown) => error instanceof ItineraryResponseError,
+  );
+});
+
+function createAccommodationSuggestions() {
+  return {
+    suggestions: Array.from({ length: 3 }, (_, index) => ({
+      id: `opt-${index + 1}`,
+      name: `Lisbon Stay ${index + 1}`,
+      type: "hotel",
+      location: "Lisbon",
+      totalCost: 600,
+      costPerPerson: 300,
+      nights: 2,
+      rating: 4.2,
+      amenities: ["WiFi"],
+      rooms: 1,
+      beds: 2,
+      cancellation: "Free cancellation",
+      whyItFits: "A central option for the group.",
+      tags: ["Central"],
+      distanceNote: "Ten minutes from downtown",
+      submittedBy: "AI",
+    })),
+  };
+}
+
+test("parses repaired, fenced accommodation suggestions and validates all options", () => {
+  const text = `\`\`\`json\n${JSON.stringify(createAccommodationSuggestions()).replace(/\n?}$/, ",\n}")}\n\`\`\``;
+  const parsed = parseAccommodationSuggestionsResponse(text);
+  assert.equal(parsed.suggestions.length, 3);
+  assert.equal(parsed.suggestions[2]?.id, "opt-3");
+});
+
+test("returns a recoverable accommodation error for incomplete suggestions", () => {
+  assert.throws(
+    () => parseAccommodationSuggestionsResponse('{"suggestions":[{"name":"Only one"}]}'),
+    (error: unknown) => error instanceof AccommodationResponseError &&
+      error.code === "INVALID_ACCOMMODATION_RESPONSE" &&
+      error.recoverable,
   );
 });
 
@@ -127,7 +205,7 @@ test("returns a recoverable response when both AI itinerary attempts are malform
 
 test("accepts overflow activities needed to retain guaranteed wishes", async () => {
   fetchCalls = 0;
-  aiResponses = [JSON.stringify(createItinerary(4))];
+  aiResponses = [JSON.stringify(createItinerary(4, 4))];
   const response = await originalFetch(`${baseUrl}/api/itinerary`, {
     method: "POST",
     headers: { "content-type": "application/json" },
