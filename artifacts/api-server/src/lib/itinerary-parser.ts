@@ -26,9 +26,20 @@ export class ItineraryResponseError extends Error {
   }
 }
 
+export class AccommodationResponseError extends Error {
+  readonly code = "INVALID_ACCOMMODATION_RESPONSE";
+  readonly recoverable = true;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "AccommodationResponseError";
+  }
+}
+
 type ParseOptions = {
   expectedDays?: number;
   activitiesPerDay?: number;
+  guaranteedWishes?: Array<{ id?: string; text: string }>;
 };
 
 function stripMarkdownFence(text: string): string {
@@ -153,14 +164,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function validateItineraryShape(
   value: unknown,
-  { expectedDays, activitiesPerDay }: ParseOptions,
+  { expectedDays, activitiesPerDay, guaranteedWishes }: ParseOptions,
 ): value is ItineraryShape {
   if (!isRecord(value)) return false;
   if (typeof value.title !== "string" || value.title.trim().length === 0) return false;
   if (!Array.isArray(value.days) || value.days.length === 0) return false;
   if (expectedDays !== undefined && value.days.length !== expectedDays) return false;
 
-  return value.days.every((day, dayIndex) => {
+  const daysAreValid = value.days.every((day, dayIndex) => {
     if (!isRecord(day)) return false;
     if (typeof day.dayNumber !== "number" || day.dayNumber !== dayIndex + 1) return false;
     if (typeof day.city !== "string" || day.city.trim().length === 0) return false;
@@ -179,6 +190,73 @@ function validateItineraryShape(
       activity.tag.trim().length > 0
     ));
   });
+
+  if (!daysAreValid) return false;
+
+  if (guaranteedWishes !== undefined && !hasDistinctGuaranteedWishActivities(value as ItineraryShape, guaranteedWishes)) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizedWishText(value: string): string {
+  return value.normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function wishTextMatchesActivity(wishText: string, activity: ItineraryActivity): boolean {
+  const wish = normalizedWishText(wishText);
+  const activityText = [activity.name, activity.wishText, activity.description]
+    .filter((value): value is string => typeof value === "string")
+    .map(normalizedWishText)
+    .join(" ");
+  if (!wish || !activityText) return false;
+  if (activityText.includes(wish) || wish.includes(normalizedWishText(activity.name))) return true;
+
+  // Permit a useful adaptation such as "visit the Louvre" → "Louvre Museum",
+  // while avoiding a match based solely on generic words such as "visit".
+  const ignored = new Set(["the", "and", "for", "with", "visit", "going", "go", "see", "try", "at", "in", "to"]);
+  const wishTokens = [...new Set(wish.split(" ").filter((token) => token.length > 2 && !ignored.has(token)))];
+  const activityTokens = new Set(activityText.split(" "));
+  return wishTokens.length > 0 && wishTokens.every((token) => activityTokens.has(token));
+}
+
+function hasDistinctGuaranteedWishActivities(
+  itinerary: ItineraryShape,
+  guaranteedWishes: Array<{ id?: string; text: string }>,
+): boolean {
+  const wishActivities = itinerary.days.flatMap((day) => day.activities)
+    .filter((activity) => activity.fromWish === true);
+  if (wishActivities.length < guaranteedWishes.length) return false;
+
+  const matches = guaranteedWishes.map((wish) => wishActivities.map((activity, index) => {
+    const activityWishId = typeof activity.wishId === "string"
+      ? activity.wishId
+      : typeof activity.sourceWishId === "string" ? activity.sourceWishId : undefined;
+    return (wish.id !== undefined && activityWishId === wish.id) ||
+      (activityWishId === undefined && wishTextMatchesActivity(wish.text, activity))
+      ? index
+      : -1;
+  }).filter((index) => index !== -1));
+
+  // Find a one-to-one assignment. This prevents one returned activity from
+  // satisfying two identical or similarly worded guaranteed wishes.
+  const assigned = new Set<number>();
+  const assign = (wishIndex: number): boolean => {
+    if (wishIndex === matches.length) return true;
+    for (const activityIndex of matches[wishIndex] ?? []) {
+      if (assigned.has(activityIndex)) continue;
+      assigned.add(activityIndex);
+      if (assign(wishIndex + 1)) return true;
+      assigned.delete(activityIndex);
+    }
+    return false;
+  };
+  return assign(0);
 }
 
 export function isItineraryShape(value: unknown): value is ItineraryShape {
@@ -202,5 +280,95 @@ export function parseItineraryResponse(
     : `${options.expectedDays} day${options.expectedDays === 1 ? "" : "s"} with at least ${options.activitiesPerDay ?? "the requested number of"} activities per day`;
   throw new ItineraryResponseError(
     `The AI returned an incomplete itinerary. Expected ${expected}.`,
+  );
+}
+
+export type AccommodationSuggestion = {
+  id: string;
+  name: string;
+  type: "hotel" | "airbnb" | "hostel" | "other";
+  location: string;
+  totalCost: number;
+  costPerPerson: number;
+  nights: number;
+  rating: number;
+  amenities: string[];
+  rooms: number;
+  beds: number;
+  cancellation: string;
+  whyItFits: string;
+  tags: string[];
+  distanceNote: string;
+  submittedBy: string;
+};
+
+export type AccommodationSuggestionsResponse = {
+  suggestions: AccommodationSuggestion[];
+};
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isFiniteNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isNonEmptyString);
+}
+
+function validateAccommodationSuggestions(value: unknown): value is AccommodationSuggestionsResponse {
+  if (!isRecord(value) || !Array.isArray(value.suggestions) || value.suggestions.length !== 3) return false;
+
+  const names = new Set<string>();
+  return value.suggestions.every((suggestion, index) => {
+    if (!isRecord(suggestion)) return false;
+    const name = suggestion.name;
+    if (!isNonEmptyString(name)) return false;
+    const nameKey = name.trim().toLowerCase();
+    if (names.has(nameKey)) return false;
+    names.add(nameKey);
+
+    return suggestion.id === `opt-${index + 1}` &&
+      (suggestion.type === "hotel" || suggestion.type === "airbnb" || suggestion.type === "hostel" || suggestion.type === "other") &&
+      isNonEmptyString(suggestion.location) &&
+      isFiniteNonNegativeNumber(suggestion.totalCost) &&
+      isFiniteNonNegativeNumber(suggestion.costPerPerson) &&
+      isPositiveInteger(suggestion.nights) &&
+      isFiniteNonNegativeNumber(suggestion.rating) &&
+      isStringArray(suggestion.amenities) &&
+      isPositiveInteger(suggestion.rooms) &&
+      isPositiveInteger(suggestion.beds) &&
+      isNonEmptyString(suggestion.cancellation) &&
+      isNonEmptyString(suggestion.whyItFits) &&
+      isStringArray(suggestion.tags) &&
+      isNonEmptyString(suggestion.distanceNote) &&
+      isNonEmptyString(suggestion.submittedBy);
+  });
+}
+
+export function parseAccommodationSuggestionsResponse(text: string): AccommodationSuggestionsResponse {
+  if (typeof text !== "string" || text.trim().length === 0) {
+    throw new AccommodationResponseError("The AI returned an empty accommodation suggestions response.");
+  }
+
+  try {
+    for (const parsed of parseJsonCandidates(text)) {
+      if (validateAccommodationSuggestions(parsed)) return parsed;
+    }
+  } catch (error) {
+    throw new AccommodationResponseError(
+      "The AI returned malformed accommodation suggestions.",
+      { cause: error },
+    );
+  }
+
+  throw new AccommodationResponseError(
+    "The AI returned incomplete accommodation suggestions. Expected three distinct, complete accommodation options.",
   );
 }
