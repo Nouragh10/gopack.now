@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
+import * as Calendar from "expo-calendar";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
@@ -1074,6 +1075,20 @@ export default function ItineraryScreen() {
     days.reduce((sum, day) => sum + day.activities.reduce((s, a) => s + (a.estimatedCost ?? 0), 0), 0) +
     accomCost;
 
+  const openGoogleMaps = async (appUrl: string, browserUrl: string) => {
+    // comgooglemaps opens the installed Google Maps app. It is deliberately
+    // checked first rather than handing every route to the in-app browser.
+    try {
+      if (Platform.OS !== "web" && await Linking.canOpenURL(appUrl)) {
+        await Linking.openURL(appUrl);
+        return;
+      }
+    } catch {
+      // Continue to the universally supported browser route below.
+    }
+    await WebBrowser.openBrowserAsync(browserUrl);
+  };
+
   const handleEdit = (act: Activity, idx: number, dayNum: number) => {
     setEditModal({
       dayNumber: dayNum,
@@ -1229,6 +1244,48 @@ export default function ItineraryScreen() {
         return d;
       };
 
+      const calendar = Platform.OS === "web" ? null : Calendar;
+      if (calendar) {
+        try {
+          let permission = await calendar.getCalendarPermissionsAsync();
+          if (permission.status !== "granted") {
+            permission = await calendar.requestCalendarPermissionsAsync();
+          }
+          if (permission.status === "granted") {
+            const calendars = await calendar.getCalendarsAsync(calendar.EntityTypes.EVENT);
+            const targetCalendar = calendars.find((item) => item.allowsModifications && item.isPrimary)
+              ?? calendars.find((item) => item.allowsModifications);
+            if (targetCalendar) {
+              let createdCount = 0;
+              for (let di = 0; di < days.length; di += 1) {
+                const day = days[di];
+                for (const act of day.activities) {
+                  const start = parseTime((day.dayNumber || di + 1) - 1, act.time || "9:00am");
+                  await calendar.createEventAsync(targetCalendar.id, {
+                    title: act.name || "Activity",
+                    startDate: start,
+                    endDate: new Date(start.getTime() + 60 * 60 * 1000),
+                    notes: act.description || undefined,
+                    location: day.city || trip.destination || undefined,
+                  });
+                  createdCount += 1;
+                }
+              }
+              Alert.alert(
+                "Added to calendar",
+                `${createdCount} ${createdCount === 1 ? "activity was" : "activities were"} added to your calendar.`,
+              );
+              return;
+            }
+          }
+          // A denied permission or read-only calendar should still allow an
+          // .ics file to be shared/imported below.
+        } catch {
+          // Native calendar support varies by Expo client and OS. The verified
+          // ICS export below is the compatibility fallback.
+        }
+      }
+
       const lines: string[] = [
         "BEGIN:VCALENDAR", "VERSION:2.0",
         "PRODID:-//Packyo//AI Travel Planner//EN",
@@ -1271,12 +1328,13 @@ export default function ItineraryScreen() {
         if (!exportDirectory) throw new Error("No local file directory is available.");
         const baseFileName = safeExportFileName(trip.destination, "ics").replace(/\.ics$/, "");
         const fileUri = `${exportDirectory}${baseFileName}-${Date.now()}.ics`;
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
+        // The timestamp makes this unique. Avoid deleteAsync here because some
+        // older iOS Expo clients do not expose it on the FileSystem shim.
         await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
         const fileInfo = await FileSystem.getInfoAsync(fileUri);
         if (!fileInfo.exists) throw new Error("The calendar file could not be created.");
 
-        const canShare = await Sharing.isAvailableAsync();
+        const canShare = typeof Sharing.isAvailableAsync === "function" && await Sharing.isAvailableAsync();
         if (canShare) {
           const shareOptions = {
             mimeType: "text/calendar",
@@ -1433,10 +1491,12 @@ export default function ItineraryScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: bottomInset + 100 }}
         >
           <Text style={[styles.titleDest, { color: colors.foreground, marginBottom: 16 }]}>{trip.destination}</Text>
-          {days.flatMap((day) =>
+          {(() => {
+            let fallbackIndex = 0;
+            return days.flatMap((day) =>
             day.activities.map((act, i) => {
               const photoQ = act.photoQuery ?? `${act.name} ${trip.destination}`;
-              void photoQ; // used by WikiImage via name/context props
+              const currentFallbackIndex = fallbackIndex++;
               return (
                 <Pressable
                   key={`${day.dayNumber}-${i}`}
@@ -1445,14 +1505,22 @@ export default function ItineraryScreen() {
                     params: {
                       name: act.name, description: act.description, time: act.time,
                       tag: act.tag, estimatedCost: String(act.estimatedCost),
-                      photoQuery: photoQ, lat: String(act.lat ?? ""), lng: String(act.lng ?? ""),
+                      photoQuery: photoQ, fallbackIndex: String(currentFallbackIndex),
+                      lat: String(act.lat ?? ""), lng: String(act.lng ?? ""),
                       city: day.city, fromWish: String(act.fromWish), suggester: act.suggester,
                       matchedVibe: act.matchedVibe ?? "", labels: JSON.stringify(act.labels ?? []),
                     },
                   })}
                   style={({ pressed }) => [styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.88 : 1 }]}
                 >
-                  <WikiImage name={act.name} context={trip.destination} style={styles.infoCardPhoto} />
+                  <WikiImage
+                    name={act.name}
+                    context={trip.destination}
+                    query={photoQ}
+                    fallbackCategory={act.tag}
+                    fallbackIndex={currentFallbackIndex}
+                    style={styles.infoCardPhoto}
+                  />
                   <View style={styles.infoCardBody}>
                     <Text style={[styles.infoCardDay, { color: colors.mutedForeground }]}>Day {day.dayNumber} · {act.time}</Text>
                     <Text style={[styles.infoCardName, { color: colors.foreground }]} numberOfLines={2}>{act.name}</Text>
@@ -1478,20 +1546,29 @@ export default function ItineraryScreen() {
                 </Pressable>
               );
             })
-          )}
+            );
+          })()}
         </ScrollView>
       )}
 
       {/* ── MAP TAB ── */}
       {activeTab === "map" && (() => {
         const allActs = days.flatMap((d) => d.activities.map((a) => ({ name: a.name, city: d.city, lat: a.lat, lng: a.lng })));
+        const locationText = (place: { name: string; city: string; lat?: number; lng?: number }) =>
+          (place.lat && place.lng && place.lat !== 0) ? `${place.lat},${place.lng}` : `${place.name} ${place.city}`;
         const buildRouteUrl = () => {
           if (allActs.length === 0) return `https://maps.google.com/?q=${encodeURIComponent(trip.destination)}`;
           const stops = allActs.map((a) =>
-            (a.lat && a.lng && a.lat !== 0) ? `${a.lat},${a.lng}` : encodeURIComponent(`${a.name} ${a.city}`)
+            encodeURIComponent(locationText(a))
           );
           if (stops.length === 1) return `https://www.google.com/maps/search/?api=1&query=${stops[0]}`;
           return `https://www.google.com/maps/dir/${stops.join("/")}`;
+        };
+        const buildGoogleMapsAppUrl = (places: typeof allActs) => {
+          const destinations = places.map(locationText);
+          if (!destinations.length) return `comgooglemaps://?q=${encodeURIComponent(trip.destination)}`;
+          if (destinations.length === 1) return `comgooglemaps://?q=${encodeURIComponent(destinations[0])}`;
+          return `comgooglemaps://?daddr=${encodeURIComponent(destinations.join("+to:"))}&directionsmode=driving`;
         };
         return (
           <ScrollView
@@ -1501,7 +1578,7 @@ export default function ItineraryScreen() {
           >
             {/* Hero CTA */}
             <Pressable
-              onPress={() => WebBrowser.openBrowserAsync(buildRouteUrl())}
+              onPress={() => openGoogleMaps(buildGoogleMapsAppUrl(allActs), buildRouteUrl())}
               style={[styles.mapHeroCard, { backgroundColor: colors.primary }]}
             >
               <View style={styles.mapHeroIconBg}>
@@ -1530,14 +1607,12 @@ export default function ItineraryScreen() {
                   </View>
                   <Pressable
                     onPress={() => {
-                      const stops = day.activities.map((a) =>
-                        (a.lat && a.lng && a.lat !== 0) ? `${a.lat},${a.lng}` : encodeURIComponent(`${a.name} ${day.city}`)
-                      );
-                      WebBrowser.openBrowserAsync(
-                        stops.length <= 1
-                          ? `https://www.google.com/maps/search/?api=1&query=${stops[0] ?? encodeURIComponent(day.city)}`
-                          : `https://www.google.com/maps/dir/${stops.join("/")}`
-                      );
+                      const places = day.activities.map((a) => ({ name: a.name, city: day.city, lat: a.lat, lng: a.lng }));
+                      const stops = places.map((place) => encodeURIComponent(locationText(place)));
+                      const browserUrl = stops.length <= 1
+                        ? `https://www.google.com/maps/search/?api=1&query=${stops[0] ?? encodeURIComponent(day.city)}`
+                        : `https://www.google.com/maps/dir/${stops.join("/")}`;
+                      void openGoogleMaps(buildGoogleMapsAppUrl(places), browserUrl);
                     }}
                     style={[styles.mapDayOpenBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
                   >
@@ -1570,7 +1645,7 @@ export default function ItineraryScreen() {
           <Text style={[styles.titleDest, { color: colors.foreground }]}>{trip.destination}</Text>
         </View>
 
-        {days.map((day) => (
+        {days.map((day, dayIndex) => (
           <View key={day.dayNumber} style={styles.dayBlock}>
             <View style={styles.dayHeader}>
               <Text style={[styles.dayMeta, { color: colors.mutedForeground }]}>
@@ -1600,6 +1675,9 @@ export default function ItineraryScreen() {
                         tag: act.tag,
                         estimatedCost: String(act.estimatedCost),
                         photoQuery: act.photoQuery ?? `${act.name} ${trip.destination}`,
+                         fallbackIndex: String(
+                           days.slice(0, dayIndex).reduce((total, priorDay) => total + priorDay.activities.length, 0) + i,
+                         ),
                         lat: String(act.lat ?? ""),
                         lng: String(act.lng ?? ""),
                         city: day.city,
