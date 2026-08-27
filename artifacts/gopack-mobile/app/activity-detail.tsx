@@ -52,6 +52,7 @@ export default function ActivityDetailScreen() {
     suggester: string;
     matchedVibe: string;
     labels: string;
+    fallbackIndex: string;
   }>();
 
   const {
@@ -66,6 +67,9 @@ export default function ActivityDetailScreen() {
     matchedVibe = "",
   } = params;
 
+  const fallbackIndex = Number.isFinite(Number(params.fallbackIndex))
+    ? Number(params.fallbackIndex)
+    : 0;
   const cost = parseFloat(params.estimatedCost ?? "0");
   const labels: string[] = JSON.parse(params.labels ?? "[]");
   const isFromWish = fromWish === "true";
@@ -97,6 +101,9 @@ export default function ActivityDetailScreen() {
         <WikiImage
           name={name}
           context={city}
+          query={photoQuery || `${name} ${city}`.trim()}
+          fallbackCategory={tag}
+          fallbackIndex={fallbackIndex}
           style={styles.heroImage}
           resizeMode="cover"
           placeholderColor="#D1D5DB"
