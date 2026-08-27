@@ -35,7 +35,16 @@ export default function JoinTrip() {
           setFetchError("This invite link is invalid or the trip was deleted.");
         }
       })
-      .catch(() => setFetchError("Could not load trip details. Check your connection."))
+      .catch((error: unknown) => {
+        const code = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        setFetchError(
+          code.toLowerCase().includes("permission")
+            ? "Firebase permissions do not allow you to view this trip."
+            : "Could not load trip details. Check your connection."
+        );
+      })
       .finally(() => setFetching(false));
   }, [tripId, user, authLoading]);
 
@@ -50,8 +59,19 @@ export default function JoinTrip() {
       const name = user.displayName || user.email?.split("@")[0] || "Guest";
       await joinTrip(tripId, name);
       setLocation(`/trip/${tripId}`);
-    } catch {
-      setJoinError("Failed to join. Please try again.");
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      setJoinError(
+        code.toLowerCase().includes("permission")
+          ? "Firebase permissions do not allow you to join this trip."
+          : code === "invalid-trip"
+          ? "This invite link is invalid or the trip was deleted."
+          : error instanceof Error
+          ? error.message
+          : "Failed to join. Please try again."
+      );
       setJoining(false);
     }
   };
