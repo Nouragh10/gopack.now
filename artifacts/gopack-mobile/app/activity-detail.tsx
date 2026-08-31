@@ -81,17 +81,17 @@ export default function ActivityDetailScreen() {
 
   const openInMaps = async () => {
     await Haptics.selectionAsync();
-    // Always search by name so the pin label shows the place name, not raw coordinates.
-    // Coordinates are only used as the anchor point (ll=) on iOS Maps, never as the query.
     const nameQuery = encodeURIComponent(`${name}${city ? ` ${city}` : ""}`);
-    const url =
-      Platform.OS === "ios"
-        ? hasCoords
-          ? `maps://?q=${encodeURIComponent(name)}&ll=${latNum},${lngNum}`
-          : `maps://?q=${nameQuery}`
-        : `https://maps.google.com/?q=${nameQuery}`;
-    const canOpen = await Linking.canOpenURL(url);
-    Linking.openURL(canOpen ? url : `https://maps.google.com/?q=${nameQuery}`);
+    const webUrl = `https://www.google.com/maps/search/?api=1&query=${nameQuery}`;
+    if (Platform.OS === "web") {
+      window.open(webUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const googleUrl = hasCoords
+      ? `comgooglemaps://?q=${encodeURIComponent(name)}&center=${latNum},${lngNum}`
+      : `comgooglemaps://?q=${nameQuery}`;
+    const canOpenGoogle = await Linking.canOpenURL(googleUrl).catch(() => false);
+    await Linking.openURL(canOpenGoogle ? googleUrl : webUrl).catch(() => undefined);
   };
 
   return (
