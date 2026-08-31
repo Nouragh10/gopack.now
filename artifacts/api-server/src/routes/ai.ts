@@ -2,15 +2,30 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
 import { getAdminDb, getAdminApp } from "../lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
+import { randomBytes } from "node:crypto";
 import {
   extractAndParseJson,
+  AccommodationResponseError,
   ItineraryResponseError,
   isItineraryShape,
+  parseAccommodationSuggestionsResponse,
   parseItineraryResponse,
   type ItineraryShape,
 } from "../lib/itinerary-parser";
 
 const router: IRouter = Router();
+const joinAttemptWindows = new Map<string, { count: number; resetAt: number }>();
+
+function allowJoinAttempt(uid: string): boolean {
+  const now = Date.now();
+  const current = joinAttemptWindows.get(uid);
+  if (!current || current.resetAt <= now) {
+    joinAttemptWindows.set(uid, { count: 1, resetAt: now + 10 * 60_000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= 10;
+}
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -121,6 +136,13 @@ function findDuplicateSlots(itinerary: ItineraryShape): Array<{ dayNumber: unkno
     for (const activity of day.activities) {
       const key = (activity.name ?? "").toString().trim().toLowerCase();
       if (!key) continue;
+      // Guaranteed wishes are an explicit group decision. Do not replace one
+      // merely because two members asked for the same venue; a later AI pick
+      // with that name can still be repaired.
+      if (activity.fromWish === true) {
+        seen.add(key);
+        continue;
+      }
       if (seen.has(key)) {
         dupes.push({
           dayNumber: (day as Record<string, unknown>).dayNumber,
@@ -322,27 +344,29 @@ router.post("/itinerary", async (req: Request, res: Response): Promise<void> => 
 
   // Support both new two-tier format (guaranteed + candidates) and legacy wishes array.
   const bodyAny = req.body as {
-    guaranteed?: Array<{ text: string; author: string; votes: number }>;
+    guaranteed?: Array<{ id?: string; wishId?: string; text: string; author: string; votes: number }>;
     candidates?: Array<{ text: string; author: string; votes: number }>;
     wishes?: Array<{ text: string; author: string; votes: number }>;
   };
 
-  type WishItem = { text: string; author: string; votes: number };
+  type WishItem = { id?: string; text: string; author: string; votes: number };
   const formatWishLine = (w: WishItem, i: number) =>
-    `${i + 1}. "${w.text}" by ${w.author} (net score: ${w.votes})`;
+    `${i + 1}. "${w.text}" by ${w.author} (net score: ${w.votes})${w.id ? ` [wishId: ${w.id}]` : ""}`;
 
   let guaranteedWishes: WishItem[];
   let candidateWishes: WishItem[];
 
   if (bodyAny.guaranteed !== undefined || bodyAny.candidates !== undefined) {
     // New two-tier format from mobile client
-    guaranteedWishes = (bodyAny.guaranteed ?? []).slice(0, 30);
+    guaranteedWishes = (bodyAny.guaranteed ?? []).map((wish) => ({
+      ...wish,
+      id: wish.id ?? wish.wishId,
+    }));
     candidateWishes = (bodyAny.candidates ?? []).slice(0, 15);
   } else {
     // Legacy: treat entire wishes list as guaranteed (backward compat)
     guaranteedWishes = ((parsed.data as { wishes?: WishItem[] }).wishes ?? [])
-      .sort((a, b) => b.votes - a.votes)
-      .slice(0, 20);
+      .sort((a, b) => b.votes - a.votes);
     candidateWishes = [];
   }
 
@@ -387,7 +411,7 @@ TIER 1 — GUARANTEED (non-negotiable):
 These wishes were democratically selected by the group and MUST all appear as real named activities in the itinerary — every single one, no exceptions:
 ${guaranteedList.join("\n")}
 
-Each guaranteed wish counts as exactly ONE activity slot. Mark with "fromWish": true and the author's name as "suggester". If the total number of guaranteed wishes exceeds the total activity slots available, add extra activities to those days to absorb them all — do NOT drop any guaranteed wish.
+Each guaranteed wish counts as exactly ONE activity slot. Mark with "fromWish": true and the author's name as "suggester". If a wish includes [wishId: ...], copy that exact value into the activity's "wishId" field. If it has no ID, include its exact original text in the activity's "wishText" field. If the total number of guaranteed wishes exceeds the total activity slots available, add extra activities to those days to absorb them all — do NOT drop any guaranteed wish.
 
 TIER 2 — CANDIDATES (include if slots allow, skip if not):
 These wishes have group support but are not guaranteed. Include them only if you have spare activity slots remaining after placing all guaranteed wishes and your AI picks. Do NOT force them in at the expense of pacing or geography — skip any that don't fit naturally:
@@ -409,7 +433,7 @@ ${vibeGuide}
 0. LOCATION LOCK — Every single activity, restaurant, venue, and experience MUST be physically located in or immediately around ${destination}. Do NOT suggest activities in other cities, regions, or countries, even as a day trip. If a wish mentions a place outside ${destination}, adapt the spirit of it to something available in ${destination} instead.
 0b. SAME-AREA CLUSTERING — All activities within a SINGLE day must be in the same city and reasonably close to each other (same neighborhood/district, or at most a short taxi/metro ride apart — never a multi-hour drive or a trip requiring leaving the metro area). Order the day's activities so they flow geographically (e.g. don't bounce from the north side of town to the south and back). Every activity's "city" for that day must exactly match the day's declared "city" field — never mix venues from a different town, suburb, or region into a day assigned to another city.
 1. The "days" array MUST have EXACTLY ${days} elements numbered 1–${days}.
-2. Each day MUST have EXACTLY ${activitiesPerDay} activities (pace: ${pace}).
+2. Each day MUST have AT LEAST ${activitiesPerDay} activities (pace: ${pace}). This is the normal daily minimum, not a maximum: add activities beyond it whenever needed to retain every guaranteed wish.
 3. Every activity's "tag" must be one of: ${validTags.join(", ")}.
 4. REAL VENUES ONLY — Every activity "name" must be a real, verifiable place that actually exists in ${destination} and can be found on Google Maps. Only use venues you are highly confident exist: famous landmarks, well-known restaurants, major museums, established bars, popular parks. If you are not certain a specific venue exists, use a well-known category anchor instead (e.g. "Mercado de San Miguel" not an invented market name). Never invent a venue name. Generic titles are also forbidden — "Famous Cathedral" is as bad as a made-up name.
 5. OPEN & OPERATING — Only suggest venues that are currently open and operating as of 2025. Do NOT suggest venues that are permanently closed, demolished, under indefinite closure, or no longer in business. Restaurants and cafes close far more often than museums or landmarks — for any "food" or dining-related activity, strongly prefer iconic, long-established institutions (10+ years operating) that you are highly confident are still open, rather than trendy, small, or recently-opened spots you're less certain about. If unsure, choose a well-known alternative that you are confident about.
@@ -448,6 +472,8 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
           "description": "1-2 sentence description with practical tip",
           "tag": "${vibes[0]?.toLowerCase() ?? "culture"}",
           "fromWish": true,
+          "wishId": "optional stable ID from a guaranteed wish",
+          "wishText": "optional original guaranteed wish text",
           "suggester": "member name or 'AI pick'",
           "matchedVibe": "culture",
           "estimatedCost": 0,
@@ -500,6 +526,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
       itinerary = parseItineraryResponse(allText, {
         expectedDays: days,
         activitiesPerDay,
+        guaranteedWishes,
       });
     } catch (firstParseError) {
       req.log.warn(
@@ -533,6 +560,7 @@ IMPORTANT RETRY: The previous response was not valid JSON. Return a compact, com
         itinerary = parseItineraryResponse(retryText, {
           expectedDays: days,
           activitiesPerDay,
+          guaranteedWishes,
         });
       } catch (retryError) {
         if (retryError instanceof ItineraryResponseError) throw retryError;
@@ -543,7 +571,13 @@ IMPORTANT RETRY: The previous response was not valid JSON. Return a compact, com
       }
     }
     const dedupedItinerary = await dedupeItineraryVenues(itinerary, destination, req.log);
-    res.json(dedupedItinerary);
+    // Keep the invariant true after post-processing as well as after the
+    // model response. This also protects future itinerary repair passes.
+    res.json(parseItineraryResponse(JSON.stringify(dedupedItinerary), {
+      expectedDays: days,
+      activitiesPerDay,
+      guaranteedWishes,
+    }));
   } catch (err) {
     if (err instanceof ItineraryResponseError) {
       req.log.warn({ code: err.code, error: err.message }, "Returning recoverable itinerary parse error");
@@ -888,29 +922,39 @@ router.post("/suggest-accommodations", async (req: Request, res: Response): Prom
   }
 
   const { destination, days, memberCount, memberPreferences } = body;
+  const safeMemberCount = Math.max(1, Number(memberCount) || memberPreferences.length);
 
-  const memberLines = memberPreferences.map((p) =>
-    `- ${p.name}: max $${p.maxCostPerPerson}/person, prefers ${p.type}, ${p.rooms} room(s), wants to be near "${p.location || "city center"}", amenities [${p.amenities.join(", ") || "none specified"}], priority: ${p.priority}, cancellation: ${p.cancellation}`
-  ).join("\n");
+  const memberLines = memberPreferences.map((p) => {
+    // Older clients may not have persisted every optional preference field.
+    // Normalize before interpolating so a missing amenities array cannot crash
+    // the suggestion endpoint with "undefined is not a function".
+    const amenities = Array.isArray(p?.amenities)
+      ? p.amenities.filter((amenity): amenity is string => typeof amenity === "string")
+      : [];
+    return `- ${p?.name || "Member"}: max $${Number(p?.maxCostPerPerson) || 0}/person, prefers ${p?.type || "no preference"}, ${Number(p?.rooms) || 1} room(s), wants to be near "${p?.location || "city center"}", amenities [${amenities.join(", ") || "none specified"}], priority: ${p?.priority || "balanced"}, cancellation: ${p?.cancellation || "any"}`;
+  }).join("\n");
 
   const totalNights = days;
-  const avgMaxBudget = Math.round(memberPreferences.reduce((s, p) => s + p.maxCostPerPerson, 0) / memberPreferences.length);
+  const avgMaxBudget = Math.round(
+    memberPreferences.reduce((sum, preference) => sum + (Number(preference?.maxCostPerPerson) || 0), 0) /
+      memberPreferences.length,
+  );
 
-  const prompt = `You are a group travel accommodation expert. A group of ${memberCount} traveler(s) needs accommodation in ${destination} for ${totalNights} night(s).
+  const prompt = `You are a group travel accommodation expert. A group of ${safeMemberCount} traveler(s) needs accommodation in ${destination} for ${totalNights} night(s).
 
 Individual member preferences:
 ${memberLines}
 
 Group summary:
 - Average max budget per person: $${avgMaxBudget} total for the trip
-- Group size: ${memberCount} people
+- Group size: ${safeMemberCount} people
 
 Suggest exactly 3 distinct, realistic accommodation options for ${destination} that best balance the group's needs. Make them genuinely different types or price points.
 
 For each suggestion:
 1. Use a realistic property name that could exist in ${destination}
-2. Calculate totalCost = cost for ALL ${memberCount} people for ALL ${totalNights} nights
-3. Calculate costPerPerson = totalCost / ${memberCount}
+2. Calculate totalCost = cost for ALL ${safeMemberCount} people for ALL ${totalNights} nights
+3. Calculate costPerPerson = totalCost / ${safeMemberCount}
 4. Keep costPerPerson close to avgMaxBudget but show range across the 3 options
 5. distanceNote should reference how far it is from the city center or main attractions in ${destination}
 6. whyItFits must explain in 1 punchy sentence why it works for THIS specific group
@@ -963,10 +1007,18 @@ Respond with ONLY valid JSON, no markdown:
       .map((b) => b.text ?? "")
       .join("");
 
-    const result = extractAndParseJson(allText);
+    const result = parseAccommodationSuggestionsResponse(allText);
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to suggest accommodations");
+    if (err instanceof AccommodationResponseError) {
+      res.status(502).json({
+        error: "We could not build complete accommodation suggestions right now. Please try again.",
+        code: err.code,
+        recoverable: err.recoverable,
+      });
+      return;
+    }
     res.status(500).json({ error: (err as Error).message || "Failed to suggest accommodations" });
   }
 });
@@ -1407,6 +1459,156 @@ router.get("/my-notifications", async (req: Request, res: Response): Promise<voi
   }
 });
 
+/* ─── Deliver actionable trip updates through Expo Push ─── */
+router.post("/send-trip-push", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    const { tripId, title, body, path } = req.body as {
+      tripId?: string;
+      title?: string;
+      body?: string;
+      path?: string;
+    };
+    if (!tripId || !title?.trim() || !body?.trim() || !path?.startsWith("/")) {
+      res.status(400).json({ error: "A valid trip update is required." });
+      return;
+    }
+
+    const db = getAdminDb();
+    const tripSnap = await db.ref(`trips/${tripId}`).get();
+    const trip = tripSnap.val() as { members?: Record<string, unknown> } | null;
+    if (!trip?.members?.[decoded.uid]) {
+      res.status(403).json({ error: "Only trip members can send trip updates." });
+      return;
+    }
+
+    const recipients = Object.keys(trip.members).filter((uid) => uid !== decoded.uid);
+    const tokenSnaps = await Promise.all(
+      recipients.map((uid) => db.ref(`userTrips/${uid}/pushTokens`).get()),
+    );
+    const tokens = tokenSnaps.flatMap((snap) =>
+      snap.exists()
+        ? Object.values(snap.val() as Record<string, { token?: string }>)
+            .map((entry) => entry?.token)
+            .filter((token): token is string =>
+              typeof token === "string" && /^(ExponentPushToken|ExpoPushToken)/.test(token),
+            )
+        : [],
+    );
+
+    if (tokens.length > 0) {
+      const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tokens.map((to) => ({
+          to,
+          title: title.trim().slice(0, 120),
+          body: body.trim().slice(0, 240),
+          sound: "default",
+          data: { path, tripId },
+        }))),
+      });
+      if (!response.ok) {
+        req.log.warn({ status: response.status }, "Expo push request was not accepted");
+      }
+    }
+    res.json({ ok: true, recipients: tokens.length });
+  } catch (err) {
+    req.log.error({ err }, "Failed to deliver trip push");
+    res.status(500).json({ error: "Could not deliver this trip update." });
+  }
+});
+
+/* ─── Generate and persist an AI-organized post-trip memory guide ─── */
+router.post("/memory-guide", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    const { tripId } = req.body as { tripId?: string };
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+    const db = getAdminDb();
+    const tripSnap = await db.ref(`trips/${tripId}`).get();
+    const trip = tripSnap.val() as any;
+    if (!trip?.members?.[decoded.uid]) {
+      res.status(403).json({ error: "Only trip members can create this memory guide." });
+      return;
+    }
+    const memberReview = trip.memberReviews?.[decoded.uid] ?? (
+      trip.review?.reviewedBy === decoded.uid ? trip.review : null
+    );
+    if (!memberReview) {
+      res.status(400).json({ error: "Add a trip review before creating the memory guide." });
+      return;
+    }
+
+    const activities = (trip.itinerary?.days ?? []).flatMap((day: any) =>
+      (day.activities ?? []).map((activity: any) => ({
+        day: day.dayNumber ?? day.day,
+        city: day.city,
+        name: activity.name,
+        description: activity.description,
+      })),
+    );
+    const response = await callAnthropic({
+      model: "claude-haiku-4-5",
+      max_tokens: 1800,
+      system: `Create a warm, polished trip memory guide. Return JSON only:
+{"title":"string","opening":"string","highlights":[{"title":"string","story":"string"}],"byTheNumbers":[{"label":"string","value":"string"}],"closing":"string"}
+Use only details supplied by the traveler. Do not invent events. Keep 3-6 highlights and make the writing concise, vivid, and suitable for a keepsake.`,
+      messages: [{
+        role: "user",
+        content: JSON.stringify({
+          destination: trip.destination,
+          dates: { start: trip.startDate, end: trip.endDate },
+          members: Object.values(trip.members).map((member: any) => member.name).filter(Boolean),
+          review: {
+            rating: memberReview.rating,
+            text: memberReview.text,
+            vibes: memberReview.vibes,
+            highlight: memberReview.highlight,
+            photoCount: Array.isArray(memberReview.photos) ? memberReview.photos.length : 0,
+          },
+          confirmedStay: trip.confirmedAccommodation?.name,
+          activities,
+        }),
+      }],
+    });
+    if (!(response as unknown as globalThis.Response).ok) {
+      throw new Error("AI service did not accept the memory request.");
+    }
+    const payload = await (response as unknown as globalThis.Response).json() as { content?: Array<{ text?: string }> };
+    const parsed = extractAndParseJson(payload.content?.[0]?.text ?? "{}") as any;
+    const guide = {
+      title: String(parsed.title || `${trip.destination} memories`),
+      opening: String(parsed.opening || memberReview.text || ""),
+      highlights: Array.isArray(parsed.highlights) ? parsed.highlights.slice(0, 6) : [],
+      byTheNumbers: Array.isArray(parsed.byTheNumbers) ? parsed.byTheNumbers.slice(0, 6) : [],
+      closing: String(parsed.closing || "Until the next adventure."),
+      generatedAt: new Date().toISOString(),
+    };
+    await db.ref(`trips/${tripId}/memoryGuides/${decoded.uid}`).set(guide);
+    if (!trip.memoryGuide) {
+      await db.ref(`trips/${tripId}/memoryGuide`).set(guide);
+    }
+    res.json({ guide });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate memory guide");
+    res.status(500).json({ error: (err as Error).message || "Could not create the memory guide." });
+  }
+});
+
 /* ─── Accept trip invite via Admin SDK (bypasses RTDB member-write rules) ─── */
 router.post("/accept-invite", async (req: Request, res: Response): Promise<void> => {
   const authHeader = req.headers.authorization;
@@ -1424,6 +1626,22 @@ router.post("/accept-invite", async (req: Request, res: Response): Promise<void>
       displayName: string | null;
     };
     const db = getAdminDb();
+    const notificationSnap = await db.ref(`notifications/${uid}/${notifId}`).get();
+    const notification = notificationSnap.val() as { type?: string; tripId?: string; status?: string } | null;
+    if (
+      !notification ||
+      notification.type !== "trip_invite" ||
+      notification.tripId !== tripId ||
+      notification.status !== "pending"
+    ) {
+      res.status(400).json({ error: "This invite is invalid or has already been used." });
+      return;
+    }
+    const tripSnap = await db.ref(`trips/${tripId}`).get();
+    if (!tripSnap.exists() || (tripSnap.val() as { isPack?: boolean }).isPack) {
+      res.status(404).json({ error: "This trip is no longer available." });
+      return;
+    }
     await db.ref(`trips/${tripId}/members/${uid}`).set({
       name: displayName || "Traveler",
       joinedAt: new Date().toISOString(),
@@ -1434,6 +1652,113 @@ router.post("/accept-invite", async (req: Request, res: Response): Promise<void>
     res.json({ ok: true, tripId });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message || "Failed to accept invite" });
+  }
+});
+
+/* ─── Join with a short code or a legacy trip-ID link ─── */
+router.post("/reserve-invite-code", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    const { tripId } = req.body as { tripId?: string };
+    if (!tripId) {
+      res.status(400).json({ error: "tripId is required" });
+      return;
+    }
+    const db = getAdminDb();
+    const tripRef = db.ref(`trips/${tripId}`);
+    const tripSnap = await tripRef.get();
+    const trip = tripSnap.val() as { hostMemberId?: string; inviteCode?: string } | null;
+    if (!trip || trip.hostMemberId !== decoded.uid) {
+      res.status(403).json({ error: "Only the trip host can create an invite code." });
+      return;
+    }
+
+    let inviteCode = "";
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const candidate = randomBytes(6).toString("base64url").slice(0, 8).toUpperCase();
+      const codeRef = db.ref(`inviteCodes/${candidate}`);
+      const reserved = await codeRef.transaction((current) => current ?? tripId);
+      if (reserved.committed && reserved.snapshot.val() === tripId) {
+        inviteCode = candidate;
+        break;
+      }
+    }
+    if (!inviteCode) throw new Error("Could not reserve a unique invite code.");
+    if (trip.inviteCode && trip.inviteCode !== inviteCode) {
+      await db.ref(`inviteCodes/${trip.inviteCode}`).remove().catch(() => undefined);
+    }
+    await tripRef.child("inviteCode").set(inviteCode);
+    res.json({ inviteCode });
+  } catch (err) {
+    req.log.error({ err }, "Failed to reserve invite code");
+    res.status(500).json({ error: "Could not create a secure invite code." });
+  }
+});
+
+router.post("/join-by-invite", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Sign in before joining a trip." });
+    return;
+  }
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    if (!allowJoinAttempt(decoded.uid)) {
+      res.status(429).json({ error: "Too many invite attempts. Wait a few minutes and try again." });
+      return;
+    }
+    const raw = String((req.body as { invite?: string }).invite ?? "")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/[?#].*$/, "")
+      .replace(/\/+$/, "");
+    const candidate = decodeURIComponent(raw.split("/").pop() ?? raw);
+    if (!candidate) {
+      res.status(400).json({ error: "Enter an invite code or trip link." });
+      return;
+    }
+
+    const db = getAdminDb();
+    const code = candidate.replace(/[^a-z0-9]/gi, "").toUpperCase();
+    const indexed = await db.ref(`inviteCodes/${code}`).get();
+    let tripId = indexed.exists() && typeof indexed.val() === "string"
+      ? indexed.val() as string
+      : candidate;
+    let tripSnap = await db.ref(`trips/${tripId}`).get();
+
+    // Older trips can predate the inviteCodes index. Search their stored code
+    // before treating the input as invalid.
+    if (!tripSnap.exists() && code) {
+      const legacy = await db.ref("trips").orderByChild("inviteCode").equalTo(code).limitToFirst(1).get();
+      if (legacy.exists()) {
+        tripId = Object.keys(legacy.val() as Record<string, unknown>)[0];
+        tripSnap = await db.ref(`trips/${tripId}`).get();
+        await db.ref(`inviteCodes/${code}`).set(tripId);
+      }
+    }
+
+    const trip = tripSnap.val() as { isPack?: boolean; members?: Record<string, unknown> } | null;
+    if (!trip || trip.isPack) {
+      res.status(404).json({ error: "We couldn't find that invite. Check the code and try again." });
+      return;
+    }
+    if (!trip.members?.[decoded.uid]) {
+      await db.ref(`trips/${tripId}/members/${decoded.uid}`).set({
+        name: String((req.body as { displayName?: string }).displayName || "Traveler"),
+        joinedAt: new Date().toISOString(),
+        isHost: false,
+      });
+    }
+    await db.ref(`userTrips/${decoded.uid}/${tripId}`).set(true);
+    res.json({ ok: true, tripId });
+  } catch (err) {
+    req.log.error({ err }, "Failed to join by invite");
+    res.status(500).json({ error: "Packyo couldn't join that trip. Please try again." });
   }
 });
 
@@ -1454,21 +1779,45 @@ router.post("/send-pack-invites", async (req: Request, res: Response): Promise<v
     return;
   }
 
-  const { tripId, tripName, fromName, members, packName } = req.body as {
+  const { packId, tripId, tripName, fromName, packName } = req.body as {
+    packId: string;
     tripId: string;
     tripName: string;
     fromName: string;
-    members: Array<{ uid: string; name: string }>;
     packName: string;
   };
 
-  if (!tripId || !members?.length) {
-    res.status(400).json({ error: "tripId and members are required" });
+  if (!packId || !tripId) {
+    res.status(400).json({ error: "packId and tripId are required" });
     return;
   }
 
   try {
     const db = getAdminDb();
+    const tripSnap = await db.ref(`trips/${tripId}`).get();
+    const trip = tripSnap.val() as { members?: Record<string, unknown>; hostMemberId?: string; isPack?: boolean } | null;
+    if (!trip || trip.isPack || (!trip.members?.[fromUid] && trip.hostMemberId !== fromUid)) {
+      res.status(403).json({ error: "Only trip members can invite a pack." });
+      return;
+    }
+    const packSnap = await db.ref(`trips/${packId}`).get();
+    const pack = packSnap.val() as {
+      isPack?: boolean;
+      members?: Record<string, { name?: string }>;
+      hostMemberId?: string;
+      name?: string;
+    } | null;
+    if (!pack?.isPack || (!pack.members?.[fromUid] && pack.hostMemberId !== fromUid)) {
+      res.status(403).json({ error: "You are not allowed to invite this pack." });
+      return;
+    }
+    const members = Object.entries(pack.members ?? {})
+      .filter(([uid]) => uid !== fromUid)
+      .map(([uid, member]) => ({ uid, name: member.name ?? "Traveler" }));
+    if (members.length === 0) {
+      res.json({ ok: true, sent: 0 });
+      return;
+    }
     await Promise.all(
       members.map(m =>
         db.ref(`notifications/${m.uid}`).push({
@@ -1477,7 +1826,7 @@ router.post("/send-pack-invites", async (req: Request, res: Response): Promise<v
           tripName: tripName || "a trip",
           fromName: fromName || "Someone",
           fromUid,
-          packName: packName || "a pack",
+          packName: pack.name || packName || "a pack",
           createdAt: Date.now(),
           status: "pending",
         })
