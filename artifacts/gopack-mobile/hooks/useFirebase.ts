@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
-import { db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
+import { auth, db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api-client";
 
 /* ── Interfaces ───────────────────────────────────────────────────── */
 
@@ -96,6 +97,23 @@ export interface Trip {
   unlockedDays?: Record<string, boolean>;
   aiUsage?: Record<string, number>;
   review?: unknown;
+  memberReviews?: Record<string, unknown>;
+  memoryGuide?: {
+    title: string;
+    opening: string;
+    highlights: Array<{ title: string; story: string }>;
+    byTheNumbers: Array<{ label: string; value: string }>;
+    closing: string;
+    generatedAt: string;
+  };
+  memoryGuides?: Record<string, {
+    title: string;
+    opening: string;
+    highlights: Array<{ title: string; story: string }>;
+    byTheNumbers: Array<{ label: string; value: string }>;
+    closing: string;
+    generatedAt: string;
+  }>;
   isPack?: boolean;
   pendingInvites?: Record<string, { fromUid: string; fromName: string; packName: string; destination: string; createdAt: number }>;
 }
@@ -805,19 +823,20 @@ export async function submitTripReview(
     ...(itineraryDays ? { itineraryDays } : {}),
   };
 
-  await set(ref(db, `trips/${tripId}/review`), review);
+  await set(ref(db, `trips/${tripId}/memberReviews/${uid}`), review);
+  // Keep the original single-review field populated for older clients and
+  // existing Discover links. New clients use memberReviews for member gating.
+  if (!trip.review) {
+    await set(ref(db, `trips/${tripId}/review`), review);
+  }
   if (reviewData.isPublic) {
-    await set(ref(db, `reviews/${tripId}`), review);
+    await set(ref(db, `reviews/${tripId}_${uid}`), review);
   } else {
-    await set(ref(db, `reviews/${tripId}`), null);
+    await set(ref(db, `reviews/${tripId}_${uid}`), null);
   }
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
-
-function genCode() {
-  return Math.random().toString(36).substr(2, 6).toUpperCase();
-}
 
 /* ── createTrip ───────────────────────────────────────────────────── */
 
@@ -838,7 +857,6 @@ export async function createTrip(data: {
 }) {
   const newTripRef = push(ref(db, "trips"));
   const tripId = newTripRef.key!;
-  const inviteCode = genCode();
 
   const tripData = {
     destination: data.destination,
@@ -851,7 +869,6 @@ export async function createTrip(data: {
     endDate: data.endDate,
     hostMemberId: data.uid,
     createdAt: new Date().toISOString(),
-    inviteCode,
     members: {
       [data.uid]: {
         name: data.displayName,
@@ -863,11 +880,29 @@ export async function createTrip(data: {
 
   await set(newTripRef, tripData);
 
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== data.uid) {
+    await set(newTripRef, null).catch(() => undefined);
+    throw new Error("Sign in again before creating a trip.");
+  }
+  const token = await currentUser.getIdToken();
+  const codeResponse = await apiFetch("/api/reserve-invite-code", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ tripId }),
+  });
+  if (!codeResponse.ok) {
+    await set(newTripRef, null).catch(() => undefined);
+    const body = await codeResponse.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? "Could not create a secure invite code.");
+  }
+
   await addLocalTripId(data.uid, tripId);
 
   try { await set(ref(db, `userTrips/${data.uid}/${tripId}`), true); } catch {}
-  try { await set(ref(db, `inviteCodes/${inviteCode}`), tripId); } catch {}
-
   return tripId;
 }
 
@@ -887,6 +922,27 @@ export async function joinTrip(tripId: string, uid: string, displayName: string)
   const input = tripId.trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
   const candidate = decodeURIComponent(input.split("/").pop() ?? input).trim();
   if (!candidate) throw new Error("Enter an invite code or trip link.");
+
+  // The trusted API can read the invite-code index even when client RTDB rules
+  // intentionally hide it. It also performs membership + user index writes as
+  // one authenticated operation, which makes code-only joining reliable.
+  const currentUser = auth.currentUser;
+  if (currentUser?.uid === uid) {
+    const token = await currentUser.getIdToken();
+    const response = await apiFetch("/api/join-by-invite", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ invite: candidate, displayName }),
+    });
+    const result = await response.json().catch(() => ({})) as { tripId?: string; error?: string };
+    if (response.ok && result.tripId) return result.tripId;
+    if (response.status !== 404) {
+      throw new Error(result.error ?? "We couldn't join that trip. Please try again.");
+    }
+  }
 
   // Invite links may contain the short invite code, while older links may
   // contain the Firebase trip ID. Try the code index first, then fall back to
@@ -1015,13 +1071,15 @@ export interface AppNotification {
     | "dest_confirmed"
     | "new_member"
     | "chat"
-    | "invite";
+    | "invite"
+    | "trip_invite";
   text: string;
   subtext?: string;
   tripId: string;
   tripName: string;
   timestamp: number;
   actionable?: boolean;
+  serverNotificationId?: string;
 }
 
 export function useNotifications(uid: string | undefined) {
@@ -1785,6 +1843,7 @@ export async function addTripToPack(
     lastTripDestination: destination,
     lastTripAt: Date.now(),
   });
+  await set(ref(db, `trips/${tripId}/savedPacks/${packId}`), true);
 }
 
 export async function invitePackToTrip(
