@@ -2,13 +2,13 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { Resend } from "resend";
-import { getAdminDb } from "../lib/firebase-admin";
+import { getAdminDb, normalizeFirebasePrivateKey } from "../lib/firebase-admin";
 
 const router: IRouter = Router();
 
 function getFirebaseAdminAuth() {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const privateKey = normalizeFirebasePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
   if (!clientEmail || !privateKey) {
     throw new Error("Email verification is not configured.");

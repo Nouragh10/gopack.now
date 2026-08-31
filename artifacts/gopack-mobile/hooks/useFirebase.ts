@@ -1,43 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useState } from "react";
-import { auth, db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api-client";
-
-/* ── Interfaces ───────────────────────────────────────────────────── */
-
-export interface TripMember {
-  name: string;
-  joinedAt: string;
-  isHost: boolean;
-}
-
-export interface DestinationSuggestion {
-  name: string;
-  pitch: string;
-  tags: string[];
-  flightHint: string;
-  bestTime: string;
-}
-
-export interface MemberPreference {
-  vibes: string[];
-  distance: string;
-  budget: string;
-  days: number;
-  startDate: string | null;
-  startLocation?: string;
-  pace?: "relaxed" | "balanced" | "packed";
-  submittedAt: string;
-}
-
-export interface AccommodationPreference {
-  maxCostPerPerson: number;
-  type: "hotel" | "airbnb" | "hostel" | "no_preference";
-  rooms: number;
-  location: string;
-  amenities: string[];
-  priority: "luxury" | "balanced" | "affordability";
-  cancellation: "flexible" | "any";
+ny";
   submittedAt: string;
 }
 
@@ -524,13 +485,19 @@ export function useProfileTripCollections(trips: Trip[], displayName?: string | 
   const normalizedName = displayName?.trim().toLowerCase();
 
   for (const trip of trips) {
-    if (trip.confirmedAccommodation) {
+    const confirmedAccommodation = trip.confirmedAccommodation;
+    const stayIsConfirmed =
+      !!confirmedAccommodation &&
+      (!trip.accommodationStatus ||
+        trip.accommodationStatus === "confirmed" ||
+        trip.accommodationStatus === "booked");
+    if (stayIsConfirmed) {
       stays.push({
         id: `${trip.id}:stay`,
         tripId: trip.id,
         destination: trip.destination,
         startDate: trip.startDate,
-        accommodation: trip.confirmedAccommodation,
+        accommodation: confirmedAccommodation,
       });
     }
 
