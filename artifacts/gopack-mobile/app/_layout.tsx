@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getConfiguredApiBaseUrl, setBaseUrl } from "@/lib/api-client";
 import { Stack, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -28,6 +29,21 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
+
+  useEffect(() => {
+    if (!navigationState?.key) return;
+    const openResponse = (response: Notifications.NotificationResponse | null) => {
+      const path = response?.notification.request.content.data?.path;
+      if (typeof path === "string" && path.startsWith("/")) {
+        router.push(path as never);
+      }
+    };
+    Notifications.getLastNotificationResponseAsync()
+      .then(openResponse)
+      .catch(() => undefined);
+    const subscription = Notifications.addNotificationResponseReceivedListener(openResponse);
+    return () => subscription.remove();
+  }, [navigationState?.key, router]);
 
   useEffect(() => {
     // Expo Router has to mount its navigator before a redirect can be issued.
@@ -66,6 +82,7 @@ function RootLayoutNav() {
         <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="packing/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="memory/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="join" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
