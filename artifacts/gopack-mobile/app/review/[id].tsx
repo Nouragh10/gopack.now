@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useTrip, submitTripReview } from "@/hooks/useFirebase";
+import { apiFetch } from "@/lib/api-client";
 
 const VIBES = [
   { key: "beach", label: "Beach" },
@@ -65,13 +66,17 @@ export default function ReviewScreen() {
 
   // Guard: if already reviewed, go back
   useEffect(() => {
-    if (!loading && trip?.review) {
+    const myReview = user && (
+      trip?.memberReviews?.[user.uid] ||
+      (trip?.review as { reviewedBy?: string } | undefined)?.reviewedBy === user.uid
+    );
+    if (!loading && myReview && !submitting) {
       router.replace(`/trip/${id}` as any);
     }
     if (!loading && trip && !trip.review && trip.vibes?.length) {
       setVibes(trip.vibes.map((v: string) => v.toLowerCase()));
     }
-  }, [loading, trip?.id, (trip as any)?.review]);
+  }, [loading, trip?.id, (trip as any)?.review, (trip as any)?.memberReviews, submitting, user?.uid]);
 
   const pickPhotos = async () => {
     const remaining = 6 - photoUris.length;
@@ -115,6 +120,7 @@ export default function ReviewScreen() {
     if (!rating || !text.trim() || !user || !id || !trip) return;
     setError("");
     setSubmitting(true);
+    let reviewSaved = false;
     try {
       await submitTripReview(id, trip, user.uid, {
         rating,
@@ -124,9 +130,27 @@ export default function ReviewScreen() {
         isPublic,
         photoUris,
       });
-      router.replace(`/trip/${id}` as any);
+      reviewSaved = true;
+      const idToken = await user.getIdToken();
+      const memoryResponse = await apiFetch("/api/memory-guide", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ tripId: id }),
+      });
+      if (!memoryResponse.ok) {
+        const body = await memoryResponse.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Your review was saved, but the memory guide could not be created yet.");
+      }
+      router.replace(`/memory/${id}` as any);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit review.");
+      if (reviewSaved) {
+        router.replace(`/memory/${id}` as any);
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to submit review.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -466,7 +490,7 @@ export default function ReviewScreen() {
               />
             )}
             <Text style={styles.submitBtnText}>
-              {submitting ? "Submitting…" : "Submit review"}
+              {submitting ? "Saving memories…" : "Save & create memory guide"}
             </Text>
           </Pressable>
 
