@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api-client";
+import { sendTripPush } from "@/lib/push-notifications";
 import {
   AccommodationPreference,
   setAccommodationStatus,
@@ -176,6 +177,12 @@ export default function AccommodationPreferencesScreen() {
       }));
 
       await storeAccommodationSuggestions(id, suggestionsWithUniqueIds);
+      await sendTripPush(
+        id,
+        `Vote on stays for ${trip.destination || "your trip"}`,
+        `${suggestionsWithUniqueIds.length} accommodation options are ready.`,
+        `/accommodation-vote/${id}`,
+      );
       router.replace(`/accommodation-vote/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
