@@ -15,6 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api-client";
 import { saveItinerary, useTrip, useWishes } from "@/hooks/useFirebase";
+import { isWishEligible } from "@/lib/wish-eligibility";
+import { sendTripPush } from "@/lib/push-notifications";
 
 const MESSAGES = [
   "Packing your adventure...",
@@ -65,8 +67,9 @@ export default function BuildingScreen() {
           ? Math.round(prefDays.reduce((s, d) => s + d, 0) / prefDays.length)
           : (trip.days ?? 5);
 
+        const memberCount = Object.keys(trip.members ?? {}).length;
         const includedWishes = [...wishes]
-          .filter(w => w.score >= 0)
+          .filter(w => isWishEligible(w, memberCount))
           .sort((a, b) => b.score - a.score);
 
         const toPayload = (w: typeof includedWishes[0]) => ({
@@ -120,6 +123,12 @@ export default function BuildingScreen() {
         }).start();
 
         await saveItinerary(id!, result);
+        await sendTripPush(
+          id!,
+          `${trip.destination || "Your trip"} itinerary is ready`,
+          "The pack's plan is ready to explore.",
+          `/itinerary/${id}`,
+        );
         setTimeout(() => router.replace(`/itinerary/${id}`), 800);
       } catch (err) {
         setError((err as Error).message || "Something went wrong. Please try again.");
