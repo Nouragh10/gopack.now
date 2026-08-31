@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Image,
   Linking,
   Modal,
   Platform,
@@ -31,7 +30,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { WikiImage } from "@/components/WikiImage";
 import { apiFetch } from "@/lib/api-client";
+import { sendTripPush } from "@/lib/push-notifications";
 import {
   AccommodationSuggestion,
   addMemberAccommodationLink,
@@ -100,7 +101,6 @@ function TopAccommodationCard({
   onSwipeRight: () => void;
   colors: any;
 }) {
-  const [imgFailed, setImgFailed] = useState(false);
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
 
@@ -135,8 +135,6 @@ function TopAccommodationCard({
     opacity: interpolate(tx.value, [-SWIPE_THRESHOLD * 0.8, -20], [1, 0], Extrapolation.CLAMP),
   }));
 
-  const firstPhoto = (suggestion.photos ?? [])[0];
-
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.swipeCard, { backgroundColor: colors.card, borderColor: colors.border, width: CARD_WIDTH }, cardStyle]}>
@@ -149,16 +147,27 @@ function TopAccommodationCard({
           <Text style={[styles.swipeLabelText, { color: "#ef4444" }]}>SKIP</Text>
         </Animated.View>
 
-        {firstPhoto && !imgFailed ? (
-          <Image
-            source={{ uri: firstPhoto }}
-            style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12 }}
-            resizeMode="cover"
-            onError={() => setImgFailed(true)}
-          />
+        {(suggestion.photos ?? [])[0] ? (
+          <View style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+            <WikiImage
+              name={suggestion.name}
+              context={suggestion.location}
+              query={`${suggestion.name} ${suggestion.location}`}
+              initialUri={(suggestion.photos ?? [])[0]}
+              fallbackCategory="stay"
+              style={{ width: "100%", height: "100%" }}
+            />
+          </View>
         ) : (
-          <View style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
-            <Feather name="home" size={40} color={colors.mutedForeground} opacity={0.3} />
+          <View style={{ width: CARD_WIDTH - 28, height: 160, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+            <WikiImage
+              name={suggestion.name}
+              context={suggestion.location}
+              query={`${suggestion.name} hotel ${suggestion.location}`}
+              fallbackCategory="stay"
+              fallbackIndex={suggestion.name.length}
+              style={{ width: "100%", height: "100%" }}
+            />
           </View>
         )}
 
@@ -391,6 +400,17 @@ function AccommodationCard({
           <Text style={styles.memberBadgeText}>Added by {suggestion.submittedBy}</Text>
         </View>
       )}
+      <View style={{ width: "100%", height: 150, borderRadius: 12, overflow: "hidden" }}>
+        <WikiImage
+          name={suggestion.name}
+          context={suggestion.location}
+          query={`${suggestion.name} hotel ${suggestion.location}`}
+          initialUri={(suggestion.photos ?? [])[0]}
+          fallbackCategory="stay"
+          fallbackIndex={idx}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </View>
       <View style={styles.cardTop}>
         <View style={{ flex: 1, gap: 5 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -570,6 +590,12 @@ export default function AccommodationVoteScreen() {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await confirmAccommodation(id, suggestions[winnerIdx]);
+      await sendTripPush(
+        id,
+        `${suggestions[winnerIdx].name} is your confirmed stay`,
+        "Open Packyo to see the winning accommodation.",
+        `/trip/${id}`,
+      );
       router.replace(`/trip/${id}`);
     } finally {
       setConfirming(false);
@@ -632,6 +658,12 @@ export default function AccommodationVoteScreen() {
                 text: "Confirm this pick",
                 onPress: async () => {
                   await confirmAccommodation(id, suggestions[picked.origIdx]);
+                  await sendTripPush(
+                    id,
+                    `${suggestions[picked.origIdx].name} is your confirmed stay`,
+                    "Open Packyo to see the winning accommodation.",
+                    `/trip/${id}`,
+                  );
                   router.replace(`/trip/${id}`);
                 },
               }
