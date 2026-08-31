@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { ChatMessage, sendMessage, useChat, useTrip } from "@/hooks/useFirebase";
+import { sendTripPush } from "@/lib/push-notifications";
 
 const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
@@ -89,6 +90,12 @@ export default function ChatScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await sendMessage(id, msg, user.uid, user.displayName ?? "Traveler");
+      await sendTripPush(
+        id,
+        `${user.displayName ?? "A traveler"} in ${trip?.destination || "your trip"}`,
+        msg,
+        `/chat/${id}`,
+      );
     } finally {
       setSending(false);
     }
