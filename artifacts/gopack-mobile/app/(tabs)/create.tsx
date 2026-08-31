@@ -17,12 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { createTrip } from "@/hooks/useFirebase";
+import { addTripToPack, createTrip, invitePackToTrip, savePack, usePacks } from "@/hooks/useFirebase";
 import {
   defaultVibesForTravelPreferences,
   loadPackyoSettings,
   type PackyoSettings,
 } from "@/lib/settings";
+import { apiFetch } from "@/lib/api-client";
 
 const VIBES = [
   "Relaxing", "Adventure", "Foodie",
@@ -63,9 +64,12 @@ export default function CreateScreen() {
   const [datePicker, setDatePicker] = useState<"start" | "end" | null>(null);
   const [budget, setBudget] = useState("");
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [newPackName, setNewPackName] = useState("");
   const [personalDefaults, setPersonalDefaults] = useState<PackyoSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { packs } = usePacks(user?.uid);
 
   useEffect(() => {
     if (prefillDestination) {
@@ -131,6 +135,66 @@ export default function CreateScreen() {
     });
   };
 
+  const createAndAttachTrip = async (tripDestination: string) => {
+    const tripId = await createTrip({
+      destination: tripDestination,
+      days: tripDays,
+      vibes: selectedVibes,
+      budget: budget.toLowerCase() || "midrange",
+      ...personalTripOptions,
+      startDate: toISODate(startDate!),
+      endDate: toISODate(endDate!),
+      uid: user!.uid,
+      displayName: user!.displayName ?? "Traveler",
+    });
+
+    if (newPackName.trim()) {
+      await savePack({
+        hostUid: user!.uid,
+        name: newPackName.trim(),
+        members: { [user!.uid]: { name: user!.displayName ?? "Traveler" } },
+        tripId,
+        destination: tripDestination,
+      });
+    } else if (selectedPackId) {
+      await addTripToPack(selectedPackId, tripId, tripDestination);
+      const selectedPack = packs.find((pack) => pack.id === selectedPackId);
+      if (selectedPack) {
+        await invitePackToTrip(
+          selectedPack,
+          tripId,
+          tripDestination,
+          user!.uid,
+          user!.displayName ?? "Traveler",
+        );
+        const members = Object.entries(selectedPack.members)
+          .filter(([uid]) => uid !== user!.uid)
+          .map(([uid, member]) => ({ uid, name: member.name }));
+        if (members.length > 0) {
+          const token = await user!.getIdToken();
+          const response = await apiFetch("/api/send-pack-invites", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              packId: selectedPack.id,
+              tripId,
+              tripName: tripDestination || "Destination TBD",
+              fromName: user!.displayName ?? "Traveler",
+              packName: selectedPack.name,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error("The trip was created, but Packyo couldn't notify every pack member.");
+          }
+        }
+      }
+    }
+    return tripId;
+  };
+
   const handleNext = async () => {
     if (!destination.trim()) { setError("Enter a destination."); return; }
     const validationError = validateTripDates();
@@ -140,17 +204,7 @@ export default function CreateScreen() {
     setLoading(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const tripId = await createTrip({
-        destination: destination.trim(),
-        days: tripDays,
-        vibes: selectedVibes,
-        budget: budget.toLowerCase() || "midrange",
-        ...personalTripOptions,
-        startDate: toISODate(startDate!),
-        endDate: toISODate(endDate!),
-        uid: user.uid,
-        displayName: user.displayName ?? "Traveler",
-      });
+      const tripId = await createAndAttachTrip(destination.trim());
       router.push(`/trip/${tripId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -168,17 +222,7 @@ export default function CreateScreen() {
     setLoading(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const tripId = await createTrip({
-        destination: "",
-        days: tripDays,
-        vibes: selectedVibes,
-        budget: budget.toLowerCase() || "midrange",
-        ...personalTripOptions,
-        startDate: toISODate(startDate!),
-        endDate: toISODate(endDate!),
-        uid: user.uid,
-        displayName: user.displayName ?? "Traveler",
-      });
+      const tripId = await createAndAttachTrip("");
       router.push(`/destination-preferences/${tripId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -266,6 +310,46 @@ export default function CreateScreen() {
                 value={budget}
                 onChangeText={setBudget}
                 keyboardType="numeric"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Plan with a pack (optional)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packRow}>
+              <Pressable
+                onPress={() => { setSelectedPackId(null); setNewPackName(""); }}
+                style={[
+                  styles.packOption,
+                  { backgroundColor: !selectedPackId && !newPackName ? colors.primary + "14" : colors.card, borderColor: !selectedPackId && !newPackName ? colors.primary : colors.border },
+                ]}
+              >
+                <Feather name="user" size={14} color={colors.primary} />
+                <Text style={[styles.packOptionText, { color: colors.foreground }]}>Just me</Text>
+              </Pressable>
+              {packs.map((pack) => (
+                <Pressable
+                  key={pack.id}
+                  onPress={() => { setSelectedPackId(pack.id); setNewPackName(""); }}
+                  style={[
+                    styles.packOption,
+                    { backgroundColor: selectedPackId === pack.id ? colors.primary + "14" : colors.card, borderColor: selectedPackId === pack.id ? colors.primary : colors.border },
+                  ]}
+                >
+                  <Feather name="users" size={14} color={colors.primary} />
+                  <Text style={[styles.packOptionText, { color: colors.foreground }]} numberOfLines={1}>{pack.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={[styles.newPackWrap, { backgroundColor: colors.card, borderColor: newPackName ? colors.primary : colors.border }]}>
+              <Feather name="plus" size={16} color={colors.primary} />
+              <TextInput
+                style={[styles.newPackInput, { color: colors.foreground }]}
+                placeholder="Or create a new pack"
+                placeholderTextColor={colors.mutedForeground}
+                value={newPackName}
+                onChangeText={(value) => { setNewPackName(value); setSelectedPackId(null); }}
+                maxLength={40}
               />
             </View>
           </View>
@@ -411,6 +495,11 @@ const styles = StyleSheet.create({
     fontFamily: "DmSans_400Regular",
     fontSize: 16,
   },
+  packRow: { gap: 8, paddingVertical: 2 },
+  packOption: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 9, maxWidth: 170 },
+  packOptionText: { fontFamily: "DmSans_500Medium", fontSize: 13, flexShrink: 1 },
+  newPackWrap: { flexDirection: "row", alignItems: "center", gap: 9, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  newPackInput: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 14 },
   dateRow: { flexDirection: "row", gap: 10 },
   dateInput: { flex: 1, minWidth: 0, paddingHorizontal: 12 },
   dateValue: { flex: 1, fontFamily: "DmSans_400Regular", fontSize: 14 },
