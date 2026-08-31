@@ -17,7 +17,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.gopacknow.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps"
+        ]
       },
       "buildNumber": "2"
     },
@@ -37,6 +40,13 @@
       "expo-font",
       "expo-web-browser",
        "expo-apple-authentication",
+       [
+         "expo-notifications",
+         {
+           "icon": "./assets/images/icon.png",
+           "color": "#F15A3A"
+         }
+       ],
        [
          "expo-calendar",
          {
