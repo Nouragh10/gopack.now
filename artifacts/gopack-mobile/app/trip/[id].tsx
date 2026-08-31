@@ -426,7 +426,10 @@ export default function TripHubScreen() {
     return end < new Date();
   })();
   const isMember = !!trip?.members?.[user?.uid ?? ""];
-  const hasReview = !!trip?.review;
+  const hasReview = !!user && !!(
+    trip?.memberReviews?.[user.uid] ||
+    (trip?.review as { reviewedBy?: string } | undefined)?.reviewedBy === user.uid
+  );
   const showReviewBanner = tripEnded && isMember && !hasReview;
 
   const lockedBy = trip?.votesLockedBy ?? {};
@@ -585,6 +588,18 @@ export default function TripHubScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset + 20 }}>
+              {tripEnded && isMember ? (
+                <Pressable
+                  onPress={() => router.push(hasReview ? `/memory/${id}` : `/review/${id}`)}
+                  style={[styles.reviewBanner, { backgroundColor: hasReview ? "#7E57C2" : colors.primary }]}
+                >
+                  <Feather name={hasReview ? "book-open" : "camera"} size={17} color="#fff" />
+                  <Text style={styles.reviewBannerText}>
+                    {hasReview ? "Open your trip memory guide" : "Rate the trip, add photos, and make a memory guide"}
+                  </Text>
+                  <Feather name="chevron-right" size={17} color="#fff" />
+                </Pressable>
+              ) : null}
               {checklistSteps.map((step, idx) => {
                 let icon = "circle";
                 let title = "";
