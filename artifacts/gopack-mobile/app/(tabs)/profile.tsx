@@ -26,6 +26,7 @@ import {
   useTrips,
 } from "@/hooks/useFirebase";
 import { signOut } from "@/lib/firebase";
+import { WikiImage } from "@/components/WikiImage";
 
 const TRIP_IMAGES = [
   "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80&auto=format&fit=crop",
@@ -412,7 +413,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <SectionHeading title="My stays" action={stays.length > 3 ? "See all" : undefined} colors={colors} />
+          <SectionHeading title="My stays" colors={colors} />
           {stays.length === 0 ? (
             <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="home" size={22} color={colors.mutedForeground} />
@@ -422,14 +423,22 @@ export default function ProfileScreen() {
               </Text>
             </View>
           ) : (
-            stays.slice(0, 3).map((stay) => (
+            stays.map((stay, index) => (
               <Pressable
                 key={stay.id}
                 onPress={() => router.push(`/trip/${stay.tripId}` as any)}
-                style={({ pressed }) => [styles.wishRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.stayRow, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
               >
-                <View style={[styles.wishIcon, { backgroundColor: colors.primary + "14" }]}>
-                  <Feather name="home" size={14} color={colors.primary} />
+                <View style={styles.stayImageWrap}>
+                  <WikiImage
+                    name={stay.accommodation.name}
+                    context={stay.accommodation.location || stay.destination}
+                    query={`${stay.accommodation.name} hotel ${stay.destination}`}
+                    initialUri={(stay.accommodation.photos ?? [])[0]}
+                    fallbackCategory="stay"
+                    fallbackIndex={index}
+                    style={styles.stayImage}
+                  />
                 </View>
                 <View style={styles.wishContent}>
                   <Text style={[styles.wishText, { color: colors.foreground }]} numberOfLines={1}>{stay.accommodation.name}</Text>
@@ -629,6 +638,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
+  stayRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 16, padding: 9, marginBottom: 10 },
+  stayImageWrap: { width: 72, height: 64, borderRadius: 12, overflow: "hidden" },
+  stayImage: { width: "100%", height: "100%" },
   topBarTitle: { fontFamily: "DmSans_700Bold", fontSize: 16 },
   iconButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", position: "relative" },
   notificationDot: { position: "absolute", top: 5, right: 5, width: 6, height: 6, borderRadius: 3 },
