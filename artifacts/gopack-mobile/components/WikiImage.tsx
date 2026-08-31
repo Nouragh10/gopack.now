@@ -20,6 +20,8 @@ interface WikiImageProps {
   context?: string;
   /** More precise place/photo search text supplied by the itinerary service */
   query?: string;
+  /** Preferred source supplied by the API; search/fallback is used if it fails. */
+  initialUri?: string;
   /** Used only when no place-specific image can be found */
   fallbackCategory?: string;
   /** Stable position within the itinerary, used to avoid repeated fallbacks */
@@ -110,6 +112,11 @@ const FALLBACK_IMAGES: Record<string, string[]> = {
     "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&h=500&fit=crop",
     "https://images.unsplash.com/photo-1439405326854-014607f694d7?w=800&h=500&fit=crop",
   ],
+  stay: [
+    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&h=500&fit=crop",
+  ],
   default: [
     "https://images.unsplash.com/photo-1527631746610-bca00a040d60?w=800&h=500&fit=crop",
     "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=800&h=500&fit=crop",
@@ -134,6 +141,7 @@ export function WikiImage({
   name,
   context = "",
   query,
+  initialUri,
   fallbackCategory,
   fallbackIndex,
   style,
@@ -149,9 +157,10 @@ export function WikiImage({
     let cancelled = false;
       // Render a useful image immediately, then replace it with a
       // place-specific result when one is available.
-      setUri(fallbackUri);
+      setUri(initialUri || fallbackUri);
 
     async function load() {
+      if (initialUri) return;
       // photoQuery comes from the itinerary generation response and is usually
       // more specific than the display name (for example, "Louvre Museum Paris").
       const searchTerm = query?.trim() || `${name} ${context}`.trim();
@@ -235,7 +244,7 @@ export function WikiImage({
       cancelled = true;
       mounted.current = false;
     };
-  }, [name, context, query, fallbackUri]);
+  }, [name, context, query, initialUri, fallbackUri]);
 
   if (!uri) {
     return <View style={[style as ViewStyle, { backgroundColor: placeholderColor }]} />;
