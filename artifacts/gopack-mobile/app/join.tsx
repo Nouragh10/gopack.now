@@ -31,7 +31,7 @@ export default function JoinScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
   const handleJoin = async () => {
-    const inviteInput = code.trim() || link.trim();
+    const inviteInput = (code.trim() || link.trim()).replace(/\s+/g, "");
     if (!inviteInput) {
       setError("Enter an invite code or paste an invite link.");
       return;
@@ -52,7 +52,8 @@ export default function JoinScreen() {
       );
       router.replace(`/trip/${tripId}`);
     } catch (e) {
-      setError((e as Error).message ?? "Trip not found.");
+      const message = e instanceof Error ? e.message : "Trip not found.";
+      setError(message.includes("not found") ? "We couldn't find that invite. Check the code and try again." : message);
     } finally {
       setLoading(false);
     }
