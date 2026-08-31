@@ -15,13 +15,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useTrip, useWishes } from "@/hooks/useFirebase";
 import type { Wish } from "@/hooks/useFirebase";
+import { isWishEligible, wishUpvotePercentage } from "@/lib/wish-eligibility";
 
 /* ── Inclusion rule (mirrors building/[id].tsx) ─────────────── */
-function computeRankedWishes(wishes: Wish[], _days: number) {
+function computeRankedWishes(wishes: Wish[], memberCount: number) {
   const sorted = [...wishes].sort((a, b) => b.score - a.score);
-  const guaranteed = sorted.filter((w) => w.score >= 0);
+  const guaranteed = sorted.filter((w) => isWishEligible(w, memberCount));
   const candidates: Wish[] = [];
-  const excluded = sorted.filter((w) => w.score < 0);
+  const excluded = sorted.filter((w) => !isWishEligible(w, memberCount));
 
   return { guaranteed, candidates, excluded };
 }
@@ -71,7 +72,7 @@ export default function WishlistResultsScreen() {
   const lockedCount = Object.keys(lockedBy).length;
   const allLocked = members.length > 0 && lockedCount >= members.length;
 
-  const { guaranteed, candidates, excluded } = computeRankedWishes(wishes, trip.days ?? 5);
+  const { guaranteed, candidates, excluded } = computeRankedWishes(wishes, members.length);
   const allIncluded = [...guaranteed, ...candidates];
   const displayedIncluded = showAllIncluded ? allIncluded : allIncluded.slice(0, 5);
   const hiddenCount = allIncluded.length - 5;
@@ -121,13 +122,14 @@ export default function WishlistResultsScreen() {
             </View>
             {displayedIncluded.map((w, idx) => {
               const upCount = Object.keys(w.upvoters ?? {}).length;
+              const upPercent = Math.round(wishUpvotePercentage(w, members.length));
               return (
                 <View key={w.id} style={[styles.rankRow, { borderBottomColor: colors.border }]}>
                   <Text style={[styles.rankNum, { color: colors.mutedForeground }]}>{idx + 1}</Text>
                   <Text style={[styles.rankName, { color: colors.foreground }]} numberOfLines={1}>{w.text}</Text>
                   <View style={styles.rankVote}>
                     <Feather name="thumbs-up" size={12} color="#4CAF50" />
-                    <Text style={[styles.rankVoteNum, { color: "#4CAF50" }]}>{upCount}</Text>
+                     <Text style={[styles.rankVoteNum, { color: "#4CAF50" }]}>{upCount} · {upPercent}%</Text>
                   </View>
                 </View>
               );
@@ -150,13 +152,14 @@ export default function WishlistResultsScreen() {
             </View>
             {excluded.map((w) => {
               const downCount = Object.keys(w.downvoters ?? {}).length;
+              const upPercent = Math.round(wishUpvotePercentage(w, members.length));
               return (
                 <View key={w.id} style={[styles.rankRow, styles.excludedRow, { borderBottomColor: colors.border }]}>
                   <Feather name="slash" size={14} color="#9CA3AF" />
                   <Text style={[styles.rankName, { color: colors.mutedForeground }]} numberOfLines={1}>{w.text}</Text>
                   <View style={styles.rankVote}>
                     <Feather name="thumbs-down" size={12} color="#EF5350" />
-                    <Text style={[styles.rankVoteNum, { color: "#EF5350" }]}>{downCount}</Text>
+                     <Text style={[styles.rankVoteNum, { color: "#EF5350" }]}>{downCount} down · {upPercent}% up</Text>
                   </View>
                 </View>
               );
