@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -15,6 +15,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications, AppNotification } from "@/hooks/useFirebase";
+import {
+  hasRegisteredPushToken,
+  registerForPushNotifications,
+} from "@/lib/push-notifications";
+import { apiFetch } from "@/lib/api-client";
 
 /* ── Icon config per notification type ─────────────────────────── */
 const TYPE_META: Record<
@@ -29,6 +34,7 @@ const TYPE_META: Record<
   new_member:       { icon: "user-plus",      bg: "#2196F3", label: "Trips" },
   chat:             { icon: "message-circle", bg: "#7E57C2", label: "Mentions" },
   invite:           { icon: "user-plus",      bg: "#E85D3A", label: "Trips" },
+  trip_invite:      { icon: "user-plus",      bg: "#E85D3A", label: "Trips" },
 };
 
 function timeAgo(ts: number): string {
@@ -48,21 +54,92 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("All");
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
+  const [serverInvites, setServerInvites] = useState<AppNotification[]>([]);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
 
   const { notifications, loading } = useNotifications(user?.uid);
 
+  useEffect(() => {
+    hasRegisteredPushToken().then(setPushEnabled).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setServerInvites([]);
+      return;
+    }
+    let active = true;
+    user.getIdToken().then((token) =>
+      apiFetch("/api/my-notifications", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ).then((response) => response.ok ? response.json() : { notifications: [] })
+      .then((result: any) => {
+        if (!active) return;
+        setServerInvites((result.notifications ?? [])
+          .filter((item: any) => item.type === "trip_invite")
+          .map((item: any) => ({
+            id: `server-${item.id}`,
+            serverNotificationId: item.id,
+            type: "trip_invite" as const,
+            text: `${item.fromName ?? "A traveler"} invited you`,
+            subtext: `Join ${item.tripName ?? "a trip"} with ${item.packName ?? "your pack"}.`,
+            tripId: item.tripId,
+            tripName: item.tripName ?? "Trip",
+            timestamp: item.createdAt ?? Date.now(),
+            actionable: true,
+          })));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.uid]);
+
+  const enablePush = async () => {
+    if (!user || enablingPush) return;
+    setEnablingPush(true);
+    setPushMessage("");
+    try {
+      const result = await registerForPushNotifications(user.uid);
+      setPushEnabled(result.granted);
+      setPushMessage(result.granted ? "Trip alerts are on." : (result.reason ?? "Notifications could not be enabled."));
+    } catch {
+      setPushMessage("Notifications could not be enabled on this build.");
+    } finally {
+      setEnablingPush(false);
+    }
+  };
+
+  const combined = [...serverInvites, ...notifications]
+    .sort((a, b) => b.timestamp - a.timestamp);
   const visible =
     activeTab === "All"
-      ? notifications
-      : notifications.filter(
+      ? combined
+      : combined.filter(
           (n) => TYPE_META[n.type]?.label === activeTab
         );
 
-  function handlePress(n: AppNotification) {
-    if (n.type === "accom_vote") {
+  async function handlePress(n: AppNotification) {
+    if (n.type === "trip_invite" && user && n.serverNotificationId) {
+      const token = await user.getIdToken();
+      const response = await apiFetch("/api/accept-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          notifId: n.serverNotificationId,
+          tripId: n.tripId,
+          displayName: user.displayName ?? "Traveler",
+        }),
+      });
+      if (response.ok) {
+        setServerInvites((current) => current.filter((item) => item.id !== n.id));
+        router.push({ pathname: "/trip/[id]", params: { id: n.tripId } } as any);
+      }
+    } else if (n.type === "accom_vote") {
       router.push({ pathname: "/accommodation-vote/[id]", params: { id: n.tripId } } as any);
     } else if (n.type === "dest_vote") {
       router.push({ pathname: "/destination-vote/[id]", params: { id: n.tripId } } as any);
@@ -105,6 +182,24 @@ export default function NotificationsScreen() {
           </Pressable>
         ))}
       </View>
+
+      {user && !pushEnabled ? (
+        <View style={[styles.pushBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.pushIcon, { backgroundColor: colors.primary + "14" }]}>
+            <Feather name="bell" size={17} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.pushTitle, { color: colors.foreground }]}>Get trip alerts</Text>
+            <Text style={[styles.pushBody, { color: colors.mutedForeground }]}>
+              See voting, itinerary, and chat updates even when Packyo is closed.
+            </Text>
+            {!!pushMessage && <Text style={[styles.pushMessage, { color: colors.mutedForeground }]}>{pushMessage}</Text>}
+          </View>
+          <Pressable onPress={enablePush} disabled={enablingPush} style={[styles.pushButton, { backgroundColor: colors.primary }]}>
+            {enablingPush ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.pushButtonText}>Enable</Text>}
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Body */}
       {loading ? (
@@ -174,7 +269,7 @@ export default function NotificationsScreen() {
                         onPress={() => handlePress(n)}
                         style={[styles.solidBtn, { backgroundColor: colors.primary }]}
                       >
-                        <Text style={styles.solidBtnText}>Vote now</Text>
+                         <Text style={styles.solidBtnText}>{n.type === "trip_invite" ? "Join trip" : "Vote now"}</Text>
                       </Pressable>
                     </View>
                   )}
@@ -201,6 +296,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  pushBanner: { margin: 16, marginBottom: 8, borderWidth: 1, borderRadius: 16, padding: 14, flexDirection: "row", gap: 11, alignItems: "center" },
+  pushIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  pushTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  pushBody: { fontFamily: "DmSans_400Regular", fontSize: 12, lineHeight: 17, marginTop: 2 },
+  pushMessage: { fontFamily: "DmSans_500Medium", fontSize: 11, marginTop: 4 },
+  pushButton: { minWidth: 68, minHeight: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  pushButtonText: { color: "#fff", fontFamily: "DmSans_700Bold", fontSize: 12 },
   tab: { marginRight: 24, paddingVertical: 12 },
   tabText: { fontFamily: "DmSans_500Medium", fontSize: 15 },
 
