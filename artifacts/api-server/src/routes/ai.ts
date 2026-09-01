@@ -2,7 +2,10 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
 import { getAdminDb, getAdminApp } from "../lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
-import { randomBytes } from "node:crypto";
+import {
+  InviteCodeReservationError,
+  reserveHostInviteCode,
+} from "../lib/invite-code";
 import {
   extractAndParseJson,
   AccommodationResponseError,
@@ -1670,33 +1673,52 @@ router.post("/reserve-invite-code", async (req: Request, res: Response): Promise
       return;
     }
     const db = getAdminDb();
-    const tripRef = db.ref(`trips/${tripId}`);
-    const tripSnap = await tripRef.get();
-    const trip = tripSnap.val() as { hostMemberId?: string; inviteCode?: string } | null;
-    if (!trip || trip.hostMemberId !== decoded.uid) {
-      res.status(403).json({ error: "Only the trip host can create an invite code." });
-      return;
-    }
-
-    let inviteCode = "";
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const candidate = randomBytes(6).toString("base64url").slice(0, 8).toUpperCase();
-      const codeRef = db.ref(`inviteCodes/${candidate}`);
-      const reserved = await codeRef.transaction((current) => current ?? tripId);
-      if (reserved.committed && reserved.snapshot.val() === tripId) {
-        inviteCode = candidate;
-        break;
-      }
-    }
-    if (!inviteCode) throw new Error("Could not reserve a unique invite code.");
-    if (trip.inviteCode && trip.inviteCode !== inviteCode) {
-      await db.ref(`inviteCodes/${trip.inviteCode}`).remove().catch(() => undefined);
-    }
-    await tripRef.child("inviteCode").set(inviteCode);
+    const inviteCode = await reserveHostInviteCode(
+      {
+        async getTrip(id) {
+          const snapshot = await db.ref(`trips/${id}`).get();
+          return snapshot.exists() ? snapshot.val() : null;
+        },
+        async reserveCode(code, id) {
+          const reserved = await db
+            .ref(`inviteCodes/${code}`)
+            .transaction((current) => current ?? id);
+          return reserved.committed && reserved.snapshot.val() === id;
+        },
+        async releaseCode(code, id) {
+          await db.ref(`inviteCodes/${code}`).transaction(
+            (current) => current === id ? null : undefined,
+          );
+        },
+        async claimTripCode(id, candidate) {
+          const result = await db.ref(`trips/${id}/inviteCode`).transaction(
+            (current) =>
+              typeof current === "string" && current ? current : candidate,
+          );
+          const canonical = result.snapshot.val();
+          if (!result.committed || typeof canonical !== "string" || !canonical) {
+            throw new Error("Could not save the trip invite code.");
+          }
+          return canonical;
+        },
+        async clearTripCode(id, expectedCode) {
+          await db.ref(`trips/${id}/inviteCode`).transaction(
+            (current) => current === expectedCode ? null : undefined,
+          );
+        },
+      },
+      { tripId, uid: decoded.uid },
+    );
     res.json({ inviteCode });
   } catch (err) {
     req.log.error({ err }, "Failed to reserve invite code");
-    res.status(500).json({ error: "Could not create a secure invite code." });
+    if (err instanceof InviteCodeReservationError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({
+      error: "Packyo could not reach the invite service. Please try again.",
+    });
   }
 });
 
