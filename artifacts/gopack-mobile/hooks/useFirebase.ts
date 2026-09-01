@@ -524,19 +524,13 @@ export function useProfileTripCollections(trips: Trip[], displayName?: string | 
   const normalizedName = displayName?.trim().toLowerCase();
 
   for (const trip of trips) {
-    const confirmedAccommodation = trip.confirmedAccommodation;
-    const stayIsConfirmed =
-      !!confirmedAccommodation &&
-      (!trip.accommodationStatus ||
-        trip.accommodationStatus === "confirmed" ||
-        trip.accommodationStatus === "booked");
-    if (stayIsConfirmed) {
+    if (trip.confirmedAccommodation) {
       stays.push({
         id: `${trip.id}:stay`,
         tripId: trip.id,
         destination: trip.destination,
         startDate: trip.startDate,
-        accommodation: confirmedAccommodation,
+        accommodation: trip.confirmedAccommodation,
       });
     }
 
@@ -903,7 +897,15 @@ export async function createTrip(data: {
   if (!codeResponse.ok) {
     await set(newTripRef, null).catch(() => undefined);
     const body = await codeResponse.json().catch(() => ({})) as { error?: string };
-    throw new Error(body.error ?? "Could not create a secure invite code.");
+    if (codeResponse.status === 404) {
+      throw new Error(
+        "Packyo's trip service is out of date. Please try again after the service is updated.",
+      );
+    }
+    if (codeResponse.status === 401) {
+      throw new Error("Your sign-in expired. Sign in again, then retry.");
+    }
+    throw new Error(body.error ?? "Could not create a secure invite code. Please try again.");
   }
 
   await addLocalTripId(data.uid, tripId);
@@ -1827,8 +1829,22 @@ export async function savePack({
 }
 
 export async function deletePack(packId: string, uid: string): Promise<void> {
-  await set(ref(db, `trips/${packId}`), null);
-  await set(ref(db, `userTrips/${uid}/${packId}`), null);
+  const packSnap = await get(ref(db, `trips/${packId}`));
+  if (!packSnap.exists()) return;
+
+  const pack = packSnap.val() as { hostMemberId?: string; tripIds?: Record<string, boolean> };
+  if (pack.hostMemberId !== uid) {
+    throw new Error("Only the pack host can delete this pack.");
+  }
+
+  const updates: Record<string, null> = {
+    [`trips/${packId}`]: null,
+    [`userTrips/${uid}/${packId}`]: null,
+  };
+  for (const tripId of Object.keys(pack.tripIds ?? {})) {
+    updates[`trips/${tripId}/savedPacks/${packId}`] = null;
+  }
+  await update(ref(db), updates);
 }
 
 export async function renamePack(packId: string, name: string): Promise<void> {

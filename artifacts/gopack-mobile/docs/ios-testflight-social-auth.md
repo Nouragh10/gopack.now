@@ -6,21 +6,21 @@ submitting a build to TestFlight.
 
 ## Google sign-in
 
-1. In Google Cloud Console, create OAuth client IDs for:
-   - iOS: bundle ID `com.gopacknow.app`
-   - Android: package `com.gopacknow.app` and the release signing SHA-1/SHA-256
-   - Web: the Firebase auth domain/authorized redirect URL required by
-     `gopacknow-83d54`
+1. Create OAuth client IDs for:
+    - iOS: bundle ID `com.gopacknow.app`
+    - Android: package `com.gopacknow.app` and the release signing SHA-1/SHA-256
+    - Web: the Firebase auth domain/authorized redirect URL required by
+      `gopacknow-83d54`
 2. In Firebase Authentication for `gopacknow-83d54`, enable the Google
    provider and associate the correct Web client ID where Firebase requests it.
 3. Keep these public client identifiers available in Packyo’s production
    configuration (they are not secrets):
-   - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+    - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
    - `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`
    - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
-   Packyo’s EAS production profile injects the current values into the release
-   build. If any client ID is rotated, update both that profile and the Replit
-   production environment before creating a new build.
+Packyo’s EAS production profile injects the current values into the release
+build. If any client ID is rotated, update that profile before creating a new
+build.
 
 ## Apple sign-in
 
@@ -42,7 +42,9 @@ submitting a build to TestFlight.
 2. Upload it to App Store Connect and install it through TestFlight on a real
    iPhone or iPad.
 3. Verify each path:
-   - Google sign-in returns to Packyo and creates/signs in to the Firebase user.
+    - On iOS, Google sign-in returns through the registered reversed-client-ID
+      scheme and creates/signs in to the Firebase user.
+    - On web and Android, Google sign-in returns to Packyo and creates/signs in to the Firebase user.
    - Apple sign-in returns to Packyo and creates/signs in to the Firebase user.
    - A second Apple sign-in works after Apple only shares name/email on the
      first authorization.

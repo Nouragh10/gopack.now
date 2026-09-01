@@ -52,6 +52,10 @@ const hookGoogleClientIds = {
   webClientId: googleClientIds.webClientId ?? "missing-google-web-client-id.apps.googleusercontent.com",
 };
 
+const googleIosRedirectScheme = googleClientIds.iosClientId
+  ? `com.googleusercontent.apps.${googleClientIds.iosClientId.replace(/\.apps\.googleusercontent\.com$/, "")}`
+  : null;
+
 const googleConfigurationError = () => {
   const missing =
     Platform.OS === "android"
@@ -91,10 +95,13 @@ export default function SignInScreen() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resent, setResent] = useState(false);
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "gopack-mobile",
-    path: "sign-in",
-  });
+  const redirectUri =
+    Platform.OS === "ios" && googleIosRedirectScheme
+      ? `${googleIosRedirectScheme}:/oauthredirect`
+      : AuthSession.makeRedirectUri({
+          scheme: "gopack-mobile",
+          path: "sign-in",
+        });
   const [, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
     ...hookGoogleClientIds,
     redirectUri,

@@ -54,17 +54,8 @@ export default function MemoryGuideScreen() {
     return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
   }
 
-  // Authenticated members must only see their own review and guide. The
-  // legacy fields are safe fallbacks only when they were written by this
-  // member; otherwise one member could briefly see another member's memory.
-  const legacyReview = trip.review as { reviewedBy?: string } | undefined;
-  const isLegacyReviewMine = !!user && legacyReview?.reviewedBy === user.uid;
-  const guide = user
-    ? trip.memoryGuides?.[user.uid] ?? (isLegacyReviewMine ? trip.memoryGuide : undefined)
-    : trip.memoryGuide;
-  const myReview = user
-    ? trip.memberReviews?.[user.uid] ?? (isLegacyReviewMine ? trip.review : undefined)
-    : trip.review;
+  const guide = (user ? trip.memoryGuides?.[user.uid] : undefined) ?? trip.memoryGuide;
+  const myReview = (user ? trip.memberReviews?.[user.uid] : undefined) ?? trip.review;
   const photos = ((myReview as { photos?: string[] } | undefined)?.photos ?? []).slice(0, 6);
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 

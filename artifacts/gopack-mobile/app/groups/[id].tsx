@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { usePacks, renamePack, removePackMember, useTrips } from "@/hooks/useFirebase";
+import { deletePack, usePacks, renamePack, removePackMember, useTrips } from "@/hooks/useFirebase";
 
 function packCreatedLabel(ts: number) {
   if (!ts) return "Recently";
@@ -56,6 +56,7 @@ export default function GroupDetailScreen() {
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const isHost = pack?.hostUid === user?.uid;
@@ -91,6 +92,37 @@ export default function GroupDetailScreen() {
               await removePackMember(pack.id, uid);
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch {}
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeletePack = () => {
+    if (!pack || !user || deleting) return;
+    Alert.alert(
+      `Delete ${pack.name}?`,
+      "This pack and its saved trip links will be permanently removed. Past trips will not be deleted.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete pack",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deletePack(pack.id, user.uid);
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setEditing(false);
+              router.replace("/(tabs)/profile" as any);
+            } catch (error) {
+              Alert.alert(
+                "Delete failed",
+                error instanceof Error ? error.message : "We couldn't delete this pack. Please try again.",
+              );
+            } finally {
+              setDeleting(false);
+            }
           },
         },
       ],
@@ -329,17 +361,35 @@ export default function GroupDetailScreen() {
               onSubmitEditing={handleRename}
             />
             <View style={styles.sheetBtns}>
-              <Pressable onPress={() => setEditing(false)} style={[styles.cancelBtn, { borderColor: colors.border }]}>
+              <Pressable
+                onPress={() => setEditing(false)}
+                disabled={renaming || deleting}
+                style={[styles.cancelBtn, { borderColor: colors.border, opacity: renaming || deleting ? 0.6 : 1 }]}
+              >
                 <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleRename}
-                disabled={renaming}
-                style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: renaming ? 0.6 : 1 }]}
+                disabled={renaming || deleting}
+                style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: renaming || deleting ? 0.6 : 1 }]}
               >
                 {renaming ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
               </Pressable>
             </View>
+            {isHost ? (
+              <Pressable
+                onPress={handleDeletePack}
+                disabled={renaming || deleting}
+                testID="delete-pack"
+                accessibilityRole="button"
+                accessibilityLabel="Delete pack"
+                style={[styles.deleteBtn, { borderColor: colors.destructive, opacity: deleting ? 0.6 : 1 }]}
+              >
+                {deleting
+                  ? <ActivityIndicator color={colors.destructive} size="small" />
+                  : <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete pack</Text>}
+              </Pressable>
+            ) : null}
           </View>
         </Pressable>
       </Modal>
@@ -408,4 +458,6 @@ const styles = StyleSheet.create({
   cancelText: { fontFamily: "DmSans_600SemiBold", fontSize: 15 },
   saveBtn: { flex: 1, alignItems: "center", borderRadius: 12, paddingVertical: 13 },
   saveBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 15, color: "#fff" },
+  deleteBtn: { alignItems: "center", borderWidth: 1, borderRadius: 12, paddingVertical: 12 },
+  deleteBtnText: { fontFamily: "DmSans_600SemiBold", fontSize: 14 },
 });

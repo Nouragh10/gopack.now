@@ -45,7 +45,6 @@ import {
 } from "@/hooks/useFirebase";
 import { Mascot } from "@/components/Mascot";
 import { WikiImage } from "@/components/WikiImage";
-import { isWishEligible } from "@/lib/wish-eligibility";
 
 const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
@@ -81,6 +80,24 @@ function getDayDate(startDate: string | null | undefined, dayNumber: number): st
   } catch {
     return null;
   }
+}
+
+function getTripEndDateTime(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  days: number | undefined,
+): Date | null {
+  const end = endDate
+    ? new Date(`${endDate}T23:59:59.999`)
+    : startDate
+      ? new Date(`${startDate}T00:00:00`)
+      : null;
+  if (!end || Number.isNaN(end.getTime())) return null;
+  if (!endDate) {
+    end.setDate(end.getDate() + Math.max(Number(days) || 1, 1) - 1);
+  }
+  end.setHours(23, 59, 59, 999);
+  return end;
 }
 
 function parseActivityTime(timeStr: string): { hours: number; minutes: number } | null {
@@ -1054,6 +1071,13 @@ export default function ItineraryScreen() {
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom + 16;
+  const tripEnd = getTripEndDateTime(trip?.startDate, trip?.endDate, trip?.days);
+  const tripEnded = !!tripEnd && tripEnd.getTime() < Date.now();
+  const isMember = !!user && !!trip?.members?.[user.uid];
+  const hasReview = !!user && !!(
+    trip?.memberReviews?.[user.uid] ||
+    (trip?.review as { reviewedBy?: string } | undefined)?.reviewedBy === user.uid
+  );
 
   const handleBack = () => {
     if (returnTo === "tripHub" && id) {
@@ -1068,7 +1092,6 @@ export default function ItineraryScreen() {
   const showEstimatedCosts = trip?.showEstimatedCosts !== false;
   const currentDay = days.find((d) => d.dayNumber === selectedDay) ?? days[0];
   const members = Object.values(trip?.members ?? {});
-  const memberCount = members.length;
 
   const accom = trip?.confirmedAccommodation ?? null;
   const accomCost = accom?.costPerPerson ?? 0;
@@ -1246,45 +1269,52 @@ export default function ItineraryScreen() {
         return d;
       };
 
-      const calendar = Platform.OS === "web" ? null : Calendar;
-      if (calendar) {
-        try {
-          let permission = await calendar.getCalendarPermissionsAsync();
-          if (permission.status !== "granted") {
-            permission = await calendar.requestCalendarPermissionsAsync();
+      if (Platform.OS !== "web") {
+        let permission = await Calendar.getCalendarPermissionsAsync();
+        if (permission.status !== "granted") {
+          permission = await Calendar.requestCalendarPermissionsAsync();
+        }
+        if (permission.status === "granted") {
+          const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+          let targetCalendar = calendars.find((item) => item.allowsModifications);
+          if (!targetCalendar) {
+            const defaultCalendar = await Calendar.getDefaultCalendarAsync();
+            if (defaultCalendar?.allowsModifications) targetCalendar = defaultCalendar;
           }
-          if (permission.status === "granted") {
-            const calendars = await calendar.getCalendarsAsync(calendar.EntityTypes.EVENT);
-            const targetCalendar = calendars.find((item) => item.allowsModifications && item.isPrimary)
-              ?? calendars.find((item) => item.allowsModifications);
-            if (targetCalendar) {
-              let createdCount = 0;
+          if (targetCalendar) {
+            const createdEventIds: string[] = [];
+            try {
               for (let di = 0; di < days.length; di += 1) {
                 const day = days[di];
                 for (const act of day.activities) {
                   const start = parseTime((day.dayNumber || di + 1) - 1, act.time || "9:00am");
-                  await calendar.createEventAsync(targetCalendar.id, {
+                  const eventId = await Calendar.createEventAsync(targetCalendar.id, {
                     title: act.name || "Activity",
                     startDate: start,
                     endDate: new Date(start.getTime() + 60 * 60 * 1000),
                     notes: act.description || undefined,
                     location: day.city || trip.destination || undefined,
                   });
-                  createdCount += 1;
+                  createdEventIds.push(eventId);
                 }
               }
               Alert.alert(
                 "Added to calendar",
-                `${createdCount} ${createdCount === 1 ? "activity was" : "activities were"} added to your calendar.`,
+                `${createdEventIds.length} ${createdEventIds.length === 1 ? "activity was" : "activities were"} added to your iPhone calendar.`,
               );
               return;
+            } catch (nativeCalendarError) {
+              await Promise.all(
+                createdEventIds.map((eventId) =>
+                  Calendar.deleteEventAsync(eventId).catch(() => undefined),
+                ),
+              );
+              if (createdEventIds.length > 0) {
+                throw nativeCalendarError;
+              }
+              // If no event was created, continue to the .ics fallback below.
             }
           }
-          // A denied permission or read-only calendar should still allow an
-          // .ics file to be shared/imported below.
-        } catch {
-          // Native calendar support varies by Expo client and OS. The verified
-          // ICS export below is the compatibility fallback.
         }
       }
 
@@ -1647,6 +1677,20 @@ export default function ItineraryScreen() {
           <Text style={[styles.titleDest, { color: colors.foreground }]}>{trip.destination}</Text>
         </View>
 
+        {tripEnded && isMember ? (
+          <Pressable
+            testID="itinerary-memory-guide"
+            onPress={() => router.push(hasReview ? `/memory/${id}` : `/review/${id}`)}
+            style={[styles.memoryBanner, { backgroundColor: colors.primary }]}
+          >
+            <Feather name={hasReview ? "book-open" : "camera"} size={17} color="#fff" />
+            <Text style={styles.memoryBannerText}>
+              {hasReview ? "Open your trip memory guide" : "Rate the trip, add photos, and make a memory guide"}
+            </Text>
+            <Feather name="chevron-right" size={17} color="#fff" />
+          </Pressable>
+        ) : null}
+
         {days.map((day, dayIndex) => (
           <View key={day.dayNumber} style={styles.dayBlock}>
             <View style={styles.dayHeader}>
@@ -1726,9 +1770,7 @@ export default function ItineraryScreen() {
 
         {/* Not included — excluded wishes */}
         {(() => {
-          // Keep this display in lockstep with itinerary generation: a wish
-          // needs votes from at least half of the current members to qualify.
-          const excludedWishes = wishes.filter(w => !isWishEligible(w, memberCount));
+          const excludedWishes = wishes.filter(w => w.score < 0);
           if (excludedWishes.length === 0) return null;
           return (
             <View style={styles.notIncludedBlock}>
@@ -2001,6 +2043,11 @@ const styles = StyleSheet.create({
   headerTabText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   
   titleRow: { paddingVertical: 16, marginTop: 8 },
+  memoryBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
+  },
+  memoryBannerText: { fontFamily: "DmSans_600SemiBold", fontSize: 13, color: "#fff", flex: 1 },
   titleDest: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 28 },
 
   dayBlock: { marginBottom: 32 },

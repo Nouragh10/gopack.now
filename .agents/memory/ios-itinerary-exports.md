@@ -9,8 +9,13 @@ On iOS, defer PDF or calendar sharing until the export modal has fully dismissed
 
 **How to apply:** Queue the selected export, invoke it from the modal-dismiss completion, and retain robust, standards-compliant ICS fields (UID, timestamp, escaped text) before handing the file to the system share sheet.
 
-For native calendar creation, import `expo-calendar` statically and declare its config plugin/permission. Do not attempt to access Metro's module loader through `globalThis.require`.
+The calendar export action must add itinerary activities directly to the
+iPhone Calendar after permission is granted. Keep `.ics` sharing only as the
+fallback when Calendar access or a writable calendar is unavailable.
 
-**Why:** Metro does not reliably install `require` on `globalThis`, so the dynamic lookup silently disables direct calendar creation and always falls back to ICS.
+**Why:** The user explicitly confirmed that downloading or sharing a calendar
+file alone does not satisfy Packyo's iOS export requirement.
 
-**How to apply:** Use the imported Calendar module only outside web, request calendar access at export time, and retain ICS sharing as the browser/permission-denied fallback.
+**How to apply:** Treat successful direct insertion as the primary iOS outcome.
+A downloadable or shareable calendar file is only a fallback, not equivalent
+completion of the export request.

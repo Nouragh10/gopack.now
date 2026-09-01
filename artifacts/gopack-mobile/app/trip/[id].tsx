@@ -50,11 +50,6 @@ import {
 
 const MEMBER_COLORS = ["#F15A3A", "#F4BC55", "#A77BD6", "#68B7A0", "#EE9D54", "#6EA6D8"];
 
-function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
 const WISH_PLACEHOLDERS = [
   "Visit a local market at sunrise…",
   "Find the best street food spot…",
@@ -426,7 +421,7 @@ export default function TripHubScreen() {
 
   const tripEnded = (() => {
     if (!trip?.startDate) return false;
-    const start = parseDateOnly(trip.startDate);
+    const start = new Date(trip.startDate);
     const end = new Date(start.getTime() + (trip.days || 1) * 24 * 60 * 60 * 1000);
     return end < new Date();
   })();
@@ -558,12 +553,9 @@ export default function TripHubScreen() {
             <View style={styles.heroContent}>
               <Text style={styles.heroTitle}>{trip.destination || (trip as any).packName || "Destination TBD"}</Text>
               <Text style={styles.heroDates}>
-                {trip.startDate ? parseDateOnly(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "Dates TBD"}
+                {trip.startDate ? new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "Dates TBD"}
                 {trip.startDate && trip.days
-                  ? ` - ${(trip.endDate
-                    ? parseDateOnly(trip.endDate)
-                    : new Date(parseDateOnly(trip.startDate).getTime() + Math.max(0, trip.days - 1) * 86400000)
-                  ).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  ? ` - ${new Date(trip.endDate ?? new Date(new Date(trip.startDate).getTime() + Math.max(0, trip.days - 1) * 86400000)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                   : ""}
               </Text>
             </View>
