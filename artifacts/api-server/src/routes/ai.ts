@@ -310,7 +310,8 @@ const GOOGLE_MAPS_HOSTS = new Set([
 function parseGoogleMapsUrl(value: string): URL {
   let url: URL;
   try {
-    url = new URL(value);
+    const pastedUrl = value.match(/https:\/\/[^\s<>"']+/i)?.[0] ?? value.trim();
+    url = new URL(pastedUrl.replace(/[),.;]+$/, ""));
   } catch {
     throw new Error("Paste a valid Google Maps link.");
   }
@@ -321,6 +322,32 @@ function parseGoogleMapsUrl(value: string): URL {
     throw new Error("Only Google Maps place links are supported.");
   }
   return url;
+}
+
+function googleMapsDetails(urlValue: string, pageTitle: string): {
+  placeName: string;
+  lat?: number;
+  lng?: number;
+} {
+  const url = new URL(urlValue);
+  const placePath = url.pathname.match(/\/maps\/place\/([^/]+)/i)?.[1];
+  const queryPlace = url.searchParams.get("query")
+    ?? url.searchParams.get("q")
+    ?? url.searchParams.get("destination");
+  const decodedCandidate = decodeURIComponent(placePath ?? queryPlace ?? "")
+    .replace(/\+/g, " ")
+    .trim();
+  const coordinateOnly = /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(decodedCandidate);
+  const placeName = pageTitle.trim() || (coordinateOnly ? "" : decodedCandidate);
+  const atCoordinates = url.href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  const dataCoordinates = url.href.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+  const lat = Number(atCoordinates?.[1] ?? dataCoordinates?.[1]);
+  const lng = Number(atCoordinates?.[2] ?? dataCoordinates?.[2]);
+  return {
+    placeName,
+    ...(Number.isFinite(lat) ? { lat } : {}),
+    ...(Number.isFinite(lng) ? { lng } : {}),
+  };
 }
 
 async function resolveGoogleMapsLink(link: string): Promise<{ finalUrl: string; pageTitle: string }> {
@@ -1670,8 +1697,14 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
     const transaction = await tripRef.transaction((current) => {
       const member = current?.members?.[decoded.uid] as { name?: string } | undefined;
       if (!member || !current?.itinerary || !Array.isArray(current.itinerary.days)) return;
-      const days = current.itinerary.days as Array<{ dayNumber?: number; activities?: Array<Record<string, unknown>> }>;
-      const dayIdx = days.findIndex((day) => Number(day.dayNumber) === Number(dayNumber));
+      const days = current.itinerary.days as Array<{
+        day?: number;
+        dayNumber?: number;
+        activities?: Array<Record<string, unknown>>;
+      }>;
+      const dayIdx = days.findIndex(
+        (day, index) => Number(day.dayNumber ?? day.day ?? index + 1) === Number(dayNumber),
+      );
       if (dayIdx === -1) return;
       const activities: Array<Record<string, unknown> & { id: string }> = Array.isArray(days[dayIdx].activities)
         ? days[dayIdx].activities!.map((existing) => ({
@@ -1794,6 +1827,7 @@ router.post("/parse-map-activity", async (req: Request, res: Response): Promise<
     }
 
     const resolved = await resolveGoogleMapsLink(link.trim());
+    const resolvedDetails = googleMapsDetails(resolved.finalUrl, resolved.pageTitle);
     const response = await callAnthropic({
       model: "claude-haiku-4-5",
       max_tokens: 700,
@@ -1805,6 +1839,11 @@ Use the place name and coordinates from the supplied URL/title when available. C
         content: JSON.stringify({
           googleMapsUrl: resolved.finalUrl,
           pageTitle: resolved.pageTitle,
+          extractedPlaceName: resolvedDetails.placeName,
+          extractedCoordinates: {
+            lat: resolvedDetails.lat ?? null,
+            lng: resolvedDetails.lng ?? null,
+          },
           destination,
           city: city || destination,
           dayNumber,
@@ -1815,9 +1854,16 @@ Use the place name and coordinates from the supplied URL/title when available. C
     if (!(response as unknown as globalThis.Response).ok) {
       throw new Error("The AI service could not read that place.");
     }
-    const payload = await (response as unknown as globalThis.Response).json() as { content?: Array<{ text?: string }> };
-    const parsed = extractAndParseJson(payload.content?.[0]?.text ?? "{}") as Record<string, unknown>;
-    const name = String(parsed.name ?? resolved.pageTitle ?? "").trim();
+    const payload = await (response as unknown as globalThis.Response).json() as {
+      content?: Array<{ type?: string; text?: string }>;
+    };
+    const allText = (payload.content ?? [])
+      .filter((block) => !block.type || block.type === "text")
+      .map((block) => block.text ?? "")
+      .join("");
+    const parsedValue = extractAndParseJson(allText || "{}");
+    const parsed = findRedoActivity(parsedValue) ?? {};
+    const name = String(parsed.name ?? resolvedDetails.placeName ?? "").trim();
     if (!name) {
       res.status(422).json({ error: "Packyo could not identify a place from that link." });
       return;
@@ -1834,8 +1880,12 @@ Use the place name and coordinates from the supplied URL/title when available. C
         labels: ["Google Maps"],
         nearPrevious: false,
         photoQuery: String(parsed.photoQuery ?? `${name} ${city || destination}`),
-        ...(parsed.lat !== null && parsed.lat !== undefined && Number.isFinite(Number(parsed.lat)) ? { lat: Number(parsed.lat) } : {}),
-        ...(parsed.lng !== null && parsed.lng !== undefined && Number.isFinite(Number(parsed.lng)) ? { lng: Number(parsed.lng) } : {}),
+        ...(parsed.lat !== null && parsed.lat !== undefined && Number.isFinite(Number(parsed.lat))
+          ? { lat: Number(parsed.lat) }
+          : resolvedDetails.lat !== undefined ? { lat: resolvedDetails.lat } : {}),
+        ...(parsed.lng !== null && parsed.lng !== undefined && Number.isFinite(Number(parsed.lng))
+          ? { lng: Number(parsed.lng) }
+          : resolvedDetails.lng !== undefined ? { lng: resolvedDetails.lng } : {}),
       },
     });
   } catch (err) {
