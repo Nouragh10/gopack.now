@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
@@ -346,52 +348,63 @@ export default function GroupDetailScreen() {
       {/* Rename modal */}
 
       <Modal visible={editing} transparent animationType="slide" onRequestClose={() => setEditing(false)}>
-        <Pressable style={styles.overlay} onPress={() => setEditing(false)}>
-          <View style={[styles.renameSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Rename pack</Text>
-            <TextInput
-              style={[styles.renameInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="e.g. College Friends, Family, Work Squad"
-              placeholderTextColor={colors.mutedForeground}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleRename}
-            />
-            <View style={styles.sheetBtns}>
-              <Pressable
-                onPress={() => setEditing(false)}
-                disabled={renaming || deleting}
-                style={[styles.cancelBtn, { borderColor: colors.border, opacity: renaming || deleting ? 0.6 : 1 }]}
-              >
-                <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleRename}
-                disabled={renaming || deleting}
-                style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: renaming || deleting ? 0.6 : 1 }]}
-              >
-                {renaming ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
-              </Pressable>
-            </View>
-            {isHost ? (
-              <Pressable
-                onPress={handleDeletePack}
-                disabled={renaming || deleting}
-                testID="delete-pack"
-                accessibilityRole="button"
-                accessibilityLabel="Delete pack"
-                style={[styles.deleteBtn, { borderColor: colors.destructive, opacity: deleting ? 0.6 : 1 }]}
-              >
-                {deleting
-                  ? <ActivityIndicator color={colors.destructive} size="small" />
-                  : <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete pack</Text>}
-              </Pressable>
-            ) : null}
-          </View>
-        </Pressable>
+        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={{ flex: 1 }}>
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              Keyboard.dismiss();
+              setEditing(false);
+            }}
+          >
+            <Pressable
+              style={[styles.renameSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => {}}
+            >
+              <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Rename pack</Text>
+              <TextInput
+                style={[styles.renameInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="e.g. College Friends, Family, Work Squad"
+                placeholderTextColor={colors.mutedForeground}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleRename}
+              />
+              <View style={styles.sheetBtns}>
+                <Pressable
+                  onPress={() => setEditing(false)}
+                  disabled={renaming || deleting}
+                  style={[styles.cancelBtn, { borderColor: colors.border, opacity: renaming || deleting ? 0.6 : 1 }]}
+                >
+                  <Text style={[styles.cancelText, { color: colors.foreground }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleRename}
+                  disabled={renaming || deleting}
+                  style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: renaming || deleting ? 0.6 : 1 }]}
+                >
+                  {renaming ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save</Text>}
+                </Pressable>
+              </View>
+              {isHost ? (
+                <Pressable
+                  onPress={handleDeletePack}
+                  disabled={renaming || deleting}
+                  testID="delete-pack"
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete pack"
+                  style={[styles.deleteBtn, { borderColor: colors.destructive, opacity: deleting ? 0.6 : 1 }]}
+                >
+                  {deleting
+                    ? <ActivityIndicator color={colors.destructive} size="small" />
+                    : <Text style={[styles.deleteBtnText, { color: colors.destructive }]}>Delete pack</Text>}
+                </Pressable>
+              ) : null}
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

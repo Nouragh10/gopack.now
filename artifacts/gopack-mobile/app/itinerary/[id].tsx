@@ -28,6 +28,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api-client";
@@ -2027,15 +2028,21 @@ export default function ItineraryScreen() {
         animationType="slide"
         onRequestClose={() => !mapImporting && setMapImport(null)}
       >
-        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} keyboardVerticalOffset={0}>
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => {
-              if (!mapImporting) {
-                Keyboard.dismiss();
-                setMapImport(null);
-              }
-            }}
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            if (!mapImporting) {
+              Keyboard.dismiss();
+              setMapImport(null);
+            }
+          }}
+        >
+          <KeyboardAwareScrollViewCompat
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.keyboardSheetContent}
+            bottomOffset={32}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
           >
             <Pressable style={[styles.editSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
               <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
@@ -2076,8 +2083,8 @@ export default function ItineraryScreen() {
                 </Pressable>
               </View>
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollViewCompat>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -2086,13 +2093,16 @@ export default function ItineraryScreen() {
         animationType="slide"
         onRequestClose={() => setEditModal(null)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ flex: 1 }}
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => { Keyboard.dismiss(); setEditModal(null); }}
         >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => { Keyboard.dismiss(); setEditModal(null); }}
+          <KeyboardAwareScrollViewCompat
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.keyboardSheetContent}
+            bottomOffset={84}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
           >
             <Pressable style={[styles.editSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
               <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
@@ -2155,8 +2165,8 @@ export default function ItineraryScreen() {
                 </Pressable>
               </View>
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollViewCompat>
+        </Pressable>
       </Modal>
 
       {packSavedName ? (
@@ -2378,6 +2388,7 @@ const styles = StyleSheet.create({
   backLink: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backLinkText: { fontFamily: "DmSans_500Medium", fontSize: 14 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  keyboardSheetContent: { flexGrow: 1, justifyContent: "flex-end" },
   editSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, gap: 8 },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
   sheetTitle: { fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginBottom: 4 },
