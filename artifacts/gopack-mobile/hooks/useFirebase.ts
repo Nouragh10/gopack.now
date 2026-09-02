@@ -1,4 +1,88 @@
-e>;
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCallback, useEffect, useState } from "react";
+import { auth, db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api-client";
+
+/* ── Interfaces ───────────────────────────────────────────────────── */
+
+export interface TripMember {
+  name: string;
+  joinedAt: string;
+  isHost: boolean;
+}
+
+export interface DestinationSuggestion {
+  name: string;
+  pitch: string;
+  tags: string[];
+  flightHint: string;
+  bestTime: string;
+}
+
+export interface MemberPreference {
+  vibes: string[];
+  distance: string;
+  budget: string;
+  days: number;
+  startDate: string | null;
+  startLocation?: string;
+  pace?: "relaxed" | "balanced" | "packed";
+  submittedAt: string;
+}
+
+export interface AccommodationPreference {
+  maxCostPerPerson: number;
+  type: "hotel" | "airbnb" | "hostel" | "no_preference";
+  rooms: number;
+  location: string;
+  amenities: string[];
+  priority: "luxury" | "balanced" | "affordability";
+  cancellation: "flexible" | "any";
+  submittedAt: string;
+}
+
+export interface AccommodationSuggestion {
+  id: string;
+  name: string;
+  type: "hotel" | "airbnb" | "hostel" | "other";
+  location: string;
+  totalCost: number;
+  costPerPerson: number;
+  nights: number;
+  rating: number;
+  amenities: string[];
+  rooms: number;
+  beds: number;
+  cancellation: string;
+  whyItFits: string;
+  tags: string[];
+  distanceNote: string;
+  link?: string;
+  photos?: string[];
+  submittedBy: string;
+}
+
+export interface Trip {
+  id: string;
+  destination: string;
+  days: number;
+  vibes: string[];
+  budget: string;
+  showEstimatedCosts?: boolean;
+  planningDefaults?: {
+    pace: string;
+    focus: string;
+  };
+  startDate: string | null;
+  endDate?: string | null;
+  members: Record<string, TripMember>;
+  hostMemberId: string;
+  createdAt: string;
+  inviteCode?: string;
+  itinerary?: { title: string; days: ItineraryDay[] };
+  votesLockedBy?: Record<string, boolean>;
+  collectingPreferences?: boolean;
+  memberPreferences?: Record<string, MemberPreference>;
   destinationSuggestions?: DestinationSuggestion[];
   destinationVotes?: Record<string, Record<string, "up" | "down">>;
   destinationLockedBy?: Record<string, boolean>;
