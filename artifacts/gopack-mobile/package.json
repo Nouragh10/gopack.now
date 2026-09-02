@@ -12,7 +12,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@expo-google-fonts/inter": "^0.4.0",
-    "@expo/cli": "54.0.23",
+    "@expo/cli": "54.0.27",
     "@expo/ngrok": "^4.1.0",
     "@expo/vector-icons": "^15.0.3",
     "@stardazed/streams-text-encoding": "^1.0.2",
@@ -65,8 +65,8 @@
     "expo-crypto": "~15.0.9",
     "expo-device": "~8.0.9",
     "expo-file-system": "^19.0.24",
-    "expo-print": "^15.0.8",
     "expo-notifications": "~0.32.12",
+    "expo-print": "^15.0.8",
     "expo-sharing": "^14.0.8",
     "firebase": "^12.15.0"
   }

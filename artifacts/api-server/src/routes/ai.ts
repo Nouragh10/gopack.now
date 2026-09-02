@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import { GenerateItineraryBody, GeneratePackingListBody } from "@workspace/api-zod";
 import { getAdminDb, getAdminApp } from "../lib/firebase-admin";
 import { getAuth } from "firebase-admin/auth";
@@ -18,6 +19,7 @@ import {
 
 const router: IRouter = Router();
 const joinAttemptWindows = new Map<string, { count: number; resetAt: number }>();
+const mapActivityWindows = new Map<string, { count: number; resetAt: number }>();
 
 function allowJoinAttempt(uid: string): boolean {
   const now = Date.now();
@@ -28,6 +30,41 @@ function allowJoinAttempt(uid: string): boolean {
   }
   current.count += 1;
   return current.count <= 10;
+}
+
+function allowMapActivityImport(uid: string): boolean {
+  const now = Date.now();
+  const current = mapActivityWindows.get(uid);
+  if (!current || current.resetAt <= now) {
+    mapActivityWindows.set(uid, { count: 1, resetAt: now + 10 * 60_000 });
+    return true;
+  }
+  if (current.count >= 10) return false;
+  current.count += 1;
+  return true;
+}
+
+function activityTimeToMinutes(value: unknown): number {
+  const match = String(value ?? "").match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (match[3].toUpperCase() === "PM" && hours !== 12) hours += 12;
+  if (match[3].toUpperCase() === "AM" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function isSameLegacyActivity(
+  candidate: Record<string, unknown>,
+  target: Record<string, unknown>,
+): boolean {
+  return (
+    candidate.name === target.name &&
+    candidate.time === target.time &&
+    candidate.description === target.description &&
+    candidate.suggester === target.suggester &&
+    Boolean(candidate.fromWish) === Boolean(target.fromWish)
+  );
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -235,7 +272,7 @@ Respond with ONLY a JSON array, one object per duplicate slot IN THE SAME ORDER 
   }
 }
 
-type GenerationFeature = "itinerary" | "packing" | "redo-activity" | "suggest-destinations";
+type GenerationFeature = "itinerary" | "packing" | "redo-activity" | "suggest-destinations" | "map-activity";
 
 async function checkAndIncrementGenerationCount(
   _userId: string,
@@ -260,6 +297,54 @@ type RedoActivity = {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+const GOOGLE_MAPS_HOSTS = new Set([
+  "google.com",
+  "www.google.com",
+  "maps.google.com",
+  "maps.app.goo.gl",
+  "goo.gl",
+]);
+
+function parseGoogleMapsUrl(value: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Paste a valid Google Maps link.");
+  }
+  const host = url.hostname.toLowerCase();
+  const isGoogleHost = GOOGLE_MAPS_HOSTS.has(host) || host.endsWith(".google.com");
+  const isMapsPath = host === "maps.app.goo.gl" || host === "maps.google.com" || url.pathname.includes("/maps");
+  if (url.protocol !== "https:" || !isGoogleHost || !isMapsPath) {
+    throw new Error("Only Google Maps place links are supported.");
+  }
+  return url;
+}
+
+async function resolveGoogleMapsLink(link: string): Promise<{ finalUrl: string; pageTitle: string }> {
+  let current = parseGoogleMapsUrl(link);
+  for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
+    const response = await fetch(current, {
+      method: "GET",
+      redirect: "manual",
+      headers: { "User-Agent": "Mozilla/5.0 Packyo/1.0" },
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) break;
+      current = parseGoogleMapsUrl(new URL(location, current).toString());
+      continue;
+    }
+    const html = response.ok ? await response.text() : "";
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return {
+      finalUrl: current.toString(),
+      pageTitle: titleMatch?.[1]?.replace(/\s*-\s*Google Maps\s*$/i, "").trim() ?? "",
+    };
+  }
+  return { finalUrl: current.toString(), pageTitle: "" };
 }
 
 function findRedoActivity(value: unknown, depth = 0): Record<string, unknown> | null {
@@ -1524,6 +1609,240 @@ router.post("/send-trip-push", async (req: Request, res: Response): Promise<void
   } catch (err) {
     req.log.error({ err }, "Failed to deliver trip push");
     res.status(500).json({ error: "Could not deliver this trip update." });
+  }
+});
+
+/* ─── Shared activity writes ─── */
+router.post("/trip-activity", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    const {
+      tripId,
+      operation,
+      dayNumber,
+      activityId,
+      targetActivity,
+      activity,
+    } = req.body as {
+      tripId?: string;
+      operation?: "add" | "update" | "delete";
+      dayNumber?: number;
+      activityId?: string;
+      targetActivity?: Record<string, unknown>;
+      activity?: Record<string, unknown>;
+    };
+
+    if (
+      !tripId ||
+      !["add", "update", "delete"].includes(operation ?? "") ||
+      !Number.isInteger(Number(dayNumber))
+    ) {
+      res.status(400).json({ error: "A trip, operation, and itinerary day are required." });
+      return;
+    }
+
+    const db = getAdminDb();
+    const tripRef = db.ref(`trips/${tripId}`);
+
+    if (
+      (operation === "update" || operation === "delete") &&
+      !activityId &&
+      (!targetActivity || typeof targetActivity !== "object")
+    ) {
+      res.status(400).json({ error: "The activity to change is required." });
+      return;
+    }
+    if ((operation === "add" || operation === "update") && (!activity || typeof activity !== "object")) {
+      res.status(400).json({ error: "Activity details are required." });
+      return;
+    }
+    if (typeof activity?.name === "string" && activity.name.trim().length > 160) {
+      res.status(400).json({ error: "Activity names must be 160 characters or fewer." });
+      return;
+    }
+
+    const transaction = await tripRef.transaction((current) => {
+      const member = current?.members?.[decoded.uid] as { name?: string } | undefined;
+      if (!member || !current?.itinerary || !Array.isArray(current.itinerary.days)) return;
+      const days = current.itinerary.days as Array<{ dayNumber?: number; activities?: Array<Record<string, unknown>> }>;
+      const dayIdx = days.findIndex((day) => Number(day.dayNumber) === Number(dayNumber));
+      if (dayIdx === -1) return;
+      const activities: Array<Record<string, unknown> & { id: string }> = Array.isArray(days[dayIdx].activities)
+        ? days[dayIdx].activities!.map((existing) => ({
+            ...existing,
+            id: typeof existing.id === "string" && existing.id ? existing.id : randomUUID(),
+          }))
+        : [];
+
+      if (operation === "add") {
+        const source = activity!;
+        const newActivity: Record<string, unknown> & { id: string } = {
+          id: randomUUID(),
+          time: typeof source.time === "string" ? source.time : "12:00 PM",
+          name: typeof source.name === "string" ? source.name.trim() : "New activity",
+          description: typeof source.description === "string" ? source.description.trim() : "",
+          tag: typeof source.tag === "string" ? source.tag : "culture",
+          fromWish: false,
+          suggester: member.name?.trim() || "Member",
+          matchedVibe: source.matchedVibe ?? null,
+          estimatedCost: Number.isFinite(Number(source.estimatedCost)) ? Number(source.estimatedCost) : 0,
+          labels: Array.isArray(source.labels) ? source.labels.slice(0, 8) : [],
+          nearPrevious: Boolean(source.nearPrevious),
+          ...(typeof source.photoQuery === "string" ? { photoQuery: source.photoQuery } : {}),
+          ...(Number.isFinite(Number(source.lat)) ? { lat: Number(source.lat) } : {}),
+          ...(Number.isFinite(Number(source.lng)) ? { lng: Number(source.lng) } : {}),
+        };
+        const insertAt = activities.findIndex(
+          (existing) => activityTimeToMinutes(existing.time) > activityTimeToMinutes(newActivity.time),
+        );
+        if (insertAt === -1) activities.push(newActivity);
+        else activities.splice(insertAt, 0, newActivity);
+      } else {
+        const matchingIndices = activityId
+          ? activities.flatMap((candidate, index) => candidate.id === activityId ? [index] : [])
+          : activities.flatMap((candidate, index) =>
+              targetActivity && isSameLegacyActivity(candidate, targetActivity) ? [index] : [],
+            );
+        if (matchingIndices.length !== 1) return;
+        const index = matchingIndices[0];
+        if (operation === "delete") {
+          activities.splice(index, 1);
+        } else {
+          const source = activity!;
+          activities[index] = {
+            ...activities[index],
+            ...(typeof source.name === "string" ? { name: source.name.trim() } : {}),
+            ...(typeof source.time === "string" ? { time: source.time.trim() } : {}),
+            ...(typeof source.description === "string" ? { description: source.description.trim() } : {}),
+            ...(Number.isFinite(Number(source.estimatedCost)) ? { estimatedCost: Number(source.estimatedCost) } : {}),
+          };
+        }
+      }
+
+      days[dayIdx] = { ...days[dayIdx], activities };
+      return {
+        ...current,
+        itinerary: {
+          ...current.itinerary,
+          days,
+        },
+      };
+    });
+
+    if (!transaction.committed) {
+      const latest = await tripRef.get();
+      const isStillMember = Boolean(latest.val()?.members?.[decoded.uid]);
+      res.status(isStillMember ? 409 : 403).json({
+        error: isStillMember
+          ? "The itinerary changed while saving. Please refresh and try again."
+          : "Only trip members can change activities.",
+      });
+      return;
+    }
+    res.json({ itinerary: transaction.snapshot.val()?.itinerary });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update shared trip activity");
+    res.status(500).json({ error: "Could not save the shared activity. Please try again." });
+  }
+});
+
+/* ─── Parse a Google Maps place into a member-added itinerary activity ─── */
+router.post("/parse-map-activity", async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = await getAuth(getAdminApp()).verifyIdToken(authHeader.slice(7));
+    const {
+      tripId,
+      link,
+      destination,
+      city,
+      dayNumber,
+      existingActivities,
+    } = req.body as {
+      tripId?: string;
+      link?: string;
+      destination?: string;
+      city?: string;
+      dayNumber?: number;
+      existingActivities?: Array<{ time?: string; name?: string }>;
+    };
+    if (!tripId || !link?.trim() || !destination?.trim() || !Number.isFinite(Number(dayNumber))) {
+      res.status(400).json({ error: "A trip, Google Maps link, destination, and itinerary day are required." });
+      return;
+    }
+
+    const db = getAdminDb();
+    const tripSnap = await db.ref(`trips/${tripId}`).get();
+    const trip = tripSnap.val() as { members?: Record<string, unknown> } | null;
+    if (!trip?.members?.[decoded.uid]) {
+      res.status(403).json({ error: "Only trip members can add an activity." });
+      return;
+    }
+    if (!allowMapActivityImport(decoded.uid)) {
+      res.status(429).json({ error: "Too many place imports. Please wait a few minutes and try again." });
+      return;
+    }
+
+    const resolved = await resolveGoogleMapsLink(link.trim());
+    const response = await callAnthropic({
+      model: "claude-haiku-4-5",
+      max_tokens: 700,
+      system: `Turn a Google Maps place link into one itinerary activity. Return JSON only:
+{"time":"h:mm AM","name":"string","description":"string","tag":"food|culture|adventure|outdoor|nature|transport|accommodation|relax|nightlife|shopping|beach","estimatedCost":number,"photoQuery":"string","lat":number|null,"lng":number|null}
+Use the place name and coordinates from the supplied URL/title when available. Choose a sensible visit time for the activity type that does not conflict with existing activities on that day. Keep the description factual and concise. Use 0 when cost is unknown.`,
+      messages: [{
+        role: "user",
+        content: JSON.stringify({
+          googleMapsUrl: resolved.finalUrl,
+          pageTitle: resolved.pageTitle,
+          destination,
+          city: city || destination,
+          dayNumber,
+          existingActivities: Array.isArray(existingActivities) ? existingActivities.slice(0, 20) : [],
+        }),
+      }],
+    });
+    if (!(response as unknown as globalThis.Response).ok) {
+      throw new Error("The AI service could not read that place.");
+    }
+    const payload = await (response as unknown as globalThis.Response).json() as { content?: Array<{ text?: string }> };
+    const parsed = extractAndParseJson(payload.content?.[0]?.text ?? "{}") as Record<string, unknown>;
+    const name = String(parsed.name ?? resolved.pageTitle ?? "").trim();
+    if (!name) {
+      res.status(422).json({ error: "Packyo could not identify a place from that link." });
+      return;
+    }
+    res.json({
+      activity: {
+        time: String(parsed.time ?? "12:00 PM"),
+        name,
+        description: String(parsed.description ?? `Visit ${name}.`),
+        tag: String(parsed.tag ?? "culture"),
+        fromWish: false,
+        suggester: "Member",
+        estimatedCost: Number.isFinite(Number(parsed.estimatedCost)) ? Number(parsed.estimatedCost) : 0,
+        labels: ["Google Maps"],
+        nearPrevious: false,
+        photoQuery: String(parsed.photoQuery ?? `${name} ${city || destination}`),
+        ...(parsed.lat !== null && parsed.lat !== undefined && Number.isFinite(Number(parsed.lat)) ? { lat: Number(parsed.lat) } : {}),
+        ...(parsed.lng !== null && parsed.lng !== undefined && Number.isFinite(Number(parsed.lng)) ? { lng: Number(parsed.lng) } : {}),
+      },
+    });
+  } catch (err) {
+    const message = (err as Error).message || "Could not read that Google Maps place.";
+    const status = /valid Google Maps|Only Google Maps/.test(message) ? 400 : 500;
+    req.log.error({ err }, "Failed to parse Google Maps activity");
+    res.status(status).json({ error: message });
   }
 });
 
