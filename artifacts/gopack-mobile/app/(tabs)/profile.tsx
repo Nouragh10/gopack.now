@@ -129,7 +129,7 @@ export default function ProfileScreen() {
   const { packs } = usePacks(user?.uid);
   const { wishes } = useRecentWishes(user?.uid, trips.map((trip) => trip.id));
   const { profile } = usePackyoProfile(user?.uid);
-  const { stays, activities } = useProfileTripCollections(trips, user?.displayName);
+  const { stays, activities, memories } = useProfileTripCollections(trips, user?.displayName, user?.uid);
   const { savedDestinations, loading: savedDestinationsLoading } = useSavedDestinations(user?.uid);
   const [removingSavedId, setRemovingSavedId] = React.useState<string | null>(null);
   const [savedError, setSavedError] = React.useState("");
@@ -383,6 +383,47 @@ export default function ProfileScreen() {
                 </Pressable>
               );
             })
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeading title="Memories" colors={colors} />
+          {memories.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="book-open" size={22} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No memory guides yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+                After a trip, add your review and photos to create a keepsake here.
+              </Text>
+            </View>
+          ) : (
+            memories.map((memory) => (
+              <Pressable
+                key={memory.id}
+                onPress={() => router.push(`/memory/${memory.tripId}` as any)}
+                testID={`memory-guide-${memory.tripId}`}
+                style={({ pressed }) => [
+                  styles.memoryCard,
+                  { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.82 : 1 },
+                ]}
+              >
+                {memory.photo ? (
+                  <Image source={{ uri: memory.photo }} style={styles.memoryPhoto} />
+                ) : (
+                  <View style={[styles.memoryPhotoFallback, { backgroundColor: colors.primary + "16" }]}>
+                    <Feather name="book-open" size={20} color={colors.primary} />
+                  </View>
+                )}
+                <View style={styles.memoryCopy}>
+                  <Text style={[styles.memoryTitle, { color: colors.foreground }]} numberOfLines={1}>{memory.title}</Text>
+                  <Text style={[styles.memoryMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {memory.destination}
+                    {memory.generatedAt ? ` · ${new Date(memory.generatedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}` : ""}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ))
           )}
         </View>
 
@@ -700,6 +741,12 @@ const styles = StyleSheet.create({
   tripMemberText: { fontFamily: "DmSans_400Regular", fontSize: 10 },
   progressTrack: { height: 4, borderRadius: 2, marginTop: 8, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
+  memoryCard: { flexDirection: "row", alignItems: "center", borderRadius: 15, borderWidth: 1, padding: 9, marginBottom: 9, gap: 11 },
+  memoryPhoto: { width: 66, height: 66, borderRadius: 11 },
+  memoryPhotoFallback: { width: 66, height: 66, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  memoryCopy: { flex: 1 },
+  memoryTitle: { fontFamily: "DmSans_700Bold", fontSize: 14 },
+  memoryMeta: { fontFamily: "DmSans_400Regular", fontSize: 11, marginTop: 4 },
   wishRow: { flexDirection: "row", alignItems: "center", borderRadius: 13, borderWidth: 1, padding: 11, marginBottom: 8, gap: 10 },
   wishIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   wishContent: { flex: 1 },

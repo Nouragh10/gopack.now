@@ -1,88 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useState } from "react";
-import { auth, db, equalTo, get, onValue, orderByChild, push, query, ref, set, update } from "@/lib/firebase";
-import { apiFetch } from "@/lib/api-client";
-
-/* ── Interfaces ───────────────────────────────────────────────────── */
-
-export interface TripMember {
-  name: string;
-  joinedAt: string;
-  isHost: boolean;
-}
-
-export interface DestinationSuggestion {
-  name: string;
-  pitch: string;
-  tags: string[];
-  flightHint: string;
-  bestTime: string;
-}
-
-export interface MemberPreference {
-  vibes: string[];
-  distance: string;
-  budget: string;
-  days: number;
-  startDate: string | null;
-  startLocation?: string;
-  pace?: "relaxed" | "balanced" | "packed";
-  submittedAt: string;
-}
-
-export interface AccommodationPreference {
-  maxCostPerPerson: number;
-  type: "hotel" | "airbnb" | "hostel" | "no_preference";
-  rooms: number;
-  location: string;
-  amenities: string[];
-  priority: "luxury" | "balanced" | "affordability";
-  cancellation: "flexible" | "any";
-  submittedAt: string;
-}
-
-export interface AccommodationSuggestion {
-  id: string;
-  name: string;
-  type: "hotel" | "airbnb" | "hostel" | "other";
-  location: string;
-  totalCost: number;
-  costPerPerson: number;
-  nights: number;
-  rating: number;
-  amenities: string[];
-  rooms: number;
-  beds: number;
-  cancellation: string;
-  whyItFits: string;
-  tags: string[];
-  distanceNote: string;
-  link?: string;
-  photos?: string[];
-  submittedBy: string;
-}
-
-export interface Trip {
-  id: string;
-  destination: string;
-  days: number;
-  vibes: string[];
-  budget: string;
-  showEstimatedCosts?: boolean;
-  planningDefaults?: {
-    pace: string;
-    focus: string;
-  };
-  startDate: string | null;
-  endDate?: string | null;
-  members: Record<string, TripMember>;
-  hostMemberId: string;
-  createdAt: string;
-  inviteCode?: string;
-  itinerary?: { title: string; days: ItineraryDay[] };
-  votesLockedBy?: Record<string, boolean>;
-  collectingPreferences?: boolean;
-  memberPreferences?: Record<string, MemberPreference>;
+e>;
   destinationSuggestions?: DestinationSuggestion[];
   destinationVotes?: Record<string, Record<string, "up" | "down">>;
   destinationLockedBy?: Record<string, boolean>;
@@ -159,6 +75,15 @@ export interface ProfileActivity {
   activity: Activity;
 }
 
+export interface ProfileMemory {
+  id: string;
+  tripId: string;
+  destination: string;
+  generatedAt: string;
+  title: string;
+  photo?: string;
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -175,6 +100,7 @@ export interface ItineraryDay {
 }
 
 export interface Activity {
+  id?: string;
   time: string;
   name: string;
   description: string;
@@ -518,9 +444,14 @@ export async function updatePackyoProfile(
 }
 
 /** Derives profile history from permitted trip records; it does not duplicate trip data. */
-export function useProfileTripCollections(trips: Trip[], displayName?: string | null) {
+export function useProfileTripCollections(
+  trips: Trip[],
+  displayName?: string | null,
+  uid?: string,
+) {
   const stays: ProfileStay[] = [];
   const activities: ProfileActivity[] = [];
+  const memories: ProfileMemory[] = [];
   const normalizedName = displayName?.trim().toLowerCase();
 
   for (const trip of trips) {
@@ -531,6 +462,23 @@ export function useProfileTripCollections(trips: Trip[], displayName?: string | 
         destination: trip.destination,
         startDate: trip.startDate,
         accommodation: trip.confirmedAccommodation,
+      });
+    }
+
+    const memberGuide = uid ? trip.memoryGuides?.[uid] : undefined;
+    const legacyReview = trip.review as { reviewedBy?: string; photos?: string[] } | undefined;
+    const memberReview = uid
+      ? trip.memberReviews?.[uid] as { photos?: string[] } | undefined
+      : undefined;
+    const guide = memberGuide ?? (uid && legacyReview?.reviewedBy === uid ? trip.memoryGuide : undefined);
+    if (guide) {
+      memories.push({
+        id: `${trip.id}:memory`,
+        tripId: trip.id,
+        destination: trip.destination,
+        generatedAt: guide.generatedAt,
+        title: guide.title,
+        photo: memberReview?.photos?.[0] ?? legacyReview?.photos?.[0],
       });
     }
 
@@ -554,6 +502,7 @@ export function useProfileTripCollections(trips: Trip[], displayName?: string | 
   return {
     stays: stays.sort((a, b) => String(b.startDate ?? "").localeCompare(String(a.startDate ?? ""))),
     activities,
+    memories: memories.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)),
   };
 }
 
@@ -1490,33 +1439,45 @@ export async function confirmAccommodation(
 
 /* ── Activity CRUD ────────────────────────────────────────────────── */
 
+async function writeSharedActivity(body: {
+  tripId: string;
+  operation: "add" | "update" | "delete";
+  dayNumber: number;
+  activityId?: string;
+  targetActivity?: Activity;
+  activity?: Partial<Activity>;
+}) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Sign in before changing a shared activity.");
+  const token = await currentUser.getIdToken();
+  const response = await apiFetch("/api/trip-activity", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({} as { error?: string }));
+  if (!response.ok) {
+    throw new Error(result.error ?? "Could not save the shared activity.");
+  }
+}
+
 export async function updateActivity(
   tripId: string,
   dayNumber: number,
-  actIndex: number,
+  targetActivity: Activity,
   partial: Partial<Activity>,
 ) {
-  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
-  if (!snap.exists()) return;
-  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
-  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
-  if (dayIdx === -1) return;
-  itinerary.days[dayIdx].activities[actIndex] = {
-    ...itinerary.days[dayIdx].activities[actIndex],
-    ...partial,
-  };
-  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
-}
-
-function parseTimeToMinutes(timeStr: string): number {
-  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) return 0;
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const ampm = match[3].toUpperCase();
-  if (ampm === "PM" && hours !== 12) hours += 12;
-  if (ampm === "AM" && hours === 12) hours = 0;
-  return hours * 60 + minutes;
+  await writeSharedActivity({
+    tripId,
+    operation: "update",
+    dayNumber,
+    activityId: targetActivity.id,
+    targetActivity,
+    activity: partial,
+  });
 }
 
 export async function addActivity(
@@ -1524,11 +1485,6 @@ export async function addActivity(
   dayNumber: number,
   activity: Partial<Activity>,
 ) {
-  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
-  if (!snap.exists()) return;
-  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
-  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
-  if (dayIdx === -1) return;
   const newAct: Activity = {
     time: activity.time ?? "12:00 PM",
     name: activity.name ?? "New activity",
@@ -1536,29 +1492,25 @@ export async function addActivity(
     tag: activity.tag ?? "culture",
     fromWish: false,
     suggester: activity.suggester ?? "Member",
+    matchedVibe: activity.matchedVibe ?? null,
     estimatedCost: activity.estimatedCost ?? 0,
-    labels: [],
-    nearPrevious: false,
+    labels: activity.labels ?? [],
+    nearPrevious: activity.nearPrevious ?? false,
+    photoQuery: activity.photoQuery,
+    lat: activity.lat,
+    lng: activity.lng,
   };
-  const newMinutes = parseTimeToMinutes(newAct.time);
-  const acts = itinerary.days[dayIdx].activities;
-  const insertAt = acts.findIndex((a) => parseTimeToMinutes(a.time) > newMinutes);
-  if (insertAt === -1) {
-    acts.push(newAct);
-  } else {
-    acts.splice(insertAt, 0, newAct);
-  }
-  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+  await writeSharedActivity({ tripId, operation: "add", dayNumber, activity: newAct });
 }
 
-export async function deleteActivity(tripId: string, dayNumber: number, actIndex: number) {
-  const snap = await get(ref(db, `trips/${tripId}/itinerary`));
-  if (!snap.exists()) return;
-  const itinerary = snap.val() as { title: string; days: ItineraryDay[] };
-  const dayIdx = itinerary.days.findIndex((d) => d.dayNumber === dayNumber);
-  if (dayIdx === -1) return;
-  itinerary.days[dayIdx].activities.splice(actIndex, 1);
-  await set(ref(db, `trips/${tripId}/itinerary`), itinerary);
+export async function deleteActivity(tripId: string, dayNumber: number, targetActivity: Activity) {
+  await writeSharedActivity({
+    tripId,
+    operation: "delete",
+    dayNumber,
+    activityId: targetActivity.id,
+    targetActivity,
+  });
 }
 
 export async function deleteTrip(tripId: string, uid: string) {

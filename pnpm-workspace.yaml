@@ -79,7 +79,6 @@ overrides:
   # Keep the workspace on the current patched release.
   tar: "7.5.22"
   # replit uses linux-x64 only, we can exclude all other platforms
-  "@expo/config-plugins": "54.0.5"
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
   "esbuild>@esbuild/freebsd-arm64": "-"
@@ -167,8 +166,3 @@ overrides:
   js-yaml: ">=4.2.0"
   markdown-it: ">=14.2.0"
   "@babel/core": ">=7.29.6"
-
-allowBuilds:
-  '@firebase/util': true
-  esbuild: true
-  protobufjs: true
