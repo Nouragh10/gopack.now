@@ -79,6 +79,7 @@ overrides:
   # Keep the workspace on the current patched release.
   tar: "7.5.22"
   # replit uses linux-x64 only, we can exclude all other platforms
+  "@expo/config-plugins": "54.0.5"
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
   "esbuild>@esbuild/freebsd-arm64": "-"
