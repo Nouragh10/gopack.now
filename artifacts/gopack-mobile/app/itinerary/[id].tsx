@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import * as Haptics from "expo-haptics";
+import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
@@ -1345,7 +1346,17 @@ export default function ItineraryScreen() {
         return d;
       };
 
-      if (Platform.OS !== "web") {
+      const calendarApiAvailable =
+        Platform.OS !== "web"
+        && typeof Calendar.isAvailableAsync === "function"
+        && await Calendar.isAvailableAsync();
+      if (
+        calendarApiAvailable
+        && typeof Calendar.getCalendarPermissionsAsync === "function"
+        && typeof Calendar.requestCalendarPermissionsAsync === "function"
+        && typeof Calendar.getCalendarsAsync === "function"
+        && typeof Calendar.createEventAsync === "function"
+      ) {
         let permission = await Calendar.getCalendarPermissionsAsync();
         if (permission.status !== "granted") {
           permission = await Calendar.requestCalendarPermissionsAsync();
@@ -1353,7 +1364,7 @@ export default function ItineraryScreen() {
         if (permission.status === "granted") {
           const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
           let targetCalendar = calendars.find((item) => item.allowsModifications);
-          if (!targetCalendar) {
+          if (!targetCalendar && typeof Calendar.getDefaultCalendarAsync === "function") {
             const defaultCalendar = await Calendar.getDefaultCalendarAsync();
             if (defaultCalendar?.allowsModifications) targetCalendar = defaultCalendar;
           }
@@ -1380,11 +1391,13 @@ export default function ItineraryScreen() {
               );
               return;
             } catch (nativeCalendarError) {
-              await Promise.all(
-                createdEventIds.map((eventId) =>
-                  Calendar.deleteEventAsync(eventId).catch(() => undefined),
-                ),
-              );
+              if (typeof Calendar.deleteEventAsync === "function") {
+                await Promise.all(
+                  createdEventIds.map((eventId) =>
+                    Calendar.deleteEventAsync(eventId).catch(() => undefined),
+                  ),
+                );
+              }
               if (createdEventIds.length > 0) {
                 throw nativeCalendarError;
               }
@@ -1432,15 +1445,11 @@ export default function ItineraryScreen() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        const exportDirectory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-        if (!exportDirectory) throw new Error("No local file directory is available.");
         const baseFileName = safeExportFileName(trip.destination, "ics").replace(/\.ics$/, "");
-        const fileUri = `${exportDirectory}${baseFileName}-${Date.now()}.ics`;
-        // The timestamp makes this unique. Avoid deleteAsync here because some
-        // older iOS Expo clients do not expose it on the FileSystem shim.
-        await FileSystem.writeAsStringAsync(fileUri, icsContent, { encoding: FileSystem.EncodingType.UTF8 });
-        const fileInfo = await FileSystem.getInfoAsync(fileUri);
-        if (!fileInfo.exists) throw new Error("The calendar file could not be created.");
+        const calendarFile = new File(Paths.cache, `${baseFileName}-${Date.now()}.ics`);
+        calendarFile.write(icsContent);
+        if (!calendarFile.exists) throw new Error("The calendar file could not be created.");
+        const fileUri = calendarFile.uri;
 
         const canShare = typeof Sharing.isAvailableAsync === "function" && await Sharing.isAvailableAsync();
         if (canShare) {

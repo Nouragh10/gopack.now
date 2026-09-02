@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -125,7 +125,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
-  const { trips, loading: tripsLoading } = useTrips(user?.uid);
+  const { trips, loading: tripsLoading, refetch: refetchTrips } = useTrips(user?.uid);
   const { packs } = usePacks(user?.uid);
   const { wishes } = useRecentWishes(user?.uid, trips.map((trip) => trip.id));
   const { profile } = usePackyoProfile(user?.uid);
@@ -133,6 +133,12 @@ export default function ProfileScreen() {
   const { savedDestinations, loading: savedDestinationsLoading } = useSavedDestinations(user?.uid);
   const [removingSavedId, setRemovingSavedId] = React.useState<string | null>(null);
   const [savedError, setSavedError] = React.useState("");
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchTrips();
+    }, [refetchTrips]),
+  );
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 84 : insets.bottom + 80;
