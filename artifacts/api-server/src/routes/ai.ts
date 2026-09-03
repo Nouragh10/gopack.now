@@ -16,6 +16,12 @@ import {
   parseItineraryResponse,
   type ItineraryShape,
 } from "../lib/itinerary-parser";
+import {
+  firebaseListEntries,
+  normalizeActivityList,
+  resolveFirebaseActivityIndex,
+  resolveFirebaseDayEntry,
+} from "../lib/firebase-lists";
 
 const router: IRouter = Router();
 const joinAttemptWindows = new Map<string, { count: number; resetAt: number }>();
@@ -52,19 +58,6 @@ function activityTimeToMinutes(value: unknown): number {
   if (match[3].toUpperCase() === "PM" && hours !== 12) hours += 12;
   if (match[3].toUpperCase() === "AM" && hours === 12) hours = 0;
   return hours * 60 + minutes;
-}
-
-function isSameLegacyActivity(
-  candidate: Record<string, unknown>,
-  target: Record<string, unknown>,
-): boolean {
-  return (
-    candidate.name === target.name &&
-    candidate.time === target.time &&
-    candidate.description === target.description &&
-    candidate.suggester === target.suggester &&
-    Boolean(candidate.fromWish) === Boolean(target.fromWish)
-  );
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -1702,6 +1695,10 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
           day?: number;
           dayNumber?: number;
           activities?: Array<Record<string, unknown>>;
+        }> | Record<string, {
+          day?: number;
+          dayNumber?: number;
+          activities?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>>;
         }>;
       };
     } | null;
@@ -1710,37 +1707,47 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
       res.status(403).json({ error: "Only trip members can change activities." });
       return;
     }
-    const days = currentTrip?.itinerary?.days;
-    if (!Array.isArray(days)) {
+    const dayEntries = firebaseListEntries<{
+      day?: number;
+      dayNumber?: number;
+      activities?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>>;
+    }>(currentTrip?.itinerary?.days);
+    if (dayEntries.length === 0) {
       res.status(409).json({ error: "This trip does not have an itinerary to update." });
       return;
     }
-    const dayIdx = days.findIndex(
-      (day, index) => Number(day.dayNumber ?? day.day ?? index + 1) === Number(dayNumber),
-    );
-    if (dayIdx === -1) {
+    const requestedDayNumber = Number(dayNumber);
+    const matchingDay = resolveFirebaseDayEntry(dayEntries, requestedDayNumber);
+    if (!matchingDay) {
+      req.log.warn(
+        {
+          tripId,
+          requestedDayNumber,
+          availableDays: dayEntries.map(({ key, value }, index) => ({
+            key,
+            dayNumber: value.dayNumber ?? value.day ?? index + 1,
+          })),
+        },
+        "Could not resolve itinerary day for activity mutation",
+      );
       res.status(409).json({ error: "That itinerary day is no longer available. Please refresh and try again." });
       return;
     }
 
-    const activitiesRef = tripRef.child(`itinerary/days/${dayIdx}/activities`);
+    if (Number(matchingDay.value.dayNumber) !== matchingDay.canonicalDayNumber) {
+      await tripRef
+        .child(`itinerary/days/${matchingDay.key}/dayNumber`)
+        .set(matchingDay.canonicalDayNumber);
+    }
+    const activitiesRef = tripRef.child(`itinerary/days/${matchingDay.key}/activities`);
+    const newActivityId = operation === "add" ? randomUUID() : null;
     const transaction = await activitiesRef.transaction((currentActivities) => {
-      const rawActivities = Array.isArray(currentActivities)
-        ? currentActivities
-        : currentActivities && typeof currentActivities === "object"
-          ? Object.keys(currentActivities as Record<string, unknown>)
-              .sort((a, b) => Number(a) - Number(b))
-              .map((key) => (currentActivities as Record<string, Record<string, unknown>>)[key])
-          : [];
-      const activities: Array<Record<string, unknown> & { id: string }> = rawActivities.map((existing) => ({
-        ...existing,
-        id: typeof existing.id === "string" && existing.id ? existing.id : randomUUID(),
-      }));
+      const activities = normalizeActivityList(currentActivities);
 
       if (operation === "add") {
         const source = activity!;
-        const newActivity: Record<string, unknown> & { id: string } = {
-          id: randomUUID(),
+        const newActivity: Record<string, unknown> = {
+          id: newActivityId!,
           time: typeof source.time === "string" ? source.time : "12:00 PM",
           name: typeof source.name === "string" ? source.name.trim() : "New activity",
           description: typeof source.description === "string" ? source.description.trim() : "",
@@ -1761,13 +1768,8 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
         if (insertAt === -1) activities.push(newActivity);
         else activities.splice(insertAt, 0, newActivity);
       } else {
-        const matchingIndices = activityId
-          ? activities.flatMap((candidate, index) => candidate.id === activityId ? [index] : [])
-          : activities.flatMap((candidate, index) =>
-              targetActivity && isSameLegacyActivity(candidate, targetActivity) ? [index] : [],
-            );
-        if (matchingIndices.length !== 1) return;
-        const index = matchingIndices[0];
+        const index = resolveFirebaseActivityIndex(activities, activityId, targetActivity);
+        if (index === -1) return;
         if (operation === "delete") {
           activities.splice(index, 1);
         } else {
@@ -1785,7 +1787,43 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
       return activities;
     });
 
-    if (!transaction.committed) {
+    let committed = transaction.committed;
+    if (!committed && operation === "add") {
+      // A new activity has no stale target to conflict with. Some legacy
+      // Firebase array shapes can still abort a transaction before committing,
+      // so re-read and persist the add once rather than surfacing a false 409.
+      const latestSnapshot = await activitiesRef.get();
+      const latestActivities = normalizeActivityList(latestSnapshot.val());
+      if (!latestActivities.some((candidate) => candidate.id === newActivityId)) {
+        const source = activity!;
+        const newActivity: Record<string, unknown> = {
+          id: newActivityId!,
+          time: typeof source.time === "string" ? source.time : "12:00 PM",
+          name: typeof source.name === "string" ? source.name.trim() : "New activity",
+          description: typeof source.description === "string" ? source.description.trim() : "",
+          tag: typeof source.tag === "string" ? source.tag : "culture",
+          fromWish: false,
+          suggester: member.name?.trim() || "Member",
+          matchedVibe: source.matchedVibe ?? null,
+          estimatedCost: Number.isFinite(Number(source.estimatedCost)) ? Number(source.estimatedCost) : 0,
+          labels: Array.isArray(source.labels) ? source.labels.slice(0, 8) : [],
+          nearPrevious: Boolean(source.nearPrevious),
+          ...(typeof source.photoQuery === "string" ? { photoQuery: source.photoQuery } : {}),
+          ...(Number.isFinite(Number(source.lat)) ? { lat: Number(source.lat) } : {}),
+          ...(Number.isFinite(Number(source.lng)) ? { lng: Number(source.lng) } : {}),
+        };
+        const insertAt = latestActivities.findIndex(
+          (existing) => activityTimeToMinutes(existing.time) > activityTimeToMinutes(newActivity.time),
+        );
+        if (insertAt === -1) latestActivities.push(newActivity);
+        else latestActivities.splice(insertAt, 0, newActivity);
+        await activitiesRef.set(latestActivities);
+      }
+      committed = true;
+      req.log.warn({ tripId, dayNumber }, "Recovered an aborted add-activity transaction");
+    }
+
+    if (!committed) {
       res.status(409).json({
         error: "The selected activity is no longer available. Please refresh and try again.",
       });
