@@ -35,27 +35,39 @@ id = "4-5I7NVqCpJwWxKdbF1vr"
 uri = "file://attached_assets/logo_backpack.png"
 type = "image"
 title = "Option 1 — Backpack + Location Pin"
+logical_id = "c92fa82f-c670-48fe-9e5c-69b6c32af903"
 
 [[outputs]]
 id = "EEJ8m0rpagO8QJC9DtrR3"
 uri = "file://attached_assets/logo_compass.png"
 type = "image"
 title = "Option 2 — Compass + Group"
+logical_id = "e3677435-0662-44a5-8ff2-8c77c1096791"
 
 [[outputs]]
 id = "Fk3UVMGjJbHp2s2QhbaC5"
 uri = "file://attached_assets/logo_plane.png"
 type = "image"
 title = "Option 3 — Map Paper Plane"
+logical_id = "824dc906-0797-4fb2-9151-5fe9ea0e7a61"
 
 [[outputs]]
 id = "iTO9fTnKP89fmv6huCFch"
 uri = "file://artifacts/gopack-mobile/assets/images/icon.png"
 type = "image"
 title = "GoPackNow App Icon (1024×1024)"
+logical_id = "58811062-0df7-45cb-a76d-d839a1d365ed"
 
 [[outputs]]
 id = "94YaPB38QwHlCYkeLG3tO"
 uri = "file://GoPackNow-Mobile-Screens.pdf"
 type = "pdf"
 title = "GoPackNow Mobile App — All Screens"
+logical_id = "918039a9-fc90-4c85-bf1c-a1578fcef7af"
+
+[[outputs]]
+id = "SO5fBf0AyG5ebWFV-OVbJ"
+uri = "file://artifacts/packyo-mobile-tour/public/audio/bg_music.mp3"
+type = "audio"
+title = "Packyo tour background music"
+description = "Generated music: Warm upbeat nu-disco and modern travel-pop instrumental background music scoring a collaborative mobile trip-planning product tour. Clean bass, light percussion, muted guitar, airy s…"
