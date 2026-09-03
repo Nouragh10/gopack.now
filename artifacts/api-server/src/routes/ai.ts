@@ -1694,24 +1694,48 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const transaction = await tripRef.transaction((current) => {
-      const member = current?.members?.[decoded.uid] as { name?: string } | undefined;
-      if (!member || !current?.itinerary || !Array.isArray(current.itinerary.days)) return;
-      const days = current.itinerary.days as Array<{
-        day?: number;
-        dayNumber?: number;
-        activities?: Array<Record<string, unknown>>;
-      }>;
-      const dayIdx = days.findIndex(
-        (day, index) => Number(day.dayNumber ?? day.day ?? index + 1) === Number(dayNumber),
-      );
-      if (dayIdx === -1) return;
-      const activities: Array<Record<string, unknown> & { id: string }> = Array.isArray(days[dayIdx].activities)
-        ? days[dayIdx].activities!.map((existing) => ({
-            ...existing,
-            id: typeof existing.id === "string" && existing.id ? existing.id : randomUUID(),
-          }))
-        : [];
+    const tripSnapshot = await tripRef.get();
+    const currentTrip = tripSnapshot.val() as {
+      members?: Record<string, { name?: string }>;
+      itinerary?: {
+        days?: Array<{
+          day?: number;
+          dayNumber?: number;
+          activities?: Array<Record<string, unknown>>;
+        }>;
+      };
+    } | null;
+    const member = currentTrip?.members?.[decoded.uid];
+    if (!member) {
+      res.status(403).json({ error: "Only trip members can change activities." });
+      return;
+    }
+    const days = currentTrip?.itinerary?.days;
+    if (!Array.isArray(days)) {
+      res.status(409).json({ error: "This trip does not have an itinerary to update." });
+      return;
+    }
+    const dayIdx = days.findIndex(
+      (day, index) => Number(day.dayNumber ?? day.day ?? index + 1) === Number(dayNumber),
+    );
+    if (dayIdx === -1) {
+      res.status(409).json({ error: "That itinerary day is no longer available. Please refresh and try again." });
+      return;
+    }
+
+    const activitiesRef = tripRef.child(`itinerary/days/${dayIdx}/activities`);
+    const transaction = await activitiesRef.transaction((currentActivities) => {
+      const rawActivities = Array.isArray(currentActivities)
+        ? currentActivities
+        : currentActivities && typeof currentActivities === "object"
+          ? Object.keys(currentActivities as Record<string, unknown>)
+              .sort((a, b) => Number(a) - Number(b))
+              .map((key) => (currentActivities as Record<string, Record<string, unknown>>)[key])
+          : [];
+      const activities: Array<Record<string, unknown> & { id: string }> = rawActivities.map((existing) => ({
+        ...existing,
+        id: typeof existing.id === "string" && existing.id ? existing.id : randomUUID(),
+      }));
 
       if (operation === "add") {
         const source = activity!;
@@ -1758,27 +1782,17 @@ router.post("/trip-activity", async (req: Request, res: Response): Promise<void>
         }
       }
 
-      days[dayIdx] = { ...days[dayIdx], activities };
-      return {
-        ...current,
-        itinerary: {
-          ...current.itinerary,
-          days,
-        },
-      };
+      return activities;
     });
 
     if (!transaction.committed) {
-      const latest = await tripRef.get();
-      const isStillMember = Boolean(latest.val()?.members?.[decoded.uid]);
-      res.status(isStillMember ? 409 : 403).json({
-        error: isStillMember
-          ? "The itinerary changed while saving. Please refresh and try again."
-          : "Only trip members can change activities.",
+      res.status(409).json({
+        error: "The selected activity is no longer available. Please refresh and try again.",
       });
       return;
     }
-    res.json({ itinerary: transaction.snapshot.val()?.itinerary });
+    const itinerarySnapshot = await tripRef.child("itinerary").get();
+    res.json({ itinerary: itinerarySnapshot.val() });
   } catch (err) {
     req.log.error({ err }, "Failed to update shared trip activity");
     res.status(500).json({ error: "Could not save the shared activity. Please try again." });
