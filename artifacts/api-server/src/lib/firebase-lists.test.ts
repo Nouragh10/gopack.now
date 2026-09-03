@@ -101,3 +101,54 @@ test("uses the first visually identical legacy activity instead of aborting", ()
 
   assert.equal(resolveFirebaseActivityIndex([activity, { ...activity }], undefined, activity), 0);
 });
+
+test("matches a stale activity when optional legacy fields are missing or normalized", () => {
+  const activities = [
+    {
+      id: "stored-id",
+      name: "  Museum   of Art ",
+      time: "10:00   AM",
+      tag: "culture",
+    },
+  ];
+
+  assert.equal(
+    resolveFirebaseActivityIndex(activities, "stale-client-id", {
+      id: "stale-client-id",
+      name: "museum of art",
+      time: "10:00 AM",
+      description: "See the collection",
+      suggester: "AI pick",
+      fromWish: false,
+      tag: "culture",
+    }),
+    0,
+  );
+});
+
+test("uses optional fields to choose between duplicate name and time matches", () => {
+  const activities = [
+    {
+      name: "Coffee",
+      time: "9:00 AM",
+      description: "Coffee near the hotel",
+      suggester: "AI pick",
+    },
+    {
+      name: "Coffee",
+      time: "9:00 AM",
+      description: "Coffee by the museum",
+      suggester: "Nora",
+    },
+  ];
+
+  assert.equal(
+    resolveFirebaseActivityIndex(activities, undefined, {
+      name: "coffee",
+      time: "9:00 am",
+      description: "Coffee by the museum",
+      suggester: "Nora",
+    }),
+    1,
+  );
+});

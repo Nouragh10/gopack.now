@@ -43,17 +43,37 @@ export function resolveFirebaseDayEntry<T extends { day?: unknown; dayNumber?: u
   return { ...selected, canonicalDayNumber };
 }
 
-function isSameLegacyActivity(
+function normalizeActivityText(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+    : "";
+}
+
+function legacyActivityMatchScore(
   candidate: Record<string, unknown>,
   target: Record<string, unknown>,
-): boolean {
-  return (
-    candidate.name === target.name &&
-    candidate.time === target.time &&
-    candidate.description === target.description &&
-    candidate.suggester === target.suggester &&
-    Boolean(candidate.fromWish) === Boolean(target.fromWish)
-  );
+): number {
+  if (
+    normalizeActivityText(candidate.name) !== normalizeActivityText(target.name) ||
+    normalizeActivityText(candidate.time) !== normalizeActivityText(target.time)
+  ) {
+    return -1;
+  }
+
+  let score = 0;
+  for (const field of ["description", "suggester", "tag"] as const) {
+    const candidateValue = normalizeActivityText(candidate[field]);
+    const targetValue = normalizeActivityText(target[field]);
+    if (candidateValue && targetValue && candidateValue === targetValue) score += 1;
+  }
+  if (
+    typeof candidate.fromWish === "boolean" &&
+    typeof target.fromWish === "boolean" &&
+    candidate.fromWish === target.fromWish
+  ) {
+    score += 1;
+  }
+  return score;
 }
 
 export function resolveFirebaseActivityIndex(
@@ -67,7 +87,16 @@ export function resolveFirebaseActivityIndex(
   }
 
   if (targetActivity) {
-    return activities.findIndex((candidate) => isSameLegacyActivity(candidate, targetActivity));
+    let bestIndex = -1;
+    let bestScore = -1;
+    activities.forEach((candidate, index) => {
+      const score = legacyActivityMatchScore(candidate, targetActivity);
+      if (score > bestScore) {
+        bestIndex = index;
+        bestScore = score;
+      }
+    });
+    return bestIndex;
   }
 
   return -1;
