@@ -3,8 +3,8 @@ name: Narrow Firebase activity transactions
 description: Avoid false conflicts when members add, edit, or delete itinerary activities in Firebase RTDB.
 ---
 
-Shared activity writes should verify current trip membership and resolve the requested itinerary day from a fresh snapshot, then transact only on that day’s activity list. For update/delete, confirm the target is in that day; if not, locate a unique matching activity across all days before writing.
+Shared activity writes should verify membership and resolve the requested day from a fresh snapshot. Support stable IDs, legacy numeric IDs, and a unique time/category slot; recover cold-child transaction aborts from a fresh child snapshot.
 
-**Why:** Whole-trip RTDB transactions aborted repeatedly during valid activity additions and surfaced a misleading “itinerary changed” error. Existing iPhone builds can retain stale IDs, while legacy itineraries can have drifted or duplicated day numbers and optional activity fields. Matching only inside the initially resolved day therefore blocks valid redo and remove actions.
+**Why:** Existing TestFlight builds may send numeric IDs or stale records. In this RTDB runtime, transactions on an array-valued activities child repeatedly received `null` despite a preceding read, so valid update/delete callbacks aborted with 409 while the child still contained activities.
 
-**How to apply:** Keep authorization immediately before the write and transact only on one day’s activities. Prefer exact ID, then normalized name with time/optional-field ranking. If the requested day has no match, search all days and use only a unique match. New clients should also send the visible activity index as a guarded final fallback.
+**How to apply:** Keep authorization immediately before the write and scope writes to one day. Prefer exact ID, numeric index, then normalized fields or one unambiguous time/category slot. If the transaction sees a cold empty child, re-read that child, resolve again, and persist only when resolution is unambiguous.

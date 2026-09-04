@@ -49,6 +49,15 @@ function normalizeActivityText(value: unknown): string {
     : "";
 }
 
+function normalizeActivityTime(value: unknown): string {
+  const text = normalizeActivityText(value);
+  const match = text.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+  if (!match) return text;
+  let hour = Number(match[1]) % 12;
+  if (match[3] === "pm") hour += 12;
+  return `${hour}:${match[2]}`;
+}
+
 function legacyActivityMatchScore(
   candidate: Record<string, unknown>,
   target: Record<string, unknown>,
@@ -90,6 +99,19 @@ export function resolveFirebaseActivityIndex(
   if (activityId) {
     const idIndex = activities.findIndex((candidate) => candidate.id === activityId);
     if (idIndex !== -1) return idIndex;
+
+    // Early mobile builds sometimes used the visible array index as the
+    // activity identifier. Accept that shape only when it is an exact integer
+    // within this day's current activity list.
+    const legacyIndex = Number(activityId);
+    if (
+      /^\d+$/.test(String(activityId)) &&
+      Number.isInteger(legacyIndex) &&
+      legacyIndex >= 0 &&
+      legacyIndex < activities.length
+    ) {
+      return legacyIndex;
+    }
   }
 
   if (targetActivity) {
@@ -106,4 +128,20 @@ export function resolveFirebaseActivityIndex(
   }
 
   return -1;
+}
+
+export function resolveUniqueFirebaseActivitySlotIndex(
+  activities: Array<Record<string, unknown>>,
+  targetActivity?: Record<string, unknown>,
+): number {
+  if (!targetActivity) return -1;
+  const targetTime = normalizeActivityTime(targetActivity.time);
+  if (!targetTime) return -1;
+  const targetTag = normalizeActivityText(targetActivity.tag);
+  const matches = activities.flatMap((candidate, index) => {
+    if (normalizeActivityTime(candidate.time) !== targetTime) return [];
+    if (targetTag && normalizeActivityText(candidate.tag) !== targetTag) return [];
+    return [index];
+  });
+  return matches.length === 1 ? matches[0]! : -1;
 }

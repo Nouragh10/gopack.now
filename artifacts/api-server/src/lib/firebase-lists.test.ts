@@ -4,6 +4,7 @@ import {
   firebaseListEntries,
   normalizeActivityList,
   resolveFirebaseActivityIndex,
+  resolveUniqueFirebaseActivitySlotIndex,
   resolveFirebaseDayEntry,
 } from "./firebase-lists";
 
@@ -179,6 +180,47 @@ test("does not match a different activity using time alone", () => {
       name: "Walking Tour",
       time: "10:00 AM",
       description: "Explore downtown",
+    }),
+    -1,
+  );
+});
+
+test("accepts a legacy numeric activity identifier as its array index", () => {
+  const activities = [
+    { name: "Breakfast", time: "8:00 AM" },
+    { name: "Museum", time: "10:00 AM" },
+  ];
+
+  assert.equal(resolveFirebaseActivityIndex(activities, "1"), 1);
+});
+
+test("resolves one legacy activity by its unique time and tag slot", () => {
+  const activities = [
+    { name: "Old server name", time: "09:00 AM", tag: "culture" },
+    { name: "Lunch", time: "12:30 PM", tag: "food" },
+  ];
+
+  assert.equal(
+    resolveUniqueFirebaseActivitySlotIndex(activities, {
+      name: "Newer client name",
+      time: "9:00 AM",
+      tag: "culture",
+    }),
+    0,
+  );
+});
+
+test("refuses an ambiguous legacy time and tag slot", () => {
+  const activities = [
+    { name: "Coffee", time: "9:00 AM", tag: "food" },
+    { name: "Breakfast", time: "09:00 AM", tag: "food" },
+  ];
+
+  assert.equal(
+    resolveUniqueFirebaseActivitySlotIndex(activities, {
+      name: "Stale activity",
+      time: "9:00 AM",
+      tag: "food",
     }),
     -1,
   );
