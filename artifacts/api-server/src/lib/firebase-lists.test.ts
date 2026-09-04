@@ -152,3 +152,34 @@ test("uses optional fields to choose between duplicate name and time matches", (
     1,
   );
 });
+
+test("matches by a unique normalized name when legacy times drift", () => {
+  const activities = [
+    { name: "Museum of Art", time: "10:00 AM", description: "See the collection" },
+    { name: "Lunch", time: "12:30 PM", description: "Local restaurant" },
+  ];
+
+  assert.equal(
+    resolveFirebaseActivityIndex(activities, "stale-client-id", {
+      name: " museum of art ",
+      time: "10:30 AM",
+      description: "",
+    }),
+    0,
+  );
+});
+
+test("does not match a different activity using time alone", () => {
+  const activities = [
+    { name: "Museum", time: "10:00 AM", description: "See the collection" },
+  ];
+
+  assert.equal(
+    resolveFirebaseActivityIndex(activities, "stale-client-id", {
+      name: "Walking Tour",
+      time: "10:00 AM",
+      description: "Explore downtown",
+    }),
+    -1,
+  );
+});

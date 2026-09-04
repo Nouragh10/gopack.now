@@ -931,7 +931,7 @@ interface ActivityCardProps {
   onCardPress: () => void;
   onEdit: (act: Activity, idx: number, day: number) => void;
   onRedo: (act: Activity, idx: number, day: number) => void;
-  onDelete: (act: Activity, day: number) => void;
+  onDelete: (act: Activity, idx: number, day: number) => void;
 }
 
 function ActivityCard({
@@ -996,7 +996,7 @@ function ActivityCard({
           <Pressable onPress={(e) => { e.stopPropagation?.(); onRedo(activity, actIndex, dayNumber); }}>
             <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Redo</Text>
           </Pressable>
-          <Pressable onPress={(e) => { e.stopPropagation?.(); onDelete(activity, dayNumber); }}>
+          <Pressable onPress={(e) => { e.stopPropagation?.(); onDelete(activity, actIndex, dayNumber); }}>
             <Text style={[styles.actionText, { color: colors.destructive }]}>Remove</Text>
           </Pressable>
         </View>
@@ -1184,7 +1184,7 @@ export default function ItineraryScreen() {
         ...newAct,
         time: act.time,
         lastRedoBy: redoByName,
-      });
+      }, idx);
       incrementAiUsage(id!, "activityRedos").catch(() => {});
     } catch (err) {
       Alert.alert("Could not change activity", (err as Error).message || "Please try again.");
@@ -1193,10 +1193,10 @@ export default function ItineraryScreen() {
     }
   };
 
-  const handleDelete = async (activity: Activity, dayNum: number) => {
+  const handleDelete = async (activity: Activity, activityIndex: number, dayNum: number) => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await deleteActivity(id!, dayNum, activity);
+      await deleteActivity(id!, dayNum, activity, activityIndex);
     } catch (err) {
       Alert.alert("Delete failed", (err as Error).message || "Could not delete activity. Please try again.");
     }
@@ -1291,7 +1291,13 @@ export default function ItineraryScreen() {
         });
       } else {
         if (!editModal.targetActivity) throw new Error("The selected activity is no longer available.");
-        await updateActivity(id, editModal.dayNumber, editModal.targetActivity, partial);
+        await updateActivity(
+          id,
+          editModal.dayNumber,
+          editModal.targetActivity,
+          partial,
+          editModal.actIndex,
+        );
       }
     } catch (err) {
       Alert.alert("Could not save activity", (err as Error).message || "Please try again.");

@@ -1528,6 +1528,7 @@ async function writeSharedActivity(body: {
   operation: "add" | "update" | "delete";
   dayNumber: number;
   activityId?: string;
+  activityIndex?: number;
   targetActivity?: Activity;
   activity?: Partial<Activity>;
 }) {
@@ -1553,12 +1554,14 @@ export async function updateActivity(
   dayNumber: number,
   targetActivity: Activity,
   partial: Partial<Activity>,
+  activityIndex?: number,
 ) {
   await writeSharedActivity({
     tripId,
     operation: "update",
     dayNumber,
     activityId: targetActivity.id,
+    activityIndex,
     targetActivity,
     activity: partial,
   });
@@ -1587,12 +1590,18 @@ export async function addActivity(
   await writeSharedActivity({ tripId, operation: "add", dayNumber, activity: newAct });
 }
 
-export async function deleteActivity(tripId: string, dayNumber: number, targetActivity: Activity) {
+export async function deleteActivity(
+  tripId: string,
+  dayNumber: number,
+  targetActivity: Activity,
+  activityIndex?: number,
+) {
   await writeSharedActivity({
     tripId,
     operation: "delete",
     dayNumber,
     activityId: targetActivity.id,
+    activityIndex,
     targetActivity,
   });
 }

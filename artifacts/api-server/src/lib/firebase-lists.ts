@@ -53,15 +53,21 @@ function legacyActivityMatchScore(
   candidate: Record<string, unknown>,
   target: Record<string, unknown>,
 ): number {
-  if (
-    normalizeActivityText(candidate.name) !== normalizeActivityText(target.name) ||
-    normalizeActivityText(candidate.time) !== normalizeActivityText(target.time)
-  ) {
+  const sameName =
+    normalizeActivityText(candidate.name) === normalizeActivityText(target.name);
+  const sameTime =
+    normalizeActivityText(candidate.time) === normalizeActivityText(target.time);
+  const sameDescription =
+    normalizeActivityText(candidate.description) !== "" &&
+    normalizeActivityText(candidate.description) === normalizeActivityText(target.description);
+  if (!sameName && !(sameTime && sameDescription)) {
     return -1;
   }
 
-  let score = 0;
-  for (const field of ["description", "suggester", "tag"] as const) {
+  let score = sameName ? 8 : 0;
+  if (sameTime) score += 4;
+  if (sameDescription) score += 2;
+  for (const field of ["suggester", "tag"] as const) {
     const candidateValue = normalizeActivityText(candidate[field]);
     const targetValue = normalizeActivityText(target[field]);
     if (candidateValue && targetValue && candidateValue === targetValue) score += 1;
